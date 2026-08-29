@@ -82,6 +82,26 @@ jobs:
       - name: Prepare release asset name
         run: cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/syntac-arm64.apk
 
+      - name: Update release manifests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          apk = Path("build/app/outputs/flutter-apk/syntac-arm64.apk")
+          digest = hashlib.sha256(apk.read_bytes()).hexdigest()
+          size = apk.stat().st_size
+
+          for path in Path("update").glob("*.json"):
+              data = json.loads(path.read_text())
+              data["sha256"] = digest
+              data["size"] = size
+              path.write_text(json.dumps(data, indent=2) + "\n")
+          PY
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
