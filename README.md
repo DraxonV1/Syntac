@@ -126,56 +126,26 @@ Release APK output:
 build/app/outputs/flutter-apk/app-release.apk
 ```
 
-## Release signing
+## Releases
 
-Public Android updates need one stable package name and one stable signing key.
+`com.syntac` is public Android package identity. Keep it stable so updates install over existing beta builds.
 
-Package name:
+Contribution flow:
 
-```text
-com.syntac
-```
+- Open PR with source changes.
+- CI runs formatting, analysis, and tests.
+- After merge to `master`, GitHub Actions builds signed `syntac-arm64.apk`.
+- Release workflow publishes APK and update manifests to GitHub Releases.
 
-Do not change package name or release signing key after public distribution unless creating a separate app. Android treats changed package names or signing keys as incompatible installs.
+PR builds never receive release signing credentials or provider OAuth secrets.
 
-Local release builds read ignored file `android/key.properties`:
-
-```properties
-storeFile=syntac-release.jks
-storePassword=change-me
-keyAlias=syntac
-keyPassword=change-me
-```
-
-GitHub Actions release signing secrets:
+Release artifacts:
 
 ```text
-ANDROID_KEYSTORE_BASE64
-ANDROID_KEYSTORE_PASSWORD
-ANDROID_KEY_ALIAS
-ANDROID_KEY_PASSWORD
-```
-
-If signing secrets are missing, GitHub Actions creates a temporary CI key so beta APK automation can complete. Use a long-lived release key before stable distribution.
-
-Optional Google Antigravity OAuth build secrets:
-
-```text
-SYNTAC_GOOGLE_OAUTH_CLIENT_ID
-SYNTAC_GOOGLE_OAUTH_CLIENT_SECRET
-```
-
-If omitted, Google Antigravity sign-in fails safely instead of using embedded repository credentials.
-
-## GitHub Actions
-
-- `CI`: format check, Flutter analysis, tests.
-- `Android APK`: builds `syntac-arm64.apk` on version tags and publishes a GitHub prerelease for beta/nightly tags.
-
-Tag format:
-
-```text
-v0.1.1-beta.2
+https://github.com/DraxonV1/Syntac/releases/download/v0.1.1-beta.2/syntac-arm64.apk
+update/stable.json
+update/beta.json
+update/nightly.json
 ```
 
 ## License

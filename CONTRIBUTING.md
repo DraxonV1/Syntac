@@ -194,14 +194,9 @@ Include this in your PR description:
 
 PRs run CI for formatting, analysis, and tests.
 
-Release APK workflow runs on tags like `v1.0.0` or manual dispatch. Maintainers can configure real signing through repository secrets:
+Release APK workflow runs after merges to `master` and for version tags. Maintainers configure production signing and optional OAuth credentials in repository secrets.
 
-- `ANDROID_KEYSTORE_BASE64`
-- `ANDROID_KEYSTORE_PASSWORD`
-- `ANDROID_KEY_ALIAS`
-- `ANDROID_KEY_PASSWORD`
-
-Without signing secrets, the release APK workflow uses a temporary CI key. That APK proves beta automation only; configure the real key before stable distribution.
+PRs never receive signing credentials. Accepted PRs are built and released by the trusted `master` workflow.
 
 ## Style
 

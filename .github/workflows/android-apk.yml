@@ -2,6 +2,9 @@ name: Android APK
 
 on:
   push:
+    branches:
+      - main
+      - master
     tags:
       - 'v*'
   workflow_dispatch:
@@ -47,31 +50,24 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -n "${ANDROID_KEYSTORE_BASE64}" && -n "${ANDROID_KEYSTORE_PASSWORD}" && -n "${ANDROID_KEY_ALIAS}" && -n "${ANDROID_KEY_PASSWORD}" ]]; then
-            echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/release.jks
-            cat > android/key.properties <<EOF
+          missing=0
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::$name repository secret is required for release APK signing"
+              missing=1
+            fi
+          done
+          if [[ "$missing" -ne 0 ]]; then
+            exit 1
+          fi
+
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/release.jks
+          cat > android/key.properties <<EOF
           storeFile=release.jks
           storePassword=$ANDROID_KEYSTORE_PASSWORD
           keyAlias=$ANDROID_KEY_ALIAS
           keyPassword=$ANDROID_KEY_PASSWORD
           EOF
-          else
-            keytool -genkeypair -v \
-              -keystore android/ci-release.jks \
-              -storepass ci-release-password \
-              -keypass ci-release-password \
-              -alias ci-release \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -dname "CN=Syntac CI, OU=Syntac, O=Syntac, L=Unknown, ST=Unknown, C=US"
-            cat > android/key.properties <<EOF
-          storeFile=ci-release.jks
-          storePassword=ci-release-password
-          keyAlias=ci-release
-          keyPassword=ci-release-password
-          EOF
-          fi
 
       - name: Build release APK
         run: >
@@ -102,6 +98,45 @@ jobs:
               path.write_text(json.dumps(data, indent=2) + "\n")
           PY
 
+      - name: Resolve release metadata
+        id: release_meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(python3 - <<'PY'
+          import re
+          from pathlib import Path
+          match = re.search(r'^version:\s*([^\s]+)', Path('pubspec.yaml').read_text(), re.MULTILINE)
+          if not match:
+              raise SystemExit('pubspec.yaml version not found')
+          print(match.group(1).split('+', 1)[0])
+          PY
+          )"
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            tag="${GITHUB_REF_NAME}"
+          else
+            tag="v${version}"
+          fi
+          if [[ "$tag" == *beta* || "$tag" == *nightly* ]]; then
+            prerelease=true
+          else
+            prerelease=false
+          fi
+          {
+            echo "tag=$tag"
+            echo "prerelease=$prerelease"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Update release tag
+        if: github.ref_type != 'tag'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -fa "${{ steps.release_meta.outputs.tag }}" "$GITHUB_SHA" -m "Syntac ${{ steps.release_meta.outputs.tag }}"
+          git push --force origin "refs/tags/${{ steps.release_meta.outputs.tag }}"
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
@@ -110,15 +145,16 @@ jobs:
           if-no-files-found: error
 
       - name: Publish GitHub release
-        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'nightly') }}
-          name: Syntac ${{ github.ref_name }}
+          tag_name: ${{ steps.release_meta.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          prerelease: ${{ steps.release_meta.outputs.prerelease }}
+          name: Syntac ${{ steps.release_meta.outputs.tag }}
           body: |
             Android Early Access APK.
 
-            Default update channel: beta.
+            Built from trusted repository workflow after merge or release tag.
           files: |
             build/app/outputs/flutter-apk/syntac-arm64.apk
             update/beta.json
