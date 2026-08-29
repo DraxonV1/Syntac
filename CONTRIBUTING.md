@@ -201,7 +201,7 @@ Release APK workflow runs on tags like `v1.0.0` or manual dispatch. Maintainers 
 - `ANDROID_KEY_ALIAS`
 - `ANDROID_KEY_PASSWORD`
 
-Without signing secrets, the release APK workflow fails. This protects update/install compatibility by keeping public APKs on one locked signing key.
+Without signing secrets, the release APK workflow uses a temporary CI key. That APK proves beta automation only; configure the real key before stable distribution.
 
 ## Style
 

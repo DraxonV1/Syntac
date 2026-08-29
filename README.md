@@ -304,7 +304,7 @@ On macOS, if `-w` is unsupported:
 base64 -i syntac-release.jks | tr -d '\n'
 ```
 
-The release workflow fails if signing secrets are missing. That is intentional: real update/install compatibility depends on every public APK using the same locked signing key.
+If signing secrets are missing, the workflow creates a temporary CI key so beta APK automation still completes. Replace CI-signed APKs with a long-lived release key before stable distribution.
 
 ## GitHub Actions
 

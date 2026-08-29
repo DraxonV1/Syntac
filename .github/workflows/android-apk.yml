@@ -45,17 +45,31 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          : "${ANDROID_KEYSTORE_BASE64:?Set ANDROID_KEYSTORE_BASE64 repository secret}"
-          : "${ANDROID_KEYSTORE_PASSWORD:?Set ANDROID_KEYSTORE_PASSWORD repository secret}"
-          : "${ANDROID_KEY_ALIAS:?Set ANDROID_KEY_ALIAS repository secret}"
-          : "${ANDROID_KEY_PASSWORD:?Set ANDROID_KEY_PASSWORD repository secret}"
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/release.jks
-          cat > android/key.properties <<EOF
+          if [[ -n "${ANDROID_KEYSTORE_BASE64}" && -n "${ANDROID_KEYSTORE_PASSWORD}" && -n "${ANDROID_KEY_ALIAS}" && -n "${ANDROID_KEY_PASSWORD}" ]]; then
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/release.jks
+            cat > android/key.properties <<EOF
           storeFile=release.jks
           storePassword=$ANDROID_KEYSTORE_PASSWORD
           keyAlias=$ANDROID_KEY_ALIAS
           keyPassword=$ANDROID_KEY_PASSWORD
           EOF
+          else
+            keytool -genkeypair -v \
+              -keystore android/ci-release.jks \
+              -storepass ci-release-password \
+              -keypass ci-release-password \
+              -alias ci-release \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Syntac CI, OU=Syntac, O=Syntac, L=Unknown, ST=Unknown, C=US"
+            cat > android/key.properties <<EOF
+          storeFile=ci-release.jks
+          storePassword=ci-release-password
+          keyAlias=ci-release
+          keyPassword=ci-release-password
+          EOF
+          fi
 
       - name: Build release APK
         run: >
