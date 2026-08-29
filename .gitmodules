@@ -1,0 +1,7 @@
+[submodule "third_party/proot"]
+	path = third_party/proot
+	url = https://github.com/proot-me/proot.git
+	ignore = untracked
+[submodule "third_party/termux-proot"]
+	path = third_party/termux-proot
+	url = https://github.com/termux/proot.git

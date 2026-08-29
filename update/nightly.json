@@ -1,0 +1,13 @@
+{
+  "version": "0.1.1-beta.2",
+  "versionCode": 12,
+  "apkUrl": "https://github.com/DraxonV1/Syntac/releases/download/v0.1.1-beta.2/syntac-arm64.apk",
+  "sha256": "cc90789dbc0d8c9eebdad6804906db1cd24c407f4bd9f613504c9e7f42ebb73e",
+  "size": 151441704,
+  "mandatory": false,
+  "minSupportedVersionCode": 10,
+  "notes": [
+    "Current Android APK build for nightly channel devices",
+    "Local chat storage and runtime diagnostics hardened"
+  ]
+}

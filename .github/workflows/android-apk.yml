@@ -1,0 +1,90 @@
+name: Android APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    name: Build release APK
+    runs-on: ubuntu-latest
+
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      SYNTAC_GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.SYNTAC_GOOGLE_OAUTH_CLIENT_ID }}
+      SYNTAC_GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.SYNTAC_GOOGLE_OAUTH_CLIENT_SECRET }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Prepare release signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${ANDROID_KEYSTORE_BASE64:?Set ANDROID_KEYSTORE_BASE64 repository secret}"
+          : "${ANDROID_KEYSTORE_PASSWORD:?Set ANDROID_KEYSTORE_PASSWORD repository secret}"
+          : "${ANDROID_KEY_ALIAS:?Set ANDROID_KEY_ALIAS repository secret}"
+          : "${ANDROID_KEY_PASSWORD:?Set ANDROID_KEY_PASSWORD repository secret}"
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/release.jks
+          cat > android/key.properties <<EOF
+          storeFile=release.jks
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          keyPassword=$ANDROID_KEY_PASSWORD
+          EOF
+
+      - name: Build release APK
+        run: >
+          flutter build apk --release
+          --dart-define=SYNTAC_GOOGLE_OAUTH_CLIENT_ID="${SYNTAC_GOOGLE_OAUTH_CLIENT_ID}"
+          --dart-define=SYNTAC_GOOGLE_OAUTH_CLIENT_SECRET="${SYNTAC_GOOGLE_OAUTH_CLIENT_SECRET}"
+
+      - name: Prepare release asset name
+        run: cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/syntac-arm64.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: syntac-arm64-apk
+          path: build/app/outputs/flutter-apk/syntac-arm64.apk
+          if-no-files-found: error
+
+      - name: Publish GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'nightly') }}
+          name: Syntac ${{ github.ref_name }}
+          body: |
+            Android Early Access APK.
+
+            Default update channel: beta.
+          files: |
+            build/app/outputs/flutter-apk/syntac-arm64.apk
+            update/beta.json
+            update/stable.json
+            update/nightly.json
