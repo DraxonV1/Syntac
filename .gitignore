@@ -12,6 +12,7 @@
 .swiftpm/
 migrate_working_dir/
 .omp-reference/
+STATE.md
 
 # IntelliJ related
 *.iml
