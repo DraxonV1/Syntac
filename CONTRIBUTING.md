@@ -184,7 +184,6 @@ Include this in your PR description:
 - [ ] dart format lib test
 - [ ] flutter analyze
 - [ ] flutter test
-- [ ] Android phone runtime check, if runtime/storage/tool behavior changed
 
 ## Risk
 - 

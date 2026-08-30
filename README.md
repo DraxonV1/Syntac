@@ -104,7 +104,6 @@ Requirements:
 - Android SDK.
 - Android NDK from Flutter/Android tooling.
 - Git LFS.
-- Physical Android device for runtime validation.
 
 Clone:
 

@@ -25,9 +25,3 @@ Syntac Early Access Android beta.
 - Version: `0.1.1-beta.2`
 - Version code: `12`
 - Default update channel: `beta`
-
-### Manual validation still required
-
-- Install release APK on physical Android device.
-- Confirm packaged runtime reaches Ready.
-- Confirm `echo hello` returns `hello` through shell command execution.
