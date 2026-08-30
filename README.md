@@ -1,5 +1,16 @@
 # Syntac
 
+<p align="center">
+  <img src="assets/branding/syntac-logo.png" alt="Syntac logo" width="240">
+</p>
+
+<p align="center">
+  <a href="https://github.com/DraxonV1/Syntac/actions/workflows/ci.yml"><img src="https://github.com/DraxonV1/Syntac/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/DraxonV1/Syntac/actions/workflows/android-apk.yml"><img src="https://github.com/DraxonV1/Syntac/actions/workflows/android-apk.yml/badge.svg" alt="Android APK"></a>
+  <a href="https://github.com/DraxonV1/Syntac/releases"><img src="https://img.shields.io/github/v/release/DraxonV1/Syntac?include_prereleases=true&label=latest%20beta" alt="Latest beta release"></a>
+  <a href="https://github.com/DraxonV1/Syntac/issues"><img src="https://img.shields.io/github/issues/DraxonV1/Syntac" alt="Open issues"></a>
+</p>
+
 Syntac is a local-first Android coding agent by **DraxonV1**.
 
 Open a project folder on your phone, connect an AI provider, chat about code, inspect file changes, run commands, and keep project state on-device.
