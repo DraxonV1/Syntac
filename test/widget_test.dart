@@ -412,6 +412,12 @@ void main() {
     expect(find.text('Welcome to Nebula'), findsOneWidget);
     expect(find.text('High performance AI assistant'), findsOneWidget);
     expect(find.text('Get Started'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is Image && widget.semanticLabel == 'Nebula logo',
+      ),
+      findsOneWidget,
+    );
 
     await tester.tap(find.text('Get Started'));
     await tester.pump();

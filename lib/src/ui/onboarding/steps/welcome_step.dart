@@ -85,10 +85,15 @@ class _WelcomeStepState extends State<WelcomeStep>
                       ),
                     ],
                   ),
-                  child: const Icon(
-                    AppIcons.prompt,
-                    size: 30,
-                    color: AppColors.primaryBright,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.asset(
+                      'assets/branding/syntac-logo.png',
+                      width: 64,
+                      height: 64,
+                      fit: BoxFit.cover,
+                      semanticLabel: '${app.appName} logo',
+                    ),
                   ),
                 ),
               ),
