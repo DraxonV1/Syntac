@@ -139,6 +139,10 @@ Contribution flow:
 - Version tags like `v0.1.1-beta.2` also build APKs and publish releases.
 - GitHub Release notes come from `CHANGELOG.md`.
 
+Latest beta release:
+
+<https://github.com/DraxonV1/Syntac/releases/tag/v0.1.1-beta.2>
+
 PR builds never receive release signing credentials or provider OAuth secrets.
 
 Release artifacts:
