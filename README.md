@@ -5,10 +5,11 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/DraxonV1/Syntac/actions/workflows/ci.yml"><img src="https://github.com/DraxonV1/Syntac/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/DraxonV1/Syntac/actions/workflows/android-apk.yml"><img src="https://github.com/DraxonV1/Syntac/actions/workflows/android-apk.yml/badge.svg" alt="Android APK"></a>
-  <a href="https://github.com/DraxonV1/Syntac/releases"><img src="https://img.shields.io/github/v/release/DraxonV1/Syntac?include_prereleases=true&label=latest%20beta" alt="Latest beta release"></a>
+  <a href="https://github.com/DraxonV1/Syntac/releases"><img src="https://img.shields.io/github/v/tag/DraxonV1/Syntac?label=latest%20version" alt="Latest version"></a>
+  <a href="https://github.com/DraxonV1/Syntac/releases"><img src="https://img.shields.io/badge/latest%20channel-beta-6684FF" alt="Latest channel: beta"></a>
   <a href="https://github.com/DraxonV1/Syntac/issues"><img src="https://img.shields.io/github/issues/DraxonV1/Syntac" alt="Open issues"></a>
+  <a href="https://flutter.dev"><img src="https://img.shields.io/badge/Flutter-3.41.9-02569B?logo=flutter&logoColor=white" alt="Flutter 3.41.9"></a>
+  <a href="https://archlinux.org"><img src="https://img.shields.io/badge/Arch%20Linux-runtime-1793D1?logo=archlinux&logoColor=white" alt="Arch Linux runtime"></a>
 </p>
 
 Syntac is a local-first Android coding agent by **DraxonV1**.
