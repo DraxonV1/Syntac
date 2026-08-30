@@ -1197,3 +1197,26 @@ Verification:
 Pending/manual:
 
 - Upload syntac-arm64.apk to GitHub Release v0.1.1-beta.2 and host update/*.json from syntac.com or GitHub Pages. Android phone install/runtime validation still manual.
+
+---- STATE 43 ----
+
+Implemented release/doc hardening after public README concern:
+
+- Removed maintainer-style signing/OAuth secret setup block from public README. README now describes app, contributor flow, CI, and release artifacts without telling users to configure repo secrets.
+- CONTRIBUTING now says PRs run CI; accepted changes release from trusted master workflow. No secret names or temporary signing-key guidance in contributor docs.
+- Android APK workflow now runs on merges to main/master and version tags, fetches Git LFS, pins Flutter 3.41.9, uses actions/checkout@v5 and actions/setup-java@v5, derives release tag from pubspec for branch releases, force-updates that tag to the merged commit, stamps update manifests from the built APK, uploads the APK artifact, and publishes GitHub Release assets.
+- Release signing now fails closed when ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, or ANDROID_KEY_PASSWORD are absent. No more temporary CI signing key for public release automation.
+- CI workflow now fetches Git LFS and pins Flutter 3.41.9; latest GitHub CI run #8 passed format, analyze, and tests.
+
+Verification:
+
+- Local: git diff --check passed.
+- Local: flutter analyze passed.
+- Local: flutter test test/widget_test.dart --plain-name "app identity exposes release metadata" passed.
+- GitHub: CI run 33259798589 passed.
+- GitHub: Android APK run 33259798622 failed at signing gate with expected missing-secret errors.
+
+Pending/manual:
+
+- Configure real GitHub release signing secrets before merge-to-master APK auto-release can publish a new APK. Current failure is intentional production-safe behavior, not a code failure.
+- Untracked logo.png exists locally and was not touched.
