@@ -4,6 +4,8 @@ Syntac is a local-first Android coding agent by **DraxonV1**.
 
 Open a project folder on your phone, connect an AI provider, chat about code, inspect file changes, run commands, and keep project state on-device.
 
+**In development right now, expect issues & bugs. Report issues at [/issues](https://github.com/DraxonV1/Syntac/issues).**
+
 - Developer: **DraxonV1**
 - Repository: <https://github.com/DraxonV1/Syntac>
 - Android package: `com.syntac`
