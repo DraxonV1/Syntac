@@ -151,10 +151,7 @@ jobs:
           target_commitish: ${{ github.sha }}
           prerelease: ${{ steps.release_meta.outputs.prerelease }}
           name: Syntac ${{ steps.release_meta.outputs.tag }}
-          body: |
-            Android Early Access APK.
-
-            Built from trusted repository workflow after merge or release tag.
+          body_path: CHANGELOG.md
           files: |
             build/app/outputs/flutter-apk/syntac-arm64.apk
             update/beta.json

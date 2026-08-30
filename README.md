@@ -136,6 +136,8 @@ Contribution flow:
 - CI runs formatting, analysis, and tests.
 - After merge to `master`, GitHub Actions builds signed `syntac-arm64.apk`.
 - Release workflow publishes APK and update manifests to GitHub Releases.
+- Version tags like `v0.1.1-beta.2` also build APKs and publish releases.
+- GitHub Release notes come from `CHANGELOG.md`.
 
 PR builds never receive release signing credentials or provider OAuth secrets.
 

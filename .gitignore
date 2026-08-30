@@ -13,6 +13,8 @@
 migrate_working_dir/
 .omp-reference/
 STATE.md
+release-secrets.local.txt
+android/*.jks.*
 
 # IntelliJ related
 *.iml
