@@ -11,6 +11,7 @@
         android:label="Syntac"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:extractNativeLibs="true">
         <meta-data android:name="com.syntac.DEVELOPER" android:value="DraxonV1" />
         <meta-data android:name="com.syntac.REPOSITORY" android:value="https://github.com/DraxonV1/Syntac" />
