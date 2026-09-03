@@ -89,12 +89,14 @@ Generated/ignored folders such as `build/`, `.dart_tool/`, `.gradle/`, and local
 │       │   ├── ai_error_messages.dart
 │       │   ├── ai_provider.dart
 │       │   ├── google_cloud_code_assist_provider.dart
+│       │   ├── openai_codex_provider.dart
 │       │   ├── openai_provider.dart
 │       │   ├── provider_diagnostics.dart
 │       │   ├── auth/
 │       │   │   └── credential_store.dart
 │       │   ├── oauth/
 │       │   │   ├── google_antigravity_oauth.dart
+│       │   │   ├── openai_codex_oauth.dart
 │       │   │   └── oauth_credential.dart
 │       │   └── registry/
 │       │       └── provider_registry.dart
@@ -228,11 +230,13 @@ Generated/ignored folders such as `build/`, `.dart_tool/`, `.gradle/`, and local
 
 - `lib/src/ai/ai_provider.dart`: common provider request/response/event interfaces.
 - `lib/src/ai/openai_provider.dart`: OpenAI-compatible chat completions and model listing.
+- `lib/src/ai/openai_codex_provider.dart`: ChatGPT Codex OAuth Responses streaming transport.
 - `lib/src/ai/google_cloud_code_assist_provider.dart`: Google Antigravity / Cloud Code Assist transport.
 - `lib/src/ai/ai_error_messages.dart`: safe user-facing error classification.
 - `lib/src/ai/provider_diagnostics.dart`: diagnostics and redaction.
 - `lib/src/ai/auth/credential_store.dart`: credential abstraction.
 - `lib/src/ai/oauth/google_antigravity_oauth.dart`: Google OAuth login/refresh/discovery flow.
+- `lib/src/ai/oauth/openai_codex_oauth.dart`: ChatGPT Codex OAuth PKCE login/refresh flow.
 - `lib/src/ai/oauth/oauth_credential.dart`: OAuth credential model.
 - `lib/src/ai/registry/provider_registry.dart`: built-in providers, capabilities, beta visibility, default models.
 

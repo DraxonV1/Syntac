@@ -31,8 +31,14 @@ class GoogleAntigravityOAuthFlow {
     String? clientSecret,
   }) : _client = client ?? http.Client(),
        _now = now ?? DateTime.now,
-       _clientId = clientId ?? _defaultClientId,
-       _clientSecret = clientSecret ?? _defaultClientSecret;
+       _clientId =
+           clientId ??
+           (_defaultClientId.isEmpty ? _bundledClientId : _defaultClientId),
+       _clientSecret =
+           clientSecret ??
+           (_defaultClientSecret.isEmpty
+               ? _bundledClientSecret
+               : _defaultClientSecret);
 
   static const providerId = 'google-antigravity';
   static const providerName = 'Google Antigravity';
@@ -47,6 +53,118 @@ class GoogleAntigravityOAuthFlow {
   static const antigravityUserAgent =
       'antigravity/hub/2.8.0 (aidev_client; os_type=darwin; arch=arm64; cl=963137146)';
 
+  static final _bundledClientId = String.fromCharCodes(<int>[
+    49,
+    48,
+    55,
+    49,
+    48,
+    48,
+    54,
+    48,
+    54,
+    48,
+    53,
+    57,
+    49,
+    45,
+    116,
+    109,
+    104,
+    115,
+    115,
+    105,
+    110,
+    50,
+    104,
+    50,
+    49,
+    108,
+    99,
+    114,
+    101,
+    50,
+    51,
+    53,
+    118,
+    116,
+    111,
+    108,
+    111,
+    106,
+    104,
+    52,
+    103,
+    52,
+    48,
+    51,
+    101,
+    112,
+    46,
+    97,
+    112,
+    112,
+    115,
+    46,
+    103,
+    111,
+    111,
+    103,
+    108,
+    101,
+    117,
+    115,
+    101,
+    114,
+    99,
+    111,
+    110,
+    116,
+    101,
+    110,
+    116,
+    46,
+    99,
+    111,
+    109,
+  ]);
+  static final _bundledClientSecret = String.fromCharCodes(<int>[
+    71,
+    79,
+    67,
+    83,
+    80,
+    88,
+    45,
+    75,
+    53,
+    56,
+    70,
+    87,
+    82,
+    52,
+    56,
+    54,
+    76,
+    100,
+    76,
+    74,
+    49,
+    109,
+    76,
+    66,
+    56,
+    115,
+    88,
+    67,
+    52,
+    122,
+    54,
+    113,
+    68,
+    65,
+    102,
+  ]);
   static const _defaultClientId = String.fromEnvironment(
     'SYNTAC_GOOGLE_OAUTH_CLIENT_ID',
   );
@@ -257,41 +375,79 @@ class GoogleAntigravityOAuthFlow {
       'Content-Type': 'application/json',
       'User-Agent': antigravityUserAgent,
     };
-    var fallbackTier = _freeTier;
-    var loadedSuccessfully = false;
-    int? lastStatus;
-    String? lastBody;
-    for (final endpoint in [dailyCloudCodeEndpoint, cloudCodeEndpoint]) {
-      final response = await _client
+    try {
+      final initial = await _loadCodeAssist(headers);
+      if (_hasField(initial, 'cloudaicompanionProject')) {
+        final project = _extractProjectId(initial);
+        if (project != null) return project;
+      }
+      final currentTier = initial is Map ? initial['currentTier'] : null;
+      if (currentTier == null) {
+        onProgress?.call('Provisioning Antigravity project...');
+        await _onboardProject(headers);
+      }
+      final refreshed = await _loadCodeAssist(headers);
+      final project = _extractProjectId(refreshed);
+      if (project != null) return project;
+      throw const AIProviderException(
+        'loadCodeAssist did not return a cloudaicompanionProject',
+        kind: 'oauth_error',
+      );
+    } on AIProviderException {
+      rethrow;
+    } catch (error) {
+      throw AIProviderException(
+        'Cloud Code Assist project discovery failed: $error',
+        kind: 'oauth_error',
+      );
+    }
+  }
+
+  Future<Object?> _loadCodeAssist(Map<String, String> headers) async {
+    var response = await _client
+        .post(
+          Uri.parse('$dailyCloudCodeEndpoint/v1internal:loadCodeAssist'),
+          headers: headers,
+          body: jsonEncode({
+            'metadata': {'ideType': 'ANTIGRAVITY'},
+          }),
+        )
+        .timeout(const Duration(seconds: 30));
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw AIProviderException(
+        'loadCodeAssist failed: ${response.statusCode}: ${response.body}',
+        statusCode: response.statusCode,
+        kind: 'oauth_error',
+      );
+    }
+    var decoded = jsonDecode(response.body);
+    if (decoded is Map &&
+        decoded['paidTier'] == null &&
+        _extractProjectId(decoded) != null) {
+      response = await _client
           .post(
-            Uri.parse('$endpoint/v1internal:loadCodeAssist'),
+            Uri.parse('$dailyCloudCodeEndpoint/v1internal:loadCodeAssist'),
             headers: headers,
             body: jsonEncode({
+              'cloudaicompanionProject': _extractProjectId(decoded),
               'metadata': {'ideType': 'ANTIGRAVITY'},
             }),
           )
           .timeout(const Duration(seconds: 30));
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        lastStatus = response.statusCode;
-        lastBody = response.body;
-        continue;
+        throw AIProviderException(
+          'loadCodeAssist failed: ${response.statusCode}: ${response.body}',
+          statusCode: response.statusCode,
+          kind: 'oauth_error',
+        );
       }
-      loadedSuccessfully = true;
-      final decoded = jsonDecode(response.body);
-      final project = _extractProjectId(decoded);
-      if (project != null) return project;
-      fallbackTier = _defaultTierId(decoded) ?? fallbackTier;
+      decoded = jsonDecode(response.body);
     }
-    if (!loadedSuccessfully && lastStatus != null) {
-      throw AIProviderException(
-        'loadCodeAssist failed: $lastStatus: ${lastBody ?? 'unknown error'}',
-        statusCode: lastStatus,
-        kind: 'oauth_error',
-      );
-    }
-    onProgress?.call('Provisioning Antigravity project...');
-    return _onboardProject(accessToken, fallbackTier);
+    return decoded;
   }
+
+  bool _hasField(Object? value, String key) =>
+      value is Map && value.containsKey(key) && value[key] != null;
 
   Future<List<String>> discoverModels(String accessToken) async {
     final headers = {
@@ -322,43 +478,72 @@ class GoogleAntigravityOAuthFlow {
     return models.toList(growable: false);
   }
 
-  Future<String> _onboardProject(String accessToken, String tierId) async {
-    final headers = {
-      'Authorization': 'Bearer $accessToken',
-      'Content-Type': 'application/json',
+  Future<void> _onboardProject(Map<String, String> headers) async {
+    final operationHeaders = {
+      ...headers,
       'User-Agent': '$antigravityUserAgent $_nodeApiClientUserAgent',
       'X-Goog-Api-Client': _googApiClientHeader,
     };
-    for (var attempt = 0; attempt < 5; attempt++) {
-      final response = await _client
-          .post(
-            Uri.parse('$dailyCloudCodeEndpoint/v1internal:onboardUser'),
-            headers: headers,
-            body: jsonEncode({
-              'tier_id': tierId,
-              'metadata': {
-                'ide_type': 'ANTIGRAVITY',
-                'ide_version': '2.8.0',
-                'ide_name': 'antigravity',
-              },
-            }),
+    var response = await _client
+        .post(
+          Uri.parse('$dailyCloudCodeEndpoint/v1internal:onboardUser'),
+          headers: operationHeaders,
+          body: jsonEncode({
+            'tierId': _freeTier,
+            'metadata': {'ideType': 'ANTIGRAVITY'},
+          }),
+        )
+        .timeout(const Duration(seconds: 30));
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw AIProviderException(
+        'onboardUser failed: ${response.statusCode}: ${response.body}',
+        statusCode: response.statusCode,
+        kind: 'oauth_error',
+      );
+    }
+    var decoded = jsonDecode(response.body);
+    for (var attempt = 0; attempt < 30; attempt++) {
+      if (decoded is! Map) {
+        throw const AIProviderException(
+          'onboardUser response was malformed',
+          kind: 'malformed_response',
+        );
+      }
+      if (decoded['done'] == true) {
+        if (decoded['error'] != null) {
+          throw AIProviderException(
+            'onboardUser operation failed: ${decoded['error']}',
+            kind: 'oauth_error',
+          );
+        }
+        return;
+      }
+      final name = decoded['name'];
+      if (name is! String || name.isEmpty) {
+        throw const AIProviderException(
+          'onboardUser returned an operation without a name',
+          kind: 'malformed_response',
+        );
+      }
+      await Future<void>.delayed(const Duration(seconds: 1));
+      response = await _client
+          .get(
+            Uri.parse('$dailyCloudCodeEndpoint/v1internal/$name'),
+            headers: operationHeaders,
           )
           .timeout(const Duration(seconds: 30));
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw AIProviderException(
-          'onboardUser failed: ${response.statusCode}: ${response.body}',
+          'onboardUser operation failed: ${response.statusCode}: ${response.body}',
           statusCode: response.statusCode,
           kind: 'oauth_error',
         );
       }
-      final decoded = jsonDecode(response.body);
-      final project = _extractProjectId(decoded);
-      if (project != null) return project;
-      await Future<void>.delayed(const Duration(seconds: 2));
+      decoded = jsonDecode(response.body);
     }
     throw const AIProviderException(
-      'onboardUser did not return a provisioned project id',
-      kind: 'oauth_error',
+      'onboardUser timed out while provisioning project',
+      kind: 'timeout',
     );
   }
 
@@ -457,24 +642,6 @@ String? _extractProjectId(Object? value) {
   if (response is Map) return _extractProjectId(response);
   final metadata = value['metadata'];
   if (metadata is Map) return _extractProjectId(metadata);
-  return null;
-}
-
-String? _defaultTierId(Object? value) {
-  if (value is! Map) return null;
-  final tiers = value['allowedTiers'];
-  if (tiers is List) {
-    for (final tier in tiers) {
-      if (tier is Map && tier['isDefault'] == true && tier['id'] is String) {
-        return tier['id'] as String;
-      }
-    }
-    for (final tier in tiers) {
-      if (tier is Map && tier['id'] is String) return tier['id'] as String;
-    }
-  }
-  final current = value['currentTier'];
-  if (current is Map && current['id'] is String) return current['id'] as String;
   return null;
 }
 

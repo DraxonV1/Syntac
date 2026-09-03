@@ -8,8 +8,10 @@ import '../ai/ai_provider.dart';
 import '../ai/auth/credential_store.dart';
 import '../ai/google_cloud_code_assist_provider.dart';
 import '../ai/oauth/google_antigravity_oauth.dart';
+import '../ai/oauth/openai_codex_oauth.dart';
 import '../ai/oauth/oauth_credential.dart';
 import '../ai/openai_provider.dart';
+import '../ai/openai_codex_provider.dart';
 import '../ai/registry/provider_registry.dart';
 import '../core/cancellation.dart';
 import '../models.dart';
@@ -24,12 +26,17 @@ class AgentLoop {
     AIProvider Function(ProviderConfig provider)? providerFactory,
     Future<OAuthCredential> Function(OAuthCredential credential)?
     googleOAuthRefresh,
+    Future<OAuthCredential> Function(OAuthCredential credential)?
+    openAICodexOAuthRefresh,
     Future<ShellExecutor> Function(Project project)? shellExecutorFactory,
     Future<void> Function(String chatId)? onMessagesChanged,
   }) : _googleOAuthRefresh =
            googleOAuthRefresh ??
            ((credential) =>
                GoogleAntigravityOAuthFlow().refreshToken(credential)),
+       _openAICodexOAuthRefresh =
+           openAICodexOAuthRefresh ??
+           ((credential) => OpenAICodexOAuthFlow().refreshToken(credential)),
        _repository = repository,
        _onMessagesChanged = onMessagesChanged,
        _shellExecutorFactory =
@@ -40,6 +47,11 @@ class AgentLoop {
            ((provider) =>
                provider.providerKey == ProviderRegistry.googleAntigravity.id
                ? GoogleCloudCodeAssistProvider(
+                   baseUrl: provider.baseUrl,
+                   providerName: provider.name,
+                 )
+               : provider.providerKey == ProviderRegistry.openAICodex.id
+               ? OpenAICodexProvider(
                    baseUrl: provider.baseUrl,
                    providerName: provider.name,
                  )
@@ -54,6 +66,8 @@ class AgentLoop {
   final Future<void> Function(String chatId)? _onMessagesChanged;
   final Future<OAuthCredential> Function(OAuthCredential credential)
   _googleOAuthRefresh;
+  final Future<OAuthCredential> Function(OAuthCredential credential)
+  _openAICodexOAuthRefresh;
   final Map<String, CancellationToken> _activeRuns =
       <String, CancellationToken>{};
 
@@ -117,31 +131,31 @@ class AgentLoop {
       providerName = provider.name;
       final model = await _selectModel(provider, chat.modelId);
       final credential = await _repository.resolveProviderCredential(provider);
-      OAuthCredential? refreshableGoogleCredential;
+      OAuthCredential? refreshableOAuthCredential;
       var apiKey = switch (credential) {
         ApiKeyProviderCredential(:final apiKey) => apiKey,
         OAuthProviderCredential(:final credential) => () {
-          if (credential.provider == OAuthProviderId.googleAntigravity) {
-            refreshableGoogleCredential = credential;
-          }
+          refreshableOAuthCredential = credential;
           return credential.toStructuredApiKey();
         }(),
         null => '',
       };
-      Future<String?> refreshGoogleCredential() async {
-        final current = refreshableGoogleCredential;
+      Future<String?> refreshOAuthCredential() async {
+        final current = refreshableOAuthCredential;
         if (current == null) return null;
-        final refreshed = await _googleOAuthRefresh(current);
-        refreshableGoogleCredential = refreshed;
+        final refreshed = current.provider == OAuthProviderId.openAICodex
+            ? await _openAICodexOAuthRefresh(current)
+            : await _googleOAuthRefresh(current);
+        refreshableOAuthCredential = refreshed;
         await _repository.saveOAuthCredential(provider.id, refreshed);
         apiKey = refreshed.toStructuredApiKey();
         return apiKey;
       }
 
-      final currentGoogleCredential = refreshableGoogleCredential;
-      if (currentGoogleCredential != null &&
-          currentGoogleCredential.expiresWithin(const Duration(minutes: 5))) {
-        apiKey = await refreshGoogleCredential() ?? apiKey;
+      final currentOAuthCredential = refreshableOAuthCredential;
+      if (currentOAuthCredential != null &&
+          currentOAuthCredential.expiresWithin(const Duration(minutes: 5))) {
+        apiKey = await refreshOAuthCredential() ?? apiKey;
       }
       if (apiKey.isEmpty) {
         throw StateError('Missing credentials for provider ${provider.name}');
@@ -180,7 +194,7 @@ class AgentLoop {
           ai,
           request,
           apiKey: apiKey,
-          refreshApiKey: refreshGoogleCredential,
+          refreshApiKey: refreshOAuthCredential,
           chatId: chat.id,
           cancellationToken: token,
         );

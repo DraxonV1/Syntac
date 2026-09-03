@@ -15,8 +15,8 @@ import '../widgets/oauth_auth_sheet.dart';
 enum ProviderTestState { idle, connecting, testing, streaming, success, error }
 
 /// Step 2 — Configure Provider
-/// Dedicated polished surface for Google Antigravity and supported OpenAI-compatible
-/// custom providers with live streamed model validation and retry support.
+/// Dedicated surface for Google Antigravity, ChatGPT Codex, Grok, and
+/// supported OpenAI-compatible custom providers.
 class ProviderStep extends StatefulWidget {
   const ProviderStep({
     super.key,
@@ -63,12 +63,19 @@ class _ProviderStepState extends State<ProviderStep> {
   void _applyPreset(String key) {
     setState(() {
       _selectedProviderKey = key;
-      if (key == 'google-antigravity') {
-        _nameController.text = 'Google Antigravity';
-        _baseUrlController.text = 'https://daily-cloudcode-pa.googleapis.com';
-      } else {
-        _nameController.text = 'Custom OpenAI';
-        _baseUrlController.text = 'https://api.openai.com/v1';
+      switch (key) {
+        case 'google-antigravity':
+          _nameController.text = 'Google Antigravity';
+          _baseUrlController.text = 'https://daily-cloudcode-pa.googleapis.com';
+        case 'grok':
+          _nameController.text = 'Grok';
+          _baseUrlController.text = 'https://api.x.ai/v1';
+        case 'openai-codex':
+          _nameController.text = 'ChatGPT (Codex)';
+          _baseUrlController.text = 'https://chatgpt.com/backend-api';
+        default:
+          _nameController.text = 'Custom OpenAI';
+          _baseUrlController.text = 'https://api.openai.com/v1';
       }
       _testState = ProviderTestState.idle;
       _streamedResponse = '';
@@ -93,24 +100,38 @@ class _ProviderStepState extends State<ProviderStep> {
             );
           },
         );
+      } else if (_selectedProviderKey == 'openai-codex') {
+        await widget.controller.loginOpenAICodex(
+          onAuthRequest: (request) {
+            OAuthAuthSheet.show(
+              context: context,
+              request: request,
+              providerName: 'ChatGPT (Codex)',
+            );
+          },
+        );
       } else {
-        // Custom Provider
         final apiKey = _apiKeyController.text.trim();
-        if (apiKey.isEmpty) {
-          throw ArgumentError('API key is required');
-        }
+        if (apiKey.isEmpty) throw ArgumentError('API key is required');
         await widget.controller.saveProvider(
           name: _nameController.text.trim(),
           baseUrl: _baseUrlController.text.trim(),
           apiKey: apiKey,
-          providerKey: 'custom-openai-compatible',
+          providerKey: _selectedProviderKey == 'grok'
+              ? 'grok'
+              : 'custom-openai-compatible',
           authType: 'apiKey',
           models: const [],
         );
       }
 
       await widget.controller.refreshAll();
-      final latest = widget.controller.providers.firstOrNull;
+      final providerKey = _selectedProviderKey == 'custom'
+          ? 'custom-openai-compatible'
+          : _selectedProviderKey;
+      final latest = widget.controller.providers
+          .where((provider) => provider.providerKey == providerKey)
+          .firstOrNull;
       if (latest != null) {
         _activeConfig = latest;
         final models = widget.controller.providerModels[latest.id] ?? const [];
@@ -210,6 +231,28 @@ class _ProviderStepState extends State<ProviderStep> {
           ),
           const SizedBox(height: 10),
           _buildProviderChoiceCard(
+            key: 'openai-codex',
+            title: 'ChatGPT (Codex)',
+            subtitle: 'ChatGPT Plus / Pro OAuth',
+            logo: const Icon(
+              Icons.auto_awesome_rounded,
+              size: 22,
+              color: AppColors.primaryBright,
+            ),
+          ),
+          const SizedBox(height: 10),
+          _buildProviderChoiceCard(
+            key: 'grok',
+            title: 'Grok',
+            subtitle: 'xAI API key',
+            logo: const Icon(
+              Icons.bolt_rounded,
+              size: 22,
+              color: AppColors.primaryBright,
+            ),
+          ),
+          const SizedBox(height: 10),
+          _buildProviderChoiceCard(
             key: 'custom',
             title: 'Custom Provider',
             subtitle: 'OpenAI-compatible endpoints',
@@ -222,11 +265,11 @@ class _ProviderStepState extends State<ProviderStep> {
           const SizedBox(height: 20),
 
           // Custom Options if selected
-          if (_selectedProviderKey == 'custom') ...[
+          if (_selectedProviderKey == 'custom' ||
+              _selectedProviderKey == 'grok') ...[
             _buildCustomProviderFields(),
             const SizedBox(height: 20),
           ],
-
           // Connect / Authenticate Button
           if (_testState == ProviderTestState.idle ||
               _testState == ProviderTestState.error) ...[
@@ -235,8 +278,9 @@ class _ProviderStepState extends State<ProviderStep> {
               child: AppButton(
                 label: _selectedProviderKey == 'google-antigravity'
                     ? 'Connect with Google'
+                    : _selectedProviderKey == 'openai-codex'
+                    ? 'Connect with ChatGPT'
                     : 'Connect Provider',
-                icon: AppIcons.key,
                 loading: _isConnecting,
                 onPressed: _isConnecting ? null : _handleConnect,
               ),

@@ -1,6 +1,10 @@
-enum ProviderTransport { openAIChatCompletions, googleCloudCodeAssist }
+enum ProviderTransport {
+  openAIChatCompletions,
+  openAICodexResponses,
+  googleCloudCodeAssist,
+}
 
-enum ProviderAuthType { apiKey, googleAntigravityOAuth }
+enum ProviderAuthType { apiKey, googleAntigravityOAuth, openAICodexOAuth }
 
 class ProviderCapabilities {
   const ProviderCapabilities({
@@ -81,6 +85,35 @@ class ProviderRegistry {
     ),
   );
 
+  static const grok = ProviderDefinition(
+    id: 'grok',
+    name: 'Grok',
+    transport: ProviderTransport.openAIChatCompletions,
+    authType: ProviderAuthType.apiKey,
+    defaultBaseUrl: 'https://api.x.ai/v1',
+    defaultModels: <String>['grok-4.6', 'grok-4.5', 'grok-4.3'],
+    capabilities: ProviderCapabilities(
+      supportsStreaming: true,
+      supportsTools: true,
+      supportsReasoning: true,
+      supportsImages: true,
+    ),
+  );
+
+  static const openAICodex = ProviderDefinition(
+    id: 'openai-codex',
+    name: 'ChatGPT (Codex)',
+    transport: ProviderTransport.openAICodexResponses,
+    authType: ProviderAuthType.openAICodexOAuth,
+    defaultBaseUrl: 'https://chatgpt.com/backend-api',
+    defaultModels: <String>['gpt-5.5', 'gpt-5.3-codex', 'gpt-5.2-codex'],
+    capabilities: ProviderCapabilities(
+      supportsStreaming: true,
+      supportsTools: true,
+      supportsReasoning: true,
+    ),
+  );
+
   static const googleAntigravity = ProviderDefinition(
     id: 'google-antigravity',
     name: 'Google Antigravity',
@@ -98,6 +131,8 @@ class ProviderRegistry {
 
   static const builtIns = <ProviderDefinition>[
     googleAntigravity,
+    openAICodex,
+    grok,
     openRouter,
     deepSeek,
     customOpenAICompatible,

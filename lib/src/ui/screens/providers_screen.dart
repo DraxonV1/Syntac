@@ -49,8 +49,7 @@ class _ProvidersScreenState extends State<ProvidersScreen> {
               icon: AppIcons.model,
               title: 'No providers configured',
               description:
-                  'Connect Google Antigravity or a supported OpenAI-compatible LLM endpoint.',
-              actionLabel: 'Connect Provider',
+                  'Connect Google Antigravity, ChatGPT Codex, Grok, or another OpenAI-compatible endpoint.',
               actionIcon: AppIcons.add,
               onAction: () =>
                   showProviderConfigDialog(context, widget.controller),

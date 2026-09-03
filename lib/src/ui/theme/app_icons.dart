@@ -83,8 +83,12 @@ abstract class AppIcons {
         color: color ?? const Color(0xFFCC785C),
       );
     }
-    if (key.contains('deepseek')) {
-      return DeepSeekBrandMark(size: size);
+    if (key.contains('grok') || key.contains('xai')) {
+      return Icon(
+        Icons.bolt_rounded,
+        size: size,
+        color: color ?? AppColors.primaryBright,
+      );
     }
     return Icon(
       Icons.api_rounded,

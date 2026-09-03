@@ -8,7 +8,7 @@ Syntac Early Access Android beta.
 
 - Local-first Android coding-agent app with on-device project, chat, tool result, provider, runtime, and update state.
 - Project browser, chat-based coding agent, markdown/code rendering, expandable tool result cards, and settings diagnostics.
-- Google Antigravity / Cloud Code Assist OAuth provider flow and OpenAI-compatible provider support.
+- Google Antigravity / Cloud Code Assist OAuth, ChatGPT Codex OAuth, Grok, and OpenAI-compatible provider support.
 - Packaged Arch Linux PRoot runtime and Termux `RUN_COMMAND` bridge for project shell commands.
 - Public update manifests for stable, beta, and nightly channels.
 

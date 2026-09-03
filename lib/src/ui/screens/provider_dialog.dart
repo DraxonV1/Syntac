@@ -255,6 +255,44 @@ Future<void> showProviderConfigDialog(
                         });
                       },
                     ),
+                    AppButton(
+                      label: 'ChatGPT Sign-in',
+                      icon: AppIcons.key,
+                      variant: AppButtonVariant.secondary,
+                      loading: isOAuthLogin,
+                      compact: true,
+                      onPressed: () async {
+                        setState(() {
+                          isOAuthLogin = true;
+                          oauthAuthUrl = null;
+                          oauthProgress = 'Starting ChatGPT sign-in...';
+                          testResult = null;
+                        });
+                        await controller.loginOpenAICodex(
+                          onAuthRequest: (request) {
+                            Clipboard.setData(ClipboardData(text: request.url));
+                            if (!dialogContext.mounted) return;
+                            setState(() {
+                              oauthAuthUrl = request.url;
+                              oauthProgress =
+                                  'Authorization URL copied. Complete sign-in in your browser.';
+                            });
+                          },
+                          onProgress: (message) {
+                            if (!dialogContext.mounted) return;
+                            setState(() => oauthProgress = message);
+                          },
+                        );
+                        if (!dialogContext.mounted) return;
+                        setState(() {
+                          isOAuthLogin = false;
+                          oauthProgress =
+                              controller.lastError ??
+                              'ChatGPT sign-in complete';
+                          testSuccess = controller.lastError == null;
+                        });
+                      },
+                    ),
                   ],
                 ),
                 if (oauthProgress != null) ...[

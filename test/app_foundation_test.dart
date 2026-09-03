@@ -17,6 +17,8 @@ import 'package:syntac/src/ai/ai_error_messages.dart';
 import 'package:syntac/src/ai/google_cloud_code_assist_provider.dart';
 import 'package:syntac/src/ai/oauth/google_antigravity_oauth.dart';
 import 'package:syntac/src/ai/oauth/oauth_credential.dart';
+import 'package:syntac/src/ai/oauth/openai_codex_oauth.dart';
+import 'package:syntac/src/ai/openai_codex_provider.dart';
 import 'package:syntac/src/ai/openai_provider.dart';
 import 'package:syntac/src/ai/registry/provider_registry.dart';
 import 'package:syntac/src/ai/provider_diagnostics.dart';
@@ -817,12 +819,72 @@ void main() {
         ),
       );
     });
+    test(
+      'Google Antigravity polls onboarding operation with current payload',
+      () async {
+        var loadCalls = 0;
+        var onboardCalls = 0;
+        final flow = GoogleAntigravityOAuthFlow(
+          client: MockClient((request) async {
+            if (request.url.toString().endsWith('v1internal:loadCodeAssist')) {
+              loadCalls++;
+              final body = jsonDecode(request.body) as Map<String, Object?>;
+              expect(body['metadata'], {'ideType': 'ANTIGRAVITY'});
+              if (loadCalls == 1) {
+                return http.Response(
+                  jsonEncode({
+                    'allowedTiers': [
+                      {'id': 'free-tier'},
+                    ],
+                  }),
+                  200,
+                );
+              }
+              return http.Response(
+                jsonEncode({'cloudaicompanionProject': 'project-123'}),
+                200,
+              );
+            }
+            if (request.url.toString().endsWith('v1internal:onboardUser')) {
+              onboardCalls++;
+              expect(jsonDecode(request.body), {
+                'tierId': 'free-tier',
+                'metadata': {'ideType': 'ANTIGRAVITY'},
+              });
+              return http.Response(
+                jsonEncode({'name': 'operations/onboard-123'}),
+                200,
+              );
+            }
+            if (request.method == 'GET' &&
+                request.url.toString().endsWith(
+                  'v1internal/operations/onboard-123',
+                )) {
+              return http.Response(
+                jsonEncode({
+                  'done': true,
+                  'response': {'cloudaicompanionProject': 'project-123'},
+                }),
+                200,
+              );
+            }
+            fail('Unexpected request: ${request.method} ${request.url}');
+          }),
+        );
 
-    test('Google OAuth fails safely when client credentials are absent', () {
+        expect(await flow.discoverProject('access-token'), 'project-123');
+        expect(loadCalls, 3);
+        expect(onboardCalls, 1);
+      },
+    );
+
+    test('Google OAuth rejects explicitly missing client credentials', () {
       final flow = GoogleAntigravityOAuthFlow(
         client: MockClient((_) async {
           fail('Missing OAuth credentials should not send HTTP');
         }),
+        clientId: '',
+        clientSecret: '',
       );
 
       expect(
@@ -840,15 +902,89 @@ void main() {
       );
     });
 
-    test('beta registry excludes Codex and Anthropic providers', () {
+    test('beta registry exposes supported OAuth and API providers', () {
       final ids = ProviderRegistry.builtIns.map((provider) => provider.id);
 
-      expect(ids, isNot(contains('openai-codex')));
+      expect(ids, contains('openai-codex'));
+      expect(ids, contains('grok'));
       expect(ids, isNot(contains('custom-anthropic-compatible')));
       expect(
         ProviderRegistry.isVisibleForBeta('custom-anthropic-compatible'),
         isFalse,
       );
+    });
+    test('builds ChatGPT Codex PKCE authorization URL', () {
+      final flow = OpenAICodexOAuthFlow();
+      final url = Uri.parse(
+        flow.buildAuthorizationUrl(
+          state: 'state',
+          redirectUri: 'http://localhost:1455/auth/callback',
+          codeChallenge: 'challenge',
+        ),
+      );
+
+      expect(url.host, 'auth.openai.com');
+      expect(url.queryParameters['client_id'], OpenAICodexOAuthFlow.clientId);
+      expect(url.queryParameters['code_challenge_method'], 'S256');
+      expect(url.queryParameters['state'], 'state');
+      expect(url.queryParameters['originator'], 'pi');
+    });
+    test('exchanges ChatGPT Codex token and extracts account id', () async {
+      final payload = base64UrlEncode(
+        utf8.encode(
+          jsonEncode({
+            'https://api.openai.com/auth': {
+              'chatgpt_account_id': 'account-123',
+            },
+            'https://api.openai.com/profile': {'email': 'user@example.com'},
+          }),
+        ),
+      ).replaceAll('=', '');
+      final flow = OpenAICodexOAuthFlow(
+        client: MockClient((request) async {
+          expect(request.url.toString(), OpenAICodexOAuthFlow.tokenUrl);
+          expect(request.bodyFields['code_verifier'], 'verifier');
+          return http.Response(
+            jsonEncode({
+              'access_token': 'header.$payload.signature',
+              'refresh_token': 'refresh-token',
+              'expires_in': 3600,
+            }),
+            200,
+          );
+        }),
+      );
+
+      final credential = await flow.exchangeAuthorizationCode(
+        code: 'code',
+        verifier: 'verifier',
+        redirectUri: 'http://localhost:1455/auth/callback',
+      );
+
+      expect(credential.provider, OAuthProviderId.openAICodex);
+      expect(credential.accountId, 'account-123');
+      expect(credential.email, 'user@example.com');
+    });
+
+    test('parses ChatGPT Codex Responses stream', () async {
+      final provider = OpenAICodexProvider(
+        baseUrl: OpenAICodexOAuthFlow.defaultBaseUrl,
+        client: StreamingClient([
+          'data: ${jsonEncode({'type': 'response.output_text.delta', 'delta': 'hi'})}\n\n',
+          'data: ${jsonEncode({
+            'type': 'response.completed',
+            'response': {'status': 'completed'},
+          })}\n\n',
+        ]),
+      );
+
+      final response = await provider.completeChat(
+        const AIChatRequest(model: 'gpt-5.3-codex', messages: [], tools: []),
+        apiKey: 'codex-token',
+      );
+
+      expect(response.text, 'hi');
+      expect(response.finishReason, 'completed');
     });
   });
 
@@ -2379,6 +2515,78 @@ void main() {
       ),
       'Build authentication with email and password ...',
     );
+  });
+  test('Cloud Code Assist normalizes unsupported tool schema fields', () async {
+    Map<String, Object?>? captured;
+    final provider = GoogleCloudCodeAssistProvider(
+      baseUrl: GoogleAntigravityOAuthFlow.defaultBaseUrl,
+      client: MockClient((request) async {
+        captured = jsonDecode(request.body) as Map<String, Object?>;
+        return http.Response(
+          'data: ${jsonEncode({
+            'response': {
+              'candidates': [
+                {
+                  'content': {
+                    'parts': [
+                      {'text': 'ok'},
+                    ],
+                  },
+                },
+              ],
+            },
+          })}\n'
+          'data: ${jsonEncode({
+            'response': {
+              'candidates': [
+                {'finishReason': 'STOP'},
+              ],
+            },
+          })}\n',
+          200,
+          headers: {'content-type': 'text/event-stream'},
+        );
+      }),
+    );
+
+    final credential = OAuthCredential(
+      provider: OAuthProviderId.googleAntigravity,
+      accessToken: 'access-token',
+      refreshToken: 'refresh-token',
+      expiresAt: DateTime.now().add(const Duration(hours: 1)),
+      projectId: 'project-123',
+    );
+    await provider.completeChat(
+      AIChatRequest(
+        model: 'gemini-3.5-flash',
+        messages: const [AIChatMessage(role: 'user', content: 'hello')],
+        tools: const [
+          {
+            'type': 'function',
+            'function': {
+              'name': 'read',
+              'parameters': {
+                'type': 'object',
+                'additionalProperties': false,
+                'properties': {
+                  'path': {'type': 'string', 'format': 'uri'},
+                  'optional': true,
+                },
+              },
+            },
+          },
+        ],
+      ),
+      apiKey: credential.toStructuredApiKey(),
+    );
+    final request = captured!['request'] as Map<String, Object?>;
+    final declarations = request['tools'] as List;
+    final declaration =
+        (declarations.single as Map)['functionDeclarations'] as List;
+    final parameters = (declaration.single as Map)['parameters'] as Map;
+    expect(parameters['additionalProperties'], isNull);
+    expect((parameters['properties'] as Map)['path']['format'], isNull);
+    expect((parameters['properties'] as Map)['optional'], isA<Map>());
   });
 }
 

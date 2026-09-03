@@ -6,10 +6,12 @@ import 'package:flutter/services.dart';
 
 import 'agent/agent_loop.dart';
 import 'ai/auth/credential_store.dart';
-import 'ai/ai_error_messages.dart';
 import 'ai/ai_provider.dart';
+import 'ai/ai_error_messages.dart';
 import 'ai/google_cloud_code_assist_provider.dart';
 import 'ai/oauth/google_antigravity_oauth.dart';
+import 'ai/oauth/openai_codex_oauth.dart';
+import 'ai/openai_codex_provider.dart';
 import 'ai/openai_provider.dart';
 import 'ai/registry/provider_registry.dart';
 import 'core/app_identity.dart';
@@ -455,6 +457,15 @@ class AppController extends ChangeNotifier {
         }
         return 'OAuth ok${credential.email == null ? '' : ' for ${credential.email}'}';
       }
+      if (provider.authType == ProviderAuthType.openAICodexOAuth.name) {
+        var credential = await repository.readOAuthCredential(providerId);
+        if (credential == null) return 'ChatGPT sign-in required';
+        if (credential.expiresWithin(const Duration(minutes: 1))) {
+          credential = await OpenAICodexOAuthFlow().refreshToken(credential);
+          await repository.saveOAuthCredential(providerId, credential);
+        }
+        return 'OAuth ok${credential.email == null ? '' : ' for ${credential.email}'}';
+      }
       final apiKey = await repository.readProviderApiKey(providerId);
       if (apiKey == null || apiKey.isEmpty) {
         return 'Provider or API key missing';
@@ -488,6 +499,13 @@ class AppController extends ChangeNotifier {
           await repository.saveOAuthCredential(providerId, credential);
         }
         discovered = await flow.discoverModels(credential.accessToken);
+      } else if (provider.providerKey == ProviderRegistry.openAICodex.id) {
+        var credential = await repository.readOAuthCredential(providerId);
+        if (credential == null) return 'ChatGPT sign-in required';
+        if (credential.expiresWithin(const Duration(minutes: 1))) {
+          credential = await OpenAICodexOAuthFlow().refreshToken(credential);
+          await repository.saveOAuthCredential(providerId, credential);
+        }
       } else {
         final apiKey = await repository.readProviderApiKey(providerId) ?? '';
         final openAIProvider = OpenAICompatibleProvider(
@@ -583,6 +601,50 @@ class AppController extends ChangeNotifier {
     }
   }
 
+  Future<void> loginOpenAICodex({
+    required void Function(OAuthAuthRequest request) onAuthRequest,
+    void Function(String message)? onProgress,
+  }) async {
+    lastError = null;
+    try {
+      final definition = ProviderRegistry.openAICodex;
+      final credential = await OpenAICodexOAuthFlow().login(
+        onAuthRequest: onAuthRequest,
+        onProgress: onProgress,
+      );
+      final existing = providers
+          .where((provider) => provider.providerKey == definition.id)
+          .firstOrNull;
+      final existingModels = existing == null
+          ? const <String>[]
+          : (providerModels[existing.id] ?? const <ProviderModel>[]).map(
+              (model) => model.model,
+            );
+      final provider = await repository.saveProvider(
+        id: existing?.id,
+        name: definition.name,
+        baseUrl: definition.defaultBaseUrl,
+        providerKey: definition.id,
+        authType: definition.authType.name,
+        apiKey: '',
+        models: _mergeModels([existingModels, definition.defaultModels]),
+      );
+      await repository.saveOAuthCredential(provider.id, credential);
+      await refreshAll();
+    } catch (error, stackTrace) {
+      logDetailedAIError(
+        error,
+        stackTrace,
+        context: 'ChatGPT Codex login failed',
+      );
+      lastError = describeAIErrorForUser(
+        error,
+        providerName: 'ChatGPT (Codex)',
+      );
+      notifyListeners();
+    }
+  }
+
   Stream<String> testProviderStreaming({
     required ProviderConfig provider,
     required String model,
@@ -604,6 +666,10 @@ class AppController extends ChangeNotifier {
 
     final AIProvider aiProvider = switch (provider.providerKey) {
       'google-antigravity' => GoogleCloudCodeAssistProvider(
+        baseUrl: provider.baseUrl,
+        providerName: provider.name,
+      ),
+      'openai-codex' => OpenAICodexProvider(
         baseUrl: provider.baseUrl,
         providerName: provider.name,
       ),

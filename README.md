@@ -42,7 +42,7 @@ Core behavior:
 - Chat-based coding agent with streaming responses.
 - File tools for reading, writing, editing, listing, deleting, and searching project files.
 - Bash tool support through a packaged Android runtime or Termux bridge.
-- Provider support for Google Antigravity / Cloud Code Assist and OpenAI-compatible APIs.
+- Provider support for Google Antigravity / Cloud Code Assist, ChatGPT Codex OAuth, Grok, and OpenAI-compatible APIs.
 - Markdown/code rendering and expandable tool result cards.
 - Startup, runtime, provider, and storage diagnostics.
 - Built-in update check with stable, beta, and nightly channels.

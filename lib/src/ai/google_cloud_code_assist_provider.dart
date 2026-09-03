@@ -387,7 +387,9 @@ class GoogleCloudCodeAssistProvider extends AIProvider {
         'name': function['name']?.toString() ?? 'tool',
         if (function['description'] != null)
           'description': function['description'],
-        'parameters': function['parameters'] ?? <String, Object?>{},
+        'parameters': _normalizeCloudCodeSchema(
+          function['parameters'] ?? <String, Object?>{},
+        ),
       };
     }
     return spec;
@@ -698,4 +700,52 @@ class GoogleCloudCodeAssistProvider extends AIProvider {
     final value = Random.secure().nextInt(0x7fffffff) + 1;
     return Random.secure().nextBool() ? '$value' : '-$value';
   }
+}
+
+const _cloudCodeUnsupportedSchemaFields = <String>{
+  r'$schema',
+  r'$ref',
+  r'$defs',
+  r'$dynamicRef',
+  r'$dynamicAnchor',
+  'examples',
+  'prefixItems',
+  'unevaluatedProperties',
+  'unevaluatedItems',
+  'patternProperties',
+  'additionalProperties',
+  'propertyNames',
+  'minItems',
+  'maxItems',
+  'minLength',
+  'maxLength',
+  'minimum',
+  'maximum',
+  'exclusiveMinimum',
+  'exclusiveMaximum',
+  'multipleOf',
+  'pattern',
+  'format',
+  'dependencies',
+  'dependentSchemas',
+  'dependentRequired',
+  'deprecated',
+  'readOnly',
+  'writeOnly',
+  r'$comment',
+};
+
+Object? _normalizeCloudCodeSchema(Object? value) {
+  if (value is bool) return <String, Object?>{};
+  if (value is List) {
+    return value.map(_normalizeCloudCodeSchema).toList(growable: false);
+  }
+  if (value is! Map) return value;
+  final result = <String, Object?>{};
+  value.forEach((key, raw) {
+    final name = key.toString();
+    if (_cloudCodeUnsupportedSchemaFields.contains(name)) return;
+    result[name] = _normalizeCloudCodeSchema(raw);
+  });
+  return result;
 }
