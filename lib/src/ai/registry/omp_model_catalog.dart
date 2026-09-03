@@ -83,11 +83,4 @@ class OmpModelCatalog {
     'gpt-5.6-terra',
     'gpt-daybreak-blue-latest',
   ];
-
-  static const openRouterDefault = 'openai/gpt-5.5';
-  static const deepSeekDefault = 'deepseek-v4-pro';
-  static const xaiDefault = 'grok-4.6';
-  static const xaiOAuthDefault = 'grok-4.6';
-  static const openAICodexDefault = 'gpt-5.5';
-  static const googleAntigravityDefault = 'gemini-3.1-pro';
 }

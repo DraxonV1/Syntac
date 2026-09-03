@@ -74,6 +74,74 @@ class OpenAICodexProvider extends AIProvider {
         .toList(growable: false);
   }
 
+  Future<List<String>?> discoverCodexModels({
+    required OAuthCredential credential,
+    String clientVersion = '0.144.1',
+  }) async {
+    final basePath = _baseUri.path.replaceFirst(RegExp(r'/+$'), '');
+    final accountHeaders = switch (credential.accountId) {
+      final accountId? => <String, String>{'chatgpt-account-id': accountId},
+      _ => const <String, String>{},
+    };
+    Object? lastError;
+    for (final candidate in const ['/codex/models', '/models']) {
+      final uri = _baseUri.replace(
+        path: '$basePath$candidate',
+        queryParameters: {'client_version': clientVersion},
+      );
+      try {
+        final response = await _client
+            .get(
+              uri,
+              headers: {
+                'Authorization': 'Bearer ${credential.accessToken}',
+                ...accountHeaders,
+                'OpenAI-Beta': 'responses=experimental',
+                'originator': 'pi',
+                'version': clientVersion,
+                'Accept': 'application/json',
+              },
+            )
+            .timeout(const Duration(seconds: 20));
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          lastError = AIProviderException(
+            '$_providerName model discovery failed: ${response.statusCode}: '
+            '${_safeError(response.body)}',
+            statusCode: response.statusCode,
+            kind: response.statusCode == 401 || response.statusCode == 403
+                ? 'unauthorized'
+                : 'provider_error',
+          );
+          continue;
+        }
+        final decoded = jsonDecode(response.body);
+        if (decoded is! Map) return const <String>[];
+        final entries = decoded['models'] ?? decoded['data'];
+        if (entries is! List) return const <String>[];
+        final models = <String>[];
+        for (final entry in entries) {
+          if (entry is! Map) continue;
+          final id = (entry['slug'] ?? entry['id'])?.toString().trim() ?? '';
+          final visibility = entry['visibility']?.toString().toLowerCase();
+          if (id.isNotEmpty && visibility != 'hide' && visibility != 'hidden') {
+            models.add(id);
+          }
+        }
+        return models;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    if (lastError is AIProviderException) throw lastError;
+    if (lastError != null) {
+      throw AIProviderException(
+        '$_providerName model discovery failed: $lastError',
+        kind: 'provider_error',
+      );
+    }
+    return null;
+  }
+
   @override
   Stream<AIStreamEvent> streamChat(
     AIChatRequest request, {
@@ -118,9 +186,8 @@ class OpenAICodexProvider extends AIProvider {
         cancellationToken?.throwIfCancelled();
         final trimmed = line.trim();
         if (trimmed.isEmpty || trimmed.startsWith(':')) continue;
-        final data = trimmed.startsWith('data:')
-            ? trimmed.substring(5).trim()
-            : trimmed;
+        if (!trimmed.startsWith('data:')) continue;
+        final data = trimmed.substring(5).trim();
         if (data == '[DONE]') {
           completed = true;
           break;

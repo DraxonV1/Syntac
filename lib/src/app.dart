@@ -507,6 +507,7 @@ class AppController extends ChangeNotifier {
     if (provider == null) return 'Provider missing';
     try {
       List<String> discovered = [];
+      var authoritativeDiscovery = false;
       if (provider.providerKey == ProviderRegistry.googleAntigravity.id) {
         var credential = await repository.readOAuthCredential(providerId);
         if (credential == null) return 'Google sign-in required';
@@ -516,12 +517,21 @@ class AppController extends ChangeNotifier {
           await repository.saveOAuthCredential(providerId, credential);
         }
         discovered = await flow.discoverModels(credential.accessToken);
+        authoritativeDiscovery = discovered.isNotEmpty;
       } else if (provider.providerKey == ProviderRegistry.openAICodex.id) {
         var credential = await repository.readOAuthCredential(providerId);
         if (credential == null) return 'ChatGPT sign-in required';
         if (credential.expiresWithin(const Duration(minutes: 1))) {
           credential = await OpenAICodexOAuthFlow().refreshToken(credential);
           await repository.saveOAuthCredential(providerId, credential);
+        }
+        final result = await OpenAICodexProvider(
+          baseUrl: provider.baseUrl,
+          providerName: provider.name,
+        ).discoverCodexModels(credential: credential);
+        if (result != null) {
+          discovered = result;
+          authoritativeDiscovery = true;
         }
       } else if (provider.providerKey == ProviderRegistry.grokOAuth.id) {
         var credential = await repository.readOAuthCredential(providerId);
@@ -542,12 +552,14 @@ class AppController extends ChangeNotifier {
                   !model.startsWith('grok-voice-'),
             )
             .toList(growable: false);
+        authoritativeDiscovery = discovered.isNotEmpty;
       } else if (provider.providerKey == ProviderRegistry.grok.id) {
         final apiKey = await repository.readProviderApiKey(providerId) ?? '';
         discovered = await OpenAIResponsesProvider(
           baseUrl: provider.baseUrl,
           providerName: provider.name,
         ).discoverModels(apiKey: apiKey);
+        authoritativeDiscovery = discovered.isNotEmpty;
       } else {
         final apiKey = await repository.readProviderApiKey(providerId) ?? '';
         final openAIProvider = OpenAICompatibleProvider(
@@ -555,16 +567,16 @@ class AppController extends ChangeNotifier {
           providerName: provider.name,
         );
         discovered = await openAIProvider.discoverModels(apiKey: apiKey);
+        authoritativeDiscovery = discovered.isNotEmpty;
       }
 
       final existing = providerModels[providerId] ?? const <ProviderModel>[];
       final definition = const ProviderRegistry().byId(provider.providerKey);
       final merged = _mergeModels([
         discovered,
-        existing.map((model) => model.model),
-        definition.defaultModels,
+        if (!authoritativeDiscovery) existing.map((model) => model.model),
+        if (!authoritativeDiscovery) definition.defaultModels,
       ]);
-
       await repository.saveProvider(
         id: provider.id,
         name: provider.name,
@@ -575,9 +587,9 @@ class AppController extends ChangeNotifier {
         models: merged,
       );
       await refreshAll();
-      return discovered.isEmpty
-          ? 'Kept existing models (${merged.length} available)'
-          : 'Discovered ${discovered.length} live models from API';
+      return authoritativeDiscovery
+          ? 'Discovered ${discovered.length} live models from API'
+          : 'Kept existing models (${merged.length} available)';
     } catch (error, stackTrace) {
       logDetailedAIError(
         error,
@@ -623,8 +635,8 @@ class AppController extends ChangeNotifier {
         apiKey: '',
         models: _mergeModels([
           discoveredModels,
-          existingModels,
-          definition.defaultModels,
+          if (discoveredModels.isEmpty) existingModels,
+          if (discoveredModels.isEmpty) definition.defaultModels,
         ]),
       );
       await repository.saveOAuthCredential(provider.id, credential);
@@ -657,6 +669,10 @@ class AppController extends ChangeNotifier {
       final existing = providers
           .where((provider) => provider.providerKey == definition.id)
           .firstOrNull;
+      final discovered = await OpenAICodexProvider(
+        baseUrl: definition.defaultBaseUrl,
+        providerName: definition.name,
+      ).discoverCodexModels(credential: credential);
       final existingModels = existing == null
           ? const <String>[]
           : (providerModels[existing.id] ?? const <ProviderModel>[]).map(
@@ -669,7 +685,10 @@ class AppController extends ChangeNotifier {
         providerKey: definition.id,
         authType: definition.authType.name,
         apiKey: '',
-        models: _mergeModels([existingModels, definition.defaultModels]),
+        models: _mergeModels(switch (discovered) {
+          final models? => [models],
+          _ => [existingModels, definition.defaultModels],
+        }),
       );
       await repository.saveOAuthCredential(provider.id, credential);
       await refreshAll();
@@ -719,8 +738,8 @@ class AppController extends ChangeNotifier {
         apiKey: '',
         models: _mergeModels([
           discovered,
-          existingModels,
-          definition.defaultModels,
+          if (discovered.isEmpty) existingModels,
+          if (discovered.isEmpty) definition.defaultModels,
         ]),
       );
       await repository.saveOAuthCredential(provider.id, credential);

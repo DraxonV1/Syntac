@@ -72,7 +72,7 @@ class ProviderRegistry {
     transport: ProviderTransport.openAIChatCompletions,
     authType: ProviderAuthType.apiKey,
     defaultBaseUrl: 'https://openrouter.ai/api/v1',
-    defaultModels: <String>[OmpModelCatalog.openRouterDefault],
+    defaultModels: <String>[],
     capabilities: ProviderCapabilities(
       supportsStreaming: true,
       supportsTools: true,
@@ -85,7 +85,7 @@ class ProviderRegistry {
     transport: ProviderTransport.openAIChatCompletions,
     authType: ProviderAuthType.apiKey,
     defaultBaseUrl: 'https://api.deepseek.com',
-    defaultModels: <String>[OmpModelCatalog.deepSeekDefault],
+    defaultModels: <String>[],
     capabilities: ProviderCapabilities(
       supportsStreaming: true,
       supportsTools: true,

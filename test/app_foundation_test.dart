@@ -21,7 +21,6 @@ import 'package:syntac/src/ai/oauth/openai_codex_oauth.dart';
 import 'package:syntac/src/ai/oauth/xai_oauth.dart';
 import 'package:syntac/src/ai/openai_codex_provider.dart';
 import 'package:syntac/src/ai/openai_provider.dart';
-import 'package:syntac/src/ai/registry/omp_model_catalog.dart';
 import 'package:syntac/src/ai/registry/provider_registry.dart';
 import 'package:syntac/src/ai/provider_diagnostics.dart';
 import 'package:syntac/src/core/cancellation.dart';
@@ -914,8 +913,8 @@ void main() {
       expect(ProviderRegistry.openAICodex.defaultModels, hasLength(8));
       expect(ProviderRegistry.grok.defaultModels, contains('grok-4.6'));
       expect(ProviderRegistry.grokOAuth.defaultModels, hasLength(9));
-      expect(OmpModelCatalog.openRouterDefault, 'openai/gpt-5.5');
-      expect(OmpModelCatalog.deepSeekDefault, 'deepseek-v4-pro');
+      expect(ProviderRegistry.openRouter.defaultModels, isEmpty);
+      expect(ProviderRegistry.deepSeek.defaultModels, isEmpty);
     });
     test('builds ChatGPT Codex PKCE authorization URL', () {
       final flow = OpenAICodexOAuthFlow();
@@ -974,7 +973,8 @@ void main() {
       final provider = OpenAICodexProvider(
         baseUrl: OpenAICodexOAuthFlow.defaultBaseUrl,
         client: StreamingClient([
-          'data: ${jsonEncode({'type': 'response.output_text.delta', 'delta': 'hi'})}\n\n',
+          'event: response.output_text.delta\n'
+              'data: ${jsonEncode({'type': 'response.output_text.delta', 'delta': 'hi'})}\n\n',
           'data: ${jsonEncode({
             'type': 'response.completed',
             'response': {'status': 'completed'},
@@ -990,6 +990,44 @@ void main() {
       expect(response.text, 'hi');
       expect(response.finishReason, 'completed');
     });
+  });
+
+  test('discovers Codex models from OMP model endpoint', () async {
+    http.Request? captured;
+    final provider = OpenAICodexProvider(
+      baseUrl: 'https://chatgpt.com/backend-api',
+      client: MockClient((request) async {
+        captured = request;
+        return http.Response(
+          jsonEncode({
+            'models': [
+              {'slug': 'gpt-5.2', 'display_name': 'GPT-5.2'},
+              {'id': 'hidden-model', 'visibility': 'hidden'},
+            ],
+          }),
+          200,
+        );
+      }),
+    );
+
+    final models = await provider.discoverCodexModels(
+      credential: OAuthCredential(
+        provider: OAuthProviderId.openAICodex,
+        accessToken: 'codex-token',
+        refreshToken: 'refresh-token',
+        expiresAt: DateTime.now().add(const Duration(hours: 1)),
+        accountId: 'account-id',
+      ),
+    );
+
+    expect(models, ['gpt-5.2']);
+    expect(
+      captured?.url.toString(),
+      'https://chatgpt.com/backend-api/codex/models?client_version=0.144.1',
+    );
+    expect(captured?.headers['chatgpt-account-id'], 'account-id');
+    expect(captured?.headers['originator'], 'pi');
+    expect(captured?.headers['version'], '0.144.1');
   });
 
   test('routes xAI through Responses API and discovers models', () async {
