@@ -1,10 +1,18 @@
+import 'omp_model_catalog.dart';
+
 enum ProviderTransport {
   openAIChatCompletions,
+  openAIResponses,
   openAICodexResponses,
   googleCloudCodeAssist,
 }
 
-enum ProviderAuthType { apiKey, googleAntigravityOAuth, openAICodexOAuth }
+enum ProviderAuthType {
+  apiKey,
+  googleAntigravityOAuth,
+  openAICodexOAuth,
+  xaiOAuth,
+}
 
 class ProviderCapabilities {
   const ProviderCapabilities({
@@ -64,7 +72,7 @@ class ProviderRegistry {
     transport: ProviderTransport.openAIChatCompletions,
     authType: ProviderAuthType.apiKey,
     defaultBaseUrl: 'https://openrouter.ai/api/v1',
-    defaultModels: <String>['openai/gpt-4o-mini'],
+    defaultModels: <String>[OmpModelCatalog.openRouterDefault],
     capabilities: ProviderCapabilities(
       supportsStreaming: true,
       supportsTools: true,
@@ -77,7 +85,7 @@ class ProviderRegistry {
     transport: ProviderTransport.openAIChatCompletions,
     authType: ProviderAuthType.apiKey,
     defaultBaseUrl: 'https://api.deepseek.com',
-    defaultModels: <String>['deepseek-chat', 'deepseek-reasoner'],
+    defaultModels: <String>[OmpModelCatalog.deepSeekDefault],
     capabilities: ProviderCapabilities(
       supportsStreaming: true,
       supportsTools: true,
@@ -86,12 +94,27 @@ class ProviderRegistry {
   );
 
   static const grok = ProviderDefinition(
-    id: 'grok',
+    id: 'xai',
     name: 'Grok',
-    transport: ProviderTransport.openAIChatCompletions,
+    transport: ProviderTransport.openAIResponses,
     authType: ProviderAuthType.apiKey,
     defaultBaseUrl: 'https://api.x.ai/v1',
-    defaultModels: <String>['grok-4.6', 'grok-4.5', 'grok-4.3'],
+    defaultModels: OmpModelCatalog.xai,
+    capabilities: ProviderCapabilities(
+      supportsStreaming: true,
+      supportsTools: true,
+      supportsReasoning: true,
+      supportsImages: true,
+    ),
+  );
+
+  static const grokOAuth = ProviderDefinition(
+    id: 'xai-oauth',
+    name: 'Grok OAuth',
+    transport: ProviderTransport.openAIResponses,
+    authType: ProviderAuthType.xaiOAuth,
+    defaultBaseUrl: 'https://api.x.ai/v1',
+    defaultModels: OmpModelCatalog.xaiOAuth,
     capabilities: ProviderCapabilities(
       supportsStreaming: true,
       supportsTools: true,
@@ -106,7 +129,7 @@ class ProviderRegistry {
     transport: ProviderTransport.openAICodexResponses,
     authType: ProviderAuthType.openAICodexOAuth,
     defaultBaseUrl: 'https://chatgpt.com/backend-api',
-    defaultModels: <String>['gpt-5.5', 'gpt-5.3-codex', 'gpt-5.2-codex'],
+    defaultModels: OmpModelCatalog.openAICodex,
     capabilities: ProviderCapabilities(
       supportsStreaming: true,
       supportsTools: true,
@@ -120,7 +143,7 @@ class ProviderRegistry {
     transport: ProviderTransport.googleCloudCodeAssist,
     authType: ProviderAuthType.googleAntigravityOAuth,
     defaultBaseUrl: 'https://daily-cloudcode-pa.googleapis.com',
-    defaultModels: <String>['gemini-3.1-pro', 'gemini-3.5-flash'],
+    defaultModels: OmpModelCatalog.googleAntigravity,
     capabilities: ProviderCapabilities(
       supportsStreaming: true,
       supportsTools: true,
@@ -132,6 +155,7 @@ class ProviderRegistry {
   static const builtIns = <ProviderDefinition>[
     googleAntigravity,
     openAICodex,
+    grokOAuth,
     grok,
     openRouter,
     deepSeek,

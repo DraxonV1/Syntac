@@ -293,6 +293,43 @@ Future<void> showProviderConfigDialog(
                         });
                       },
                     ),
+                    AppButton(
+                      label: 'Grok OAuth',
+                      icon: AppIcons.key,
+                      variant: AppButtonVariant.secondary,
+                      loading: isOAuthLogin,
+                      compact: true,
+                      onPressed: () async {
+                        setState(() {
+                          isOAuthLogin = true;
+                          oauthAuthUrl = null;
+                          oauthProgress = 'Starting Grok sign-in...';
+                          testResult = null;
+                        });
+                        await controller.loginXAIOAuth(
+                          onAuthRequest: (request) {
+                            Clipboard.setData(ClipboardData(text: request.url));
+                            if (!dialogContext.mounted) return;
+                            setState(() {
+                              oauthAuthUrl = request.launchUrl ?? request.url;
+                              oauthProgress =
+                                  'Authorization URL copied. Enter device code in browser.';
+                            });
+                          },
+                          onProgress: (message) {
+                            if (!dialogContext.mounted) return;
+                            setState(() => oauthProgress = message);
+                          },
+                        );
+                        if (!dialogContext.mounted) return;
+                        setState(() {
+                          isOAuthLogin = false;
+                          oauthProgress =
+                              controller.lastError ?? 'Grok sign-in complete';
+                          testSuccess = controller.lastError == null;
+                        });
+                      },
+                    ),
                   ],
                 ),
                 if (oauthProgress != null) ...[

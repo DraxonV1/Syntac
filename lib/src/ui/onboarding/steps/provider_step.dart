@@ -70,12 +70,12 @@ class _ProviderStepState extends State<ProviderStep> {
         case 'grok':
           _nameController.text = 'Grok';
           _baseUrlController.text = 'https://api.x.ai/v1';
+        case 'grok-oauth':
+          _nameController.text = 'Grok OAuth';
+          _baseUrlController.text = 'https://api.x.ai/v1';
         case 'openai-codex':
           _nameController.text = 'ChatGPT (Codex)';
           _baseUrlController.text = 'https://chatgpt.com/backend-api';
-        default:
-          _nameController.text = 'Custom OpenAI';
-          _baseUrlController.text = 'https://api.openai.com/v1';
       }
       _testState = ProviderTestState.idle;
       _streamedResponse = '';
@@ -110,6 +110,16 @@ class _ProviderStepState extends State<ProviderStep> {
             );
           },
         );
+      } else if (_selectedProviderKey == 'grok-oauth') {
+        await widget.controller.loginXAIOAuth(
+          onAuthRequest: (request) {
+            OAuthAuthSheet.show(
+              context: context,
+              request: request,
+              providerName: 'Grok OAuth',
+            );
+          },
+        );
       } else {
         final apiKey = _apiKeyController.text.trim();
         if (apiKey.isEmpty) throw ArgumentError('API key is required');
@@ -118,7 +128,7 @@ class _ProviderStepState extends State<ProviderStep> {
           baseUrl: _baseUrlController.text.trim(),
           apiKey: apiKey,
           providerKey: _selectedProviderKey == 'grok'
-              ? 'grok'
+              ? 'xai'
               : 'custom-openai-compatible',
           authType: 'apiKey',
           models: const [],
@@ -126,9 +136,12 @@ class _ProviderStepState extends State<ProviderStep> {
       }
 
       await widget.controller.refreshAll();
-      final providerKey = _selectedProviderKey == 'custom'
-          ? 'custom-openai-compatible'
-          : _selectedProviderKey;
+      final providerKey = switch (_selectedProviderKey) {
+        'custom' => 'custom-openai-compatible',
+        'grok' => 'xai',
+        'grok-oauth' => 'xai-oauth',
+        final key => key,
+      };
       final latest = widget.controller.providers
           .where((provider) => provider.providerKey == providerKey)
           .firstOrNull;
@@ -253,6 +266,17 @@ class _ProviderStepState extends State<ProviderStep> {
           ),
           const SizedBox(height: 10),
           _buildProviderChoiceCard(
+            key: 'grok-oauth',
+            title: 'Grok OAuth',
+            subtitle: 'SuperGrok / X Premium+ device sign-in',
+            logo: const Icon(
+              Icons.lock_open_rounded,
+              size: 22,
+              color: AppColors.primaryBright,
+            ),
+          ),
+          const SizedBox(height: 10),
+          _buildProviderChoiceCard(
             key: 'custom',
             title: 'Custom Provider',
             subtitle: 'OpenAI-compatible endpoints',
@@ -280,6 +304,8 @@ class _ProviderStepState extends State<ProviderStep> {
                     ? 'Connect with Google'
                     : _selectedProviderKey == 'openai-codex'
                     ? 'Connect with ChatGPT'
+                    : _selectedProviderKey == 'grok-oauth'
+                    ? 'Connect with Grok'
                     : 'Connect Provider',
                 loading: _isConnecting,
                 onPressed: _isConnecting ? null : _handleConnect,

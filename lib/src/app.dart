@@ -11,6 +11,7 @@ import 'ai/ai_error_messages.dart';
 import 'ai/google_cloud_code_assist_provider.dart';
 import 'ai/oauth/google_antigravity_oauth.dart';
 import 'ai/oauth/openai_codex_oauth.dart';
+import 'ai/oauth/xai_oauth.dart';
 import 'ai/openai_codex_provider.dart';
 import 'ai/openai_provider.dart';
 import 'ai/registry/provider_registry.dart';
@@ -466,14 +467,30 @@ class AppController extends ChangeNotifier {
         }
         return 'OAuth ok${credential.email == null ? '' : ' for ${credential.email}'}';
       }
+      if (provider.authType == ProviderAuthType.xaiOAuth.name) {
+        var credential = await repository.readOAuthCredential(providerId);
+        if (credential == null) return 'xAI sign-in required';
+        if (credential.expiresWithin(const Duration(minutes: 1))) {
+          credential = await XAIOAuthFlow().refreshToken(credential);
+          await repository.saveOAuthCredential(providerId, credential);
+        }
+        return 'OAuth ok${credential.email == null ? '' : ' for ${credential.email}'}';
+      }
       final apiKey = await repository.readProviderApiKey(providerId);
       if (apiKey == null || apiKey.isEmpty) {
         return 'Provider or API key missing';
       }
-      await OpenAICompatibleProvider(
-        baseUrl: provider.baseUrl,
-        providerName: provider.name,
-      ).testConnection(apiKey: apiKey);
+      if (provider.providerKey == ProviderRegistry.grok.id) {
+        await OpenAIResponsesProvider(
+          baseUrl: provider.baseUrl,
+          providerName: provider.name,
+        ).discoverModels(apiKey: apiKey);
+      } else {
+        await OpenAICompatibleProvider(
+          baseUrl: provider.baseUrl,
+          providerName: provider.name,
+        ).testConnection(apiKey: apiKey);
+      }
       return 'Connection ok';
     } catch (error, stackTrace) {
       logDetailedAIError(
@@ -506,6 +523,31 @@ class AppController extends ChangeNotifier {
           credential = await OpenAICodexOAuthFlow().refreshToken(credential);
           await repository.saveOAuthCredential(providerId, credential);
         }
+      } else if (provider.providerKey == ProviderRegistry.grokOAuth.id) {
+        var credential = await repository.readOAuthCredential(providerId);
+        if (credential == null) return 'xAI sign-in required';
+        if (credential.expiresWithin(const Duration(minutes: 1))) {
+          credential = await XAIOAuthFlow().refreshToken(credential);
+          await repository.saveOAuthCredential(providerId, credential);
+        }
+        discovered = await OpenAIResponsesProvider(
+          baseUrl: provider.baseUrl,
+          providerName: provider.name,
+        ).discoverModels(apiKey: credential.toStructuredApiKey());
+        discovered = discovered
+            .where(
+              (model) =>
+                  !model.startsWith('grok-imagine-') &&
+                  !model.startsWith('grok-stt-') &&
+                  !model.startsWith('grok-voice-'),
+            )
+            .toList(growable: false);
+      } else if (provider.providerKey == ProviderRegistry.grok.id) {
+        final apiKey = await repository.readProviderApiKey(providerId) ?? '';
+        discovered = await OpenAIResponsesProvider(
+          baseUrl: provider.baseUrl,
+          providerName: provider.name,
+        ).discoverModels(apiKey: apiKey);
       } else {
         final apiKey = await repository.readProviderApiKey(providerId) ?? '';
         final openAIProvider = OpenAICompatibleProvider(
@@ -645,6 +687,51 @@ class AppController extends ChangeNotifier {
     }
   }
 
+  Future<void> loginXAIOAuth({
+    required void Function(OAuthAuthRequest request) onAuthRequest,
+    void Function(String message)? onProgress,
+  }) async {
+    lastError = null;
+    try {
+      final definition = ProviderRegistry.grokOAuth;
+      final credential = await XAIOAuthFlow().login(
+        onAuthRequest: onAuthRequest,
+        onProgress: onProgress,
+      );
+      final existing = providers
+          .where((provider) => provider.providerKey == definition.id)
+          .firstOrNull;
+      final discovered = await OpenAIResponsesProvider(
+        baseUrl: definition.defaultBaseUrl,
+        providerName: definition.name,
+      ).discoverModels(apiKey: credential.toStructuredApiKey());
+      final existingModels = existing == null
+          ? const <String>[]
+          : (providerModels[existing.id] ?? const <ProviderModel>[]).map(
+              (model) => model.model,
+            );
+      final provider = await repository.saveProvider(
+        id: existing?.id,
+        name: definition.name,
+        baseUrl: definition.defaultBaseUrl,
+        providerKey: definition.id,
+        authType: definition.authType.name,
+        apiKey: '',
+        models: _mergeModels([
+          discovered,
+          existingModels,
+          definition.defaultModels,
+        ]),
+      );
+      await repository.saveOAuthCredential(provider.id, credential);
+      await refreshAll();
+    } catch (error, stackTrace) {
+      logDetailedAIError(error, stackTrace, context: 'xAI OAuth login failed');
+      lastError = describeAIErrorForUser(error, providerName: 'xAI Grok OAuth');
+      notifyListeners();
+    }
+  }
+
   Stream<String> testProviderStreaming({
     required ProviderConfig provider,
     required String model,
@@ -670,6 +757,10 @@ class AppController extends ChangeNotifier {
         providerName: provider.name,
       ),
       'openai-codex' => OpenAICodexProvider(
+        baseUrl: provider.baseUrl,
+        providerName: provider.name,
+      ),
+      'xai' || 'xai-oauth' => OpenAIResponsesProvider(
         baseUrl: provider.baseUrl,
         providerName: provider.name,
       ),

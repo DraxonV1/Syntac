@@ -376,7 +376,8 @@ class AppRepository implements CredentialStore {
         _ => null,
       },
       ProviderAuthType.googleAntigravityOAuth ||
-      ProviderAuthType.openAICodexOAuth => switch (await readOAuthCredential(
+      ProviderAuthType.openAICodexOAuth ||
+      ProviderAuthType.xaiOAuth => switch (await readOAuthCredential(
         provider.id,
       )) {
         final credential? => OAuthProviderCredential(credential),

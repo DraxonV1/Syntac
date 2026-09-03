@@ -18,8 +18,10 @@ import 'package:syntac/src/ai/google_cloud_code_assist_provider.dart';
 import 'package:syntac/src/ai/oauth/google_antigravity_oauth.dart';
 import 'package:syntac/src/ai/oauth/oauth_credential.dart';
 import 'package:syntac/src/ai/oauth/openai_codex_oauth.dart';
+import 'package:syntac/src/ai/oauth/xai_oauth.dart';
 import 'package:syntac/src/ai/openai_codex_provider.dart';
 import 'package:syntac/src/ai/openai_provider.dart';
+import 'package:syntac/src/ai/registry/omp_model_catalog.dart';
 import 'package:syntac/src/ai/registry/provider_registry.dart';
 import 'package:syntac/src/ai/provider_diagnostics.dart';
 import 'package:syntac/src/core/cancellation.dart';
@@ -901,17 +903,19 @@ void main() {
         ),
       );
     });
-
-    test('beta registry exposes supported OAuth and API providers', () {
+    test('beta registry exposes OMP v18.1.6 provider catalogs', () {
       final ids = ProviderRegistry.builtIns.map((provider) => provider.id);
 
       expect(ids, contains('openai-codex'));
-      expect(ids, contains('grok'));
-      expect(ids, isNot(contains('custom-anthropic-compatible')));
-      expect(
-        ProviderRegistry.isVisibleForBeta('custom-anthropic-compatible'),
-        isFalse,
-      );
+      expect(ids, contains('xai'));
+      expect(ids, contains('xai-oauth'));
+      expect(ids, isNot(contains('grok')));
+      expect(ProviderRegistry.googleAntigravity.defaultModels, hasLength(19));
+      expect(ProviderRegistry.openAICodex.defaultModels, hasLength(8));
+      expect(ProviderRegistry.grok.defaultModels, contains('grok-4.6'));
+      expect(ProviderRegistry.grokOAuth.defaultModels, hasLength(9));
+      expect(OmpModelCatalog.openRouterDefault, 'openai/gpt-5.5');
+      expect(OmpModelCatalog.deepSeekDefault, 'deepseek-v4-pro');
     });
     test('builds ChatGPT Codex PKCE authorization URL', () {
       final flow = OpenAICodexOAuthFlow();
@@ -988,6 +992,90 @@ void main() {
     });
   });
 
+  test('routes xAI through Responses API and discovers models', () async {
+    http.Request? captured;
+    final provider = OpenAIResponsesProvider(
+      baseUrl: 'https://api.x.ai/v1',
+      client: MockClient((request) async {
+        captured = request;
+        return http.Response(
+          jsonEncode({
+            'data': [
+              {'id': 'grok-4.6'},
+            ],
+          }),
+          200,
+        );
+      }),
+    );
+
+    final models = await provider.discoverModels(apiKey: 'xai-key');
+
+    expect(models, ['grok-4.6']);
+    expect(captured?.url.toString(), 'https://api.x.ai/v1/models');
+    expect(captured?.headers['authorization'], 'Bearer xai-key');
+    expect(
+      provider.resolvedResponsesUri.toString(),
+      'https://api.x.ai/v1/responses',
+    );
+  });
+
+  test('runs xAI device OAuth with OMP client and scope', () async {
+    final requests = <http.Request>[];
+    final flow = XAIOAuthFlow(
+      client: MockClient((request) async {
+        requests.add(request);
+        switch (request.url.toString()) {
+          case XAIOAuthFlow.deviceCodeUrl:
+            return http.Response(
+              jsonEncode({
+                'device_code': 'device',
+                'user_code': 'ABCD',
+                'verification_uri': 'https://auth.x.ai/activate',
+                'verification_uri_complete':
+                    'https://auth.x.ai/activate?user_code=ABCD',
+                'expires_in': 600,
+                'interval': 1,
+              }),
+              200,
+            );
+          case XAIOAuthFlow.discoveryUrl:
+            return http.Response(
+              jsonEncode({'token_endpoint': 'https://auth.x.ai/oauth2/token'}),
+              200,
+            );
+          case 'https://auth.x.ai/oauth2/token':
+            return http.Response(
+              jsonEncode({
+                'access_token': 'header.eyJzdWIiOiJzdWJqZWN0In0.sig',
+                'refresh_token': 'refresh',
+                'expires_in': 3600,
+              }),
+              200,
+            );
+          case XAIOAuthFlow.userInfoUrl:
+            return http.Response(
+              jsonEncode({'sub': 'subject', 'email': 'USER@example.com'}),
+              200,
+            );
+        }
+        return http.Response('{}', 404);
+      }),
+      sleep: (_) async {},
+    );
+    OAuthAuthRequest? authRequest;
+
+    final credential = await flow.login(
+      onAuthRequest: (request) => authRequest = request,
+    );
+
+    expect(credential.provider, OAuthProviderId.xaiOAuth);
+    expect(credential.accountId, 'subject');
+    expect(authRequest?.launchUrl, contains('user_code=ABCD'));
+    expect(requests.first.body, contains('client_id=${XAIOAuthFlow.clientId}'));
+    expect(requests.first.body, contains('scope=openid'));
+    expect(requests[2].body, contains('grant_type=urn%3Aietf%3Aparams'));
+  });
   group('agent loop', () {
     test(
       'executes tool calls, persists structured tool history, and completes',

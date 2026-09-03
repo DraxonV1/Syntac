@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-enum OAuthProviderId { googleAntigravity, openAICodex }
+enum OAuthProviderId { googleAntigravity, openAICodex, xaiOAuth }
 
 class OAuthException implements Exception {
   const OAuthException(this.message);
@@ -100,5 +100,6 @@ class OAuthCredential {
 
 OAuthProviderId _providerFromJson(Object? raw) => switch (raw) {
   'openAICodex' => OAuthProviderId.openAICodex,
+  'xaiOAuth' => OAuthProviderId.xaiOAuth,
   _ => OAuthProviderId.googleAntigravity,
 };

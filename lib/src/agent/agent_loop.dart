@@ -10,6 +10,7 @@ import '../ai/google_cloud_code_assist_provider.dart';
 import '../ai/oauth/google_antigravity_oauth.dart';
 import '../ai/oauth/openai_codex_oauth.dart';
 import '../ai/oauth/oauth_credential.dart';
+import '../ai/oauth/xai_oauth.dart';
 import '../ai/openai_provider.dart';
 import '../ai/openai_codex_provider.dart';
 import '../ai/registry/provider_registry.dart';
@@ -28,6 +29,8 @@ class AgentLoop {
     googleOAuthRefresh,
     Future<OAuthCredential> Function(OAuthCredential credential)?
     openAICodexOAuthRefresh,
+    Future<OAuthCredential> Function(OAuthCredential credential)?
+    xaiOAuthRefresh,
     Future<ShellExecutor> Function(Project project)? shellExecutorFactory,
     Future<void> Function(String chatId)? onMessagesChanged,
   }) : _googleOAuthRefresh =
@@ -37,6 +40,9 @@ class AgentLoop {
        _openAICodexOAuthRefresh =
            openAICodexOAuthRefresh ??
            ((credential) => OpenAICodexOAuthFlow().refreshToken(credential)),
+       _xaiOAuthRefresh =
+           xaiOAuthRefresh ??
+           ((credential) => XAIOAuthFlow().refreshToken(credential)),
        _repository = repository,
        _onMessagesChanged = onMessagesChanged,
        _shellExecutorFactory =
@@ -55,6 +61,12 @@ class AgentLoop {
                    baseUrl: provider.baseUrl,
                    providerName: provider.name,
                  )
+               : provider.providerKey == ProviderRegistry.grok.id ||
+                     provider.providerKey == ProviderRegistry.grokOAuth.id
+               ? OpenAIResponsesProvider(
+                   baseUrl: provider.baseUrl,
+                   providerName: provider.name,
+                 )
                : OpenAICompatibleProvider(
                    baseUrl: provider.baseUrl,
                    providerName: provider.name,
@@ -68,6 +80,8 @@ class AgentLoop {
   _googleOAuthRefresh;
   final Future<OAuthCredential> Function(OAuthCredential credential)
   _openAICodexOAuthRefresh;
+  final Future<OAuthCredential> Function(OAuthCredential credential)
+  _xaiOAuthRefresh;
   final Map<String, CancellationToken> _activeRuns =
       <String, CancellationToken>{};
 
@@ -143,9 +157,15 @@ class AgentLoop {
       Future<String?> refreshOAuthCredential() async {
         final current = refreshableOAuthCredential;
         if (current == null) return null;
-        final refreshed = current.provider == OAuthProviderId.openAICodex
-            ? await _openAICodexOAuthRefresh(current)
-            : await _googleOAuthRefresh(current);
+        final refreshed = switch (current.provider) {
+          OAuthProviderId.openAICodex => await _openAICodexOAuthRefresh(
+            current,
+          ),
+          OAuthProviderId.xaiOAuth => await _xaiOAuthRefresh(current),
+          OAuthProviderId.googleAntigravity => await _googleOAuthRefresh(
+            current,
+          ),
+        };
         refreshableOAuthCredential = refreshed;
         await _repository.saveOAuthCredential(provider.id, refreshed);
         apiKey = refreshed.toStructuredApiKey();

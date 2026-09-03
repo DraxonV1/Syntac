@@ -13,22 +13,65 @@ class OpenAICodexProvider extends AIProvider {
     required String baseUrl,
     http.Client? client,
     String providerName = 'ChatGPT (Codex)',
+    String responsePath = 'codex/responses',
+    OAuthProviderId credentialProvider = OAuthProviderId.openAICodex,
   }) : _baseUri = _parseBaseUri(baseUrl),
        _client = client ?? http.Client(),
        _ownsClient = client == null,
-       _providerName = providerName;
+       _providerName = providerName,
+       _responsePath = responsePath,
+       _credentialProvider = credentialProvider;
 
   final Uri _baseUri;
   final http.Client _client;
   final bool _ownsClient;
   final String _providerName;
+  final String _responsePath;
+  final OAuthProviderId _credentialProvider;
 
   Uri get resolvedResponsesUri {
     final path = _baseUri.path.replaceFirst(RegExp(r'/+$'), '');
-    final responsePath = path.endsWith('/codex/responses')
-        ? path
-        : '$path/codex/responses';
+    final suffix = _responsePath.startsWith('/')
+        ? _responsePath
+        : '/$_responsePath';
+    final responsePath = path.endsWith(suffix) ? path : '$path$suffix';
     return _baseUri.replace(path: responsePath);
+  }
+
+  Uri get resolvedModelsUri {
+    final path = _baseUri.path.replaceFirst(RegExp(r'/+$'), '');
+    return _baseUri.replace(path: '$path/models');
+  }
+
+  Future<List<String>> discoverModels({required String apiKey}) async {
+    final credential = _credential(apiKey);
+    final response = await _client
+        .get(
+          resolvedModelsUri,
+          headers: {
+            'Authorization': 'Bearer ${credential.accessToken}',
+            'Accept': 'application/json',
+          },
+        )
+        .timeout(const Duration(seconds: 20));
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw AIProviderException(
+        '$_providerName model discovery failed: ${response.statusCode}: ${_safeError(response.body)}',
+        statusCode: response.statusCode,
+        kind: response.statusCode == 401 || response.statusCode == 403
+            ? 'unauthorized'
+            : 'provider_error',
+      );
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map || decoded['data'] is! List) {
+      return const <String>[];
+    }
+    return (decoded['data'] as List)
+        .whereType<Map>()
+        .map((item) => item['id']?.toString() ?? '')
+        .where((id) => id.isNotEmpty)
+        .toList(growable: false);
   }
 
   @override
@@ -242,7 +285,9 @@ class OpenAICodexProvider extends AIProvider {
               if (tool['description'] != null)
                 'description': tool['description'],
               'parameters': tool['parameters'] is Map
-                  ? tool['parameters']
+                  ? (_credentialProvider == OAuthProviderId.xaiOAuth
+                        ? _normalizeXaiToolSchema(tool['parameters'])
+                        : tool['parameters'])
                   : <String, Object?>{},
             },
           )
@@ -253,11 +298,15 @@ class OpenAICodexProvider extends AIProvider {
 
   Map<String, String> _headers(OAuthCredential credential) => {
     'Authorization': 'Bearer ${credential.accessToken}',
-    if (credential.accountId != null)
+    if (_credentialProvider == OAuthProviderId.openAICodex &&
+        credential.accountId != null)
       'chatgpt-account-id': credential.accountId!,
-    'OpenAI-Beta': 'responses=experimental',
-    'originator': 'pi',
-    'version': '0.144.1',
+    if (_credentialProvider == OAuthProviderId.openAICodex)
+      'OpenAI-Beta': 'responses=experimental',
+    if (_credentialProvider == OAuthProviderId.openAICodex) 'originator': 'pi',
+    if (_credentialProvider == OAuthProviderId.openAICodex)
+      'version': '0.144.1',
+    if (_credentialProvider == OAuthProviderId.xaiOAuth) 'User-Agent': 'pi',
     'Accept': 'text/event-stream',
     'Content-Type': 'application/json',
   };
@@ -267,7 +316,7 @@ class OpenAICodexProvider extends AIProvider {
       final decoded = jsonDecode(raw);
       if (decoded is Map && decoded['token'] is String) {
         return OAuthCredential(
-          provider: OAuthProviderId.openAICodex,
+          provider: _credentialProvider,
           accessToken: decoded['token'] as String,
           refreshToken: decoded['refreshToken'] as String? ?? '',
           expiresAt: DateTime.fromMillisecondsSinceEpoch(
@@ -279,7 +328,7 @@ class OpenAICodexProvider extends AIProvider {
       }
     } catch (_) {}
     return OAuthCredential(
-      provider: OAuthProviderId.openAICodex,
+      provider: _credentialProvider,
       accessToken: raw,
       refreshToken: '',
       expiresAt: DateTime.fromMillisecondsSinceEpoch(0),
@@ -351,6 +400,32 @@ class OpenAICodexProvider extends AIProvider {
     } catch (_) {}
     return body.trim().isEmpty ? 'empty response' : body.trim();
   }
+}
+
+class OpenAIResponsesProvider extends OpenAICodexProvider {
+  OpenAIResponsesProvider({
+    required super.baseUrl,
+    super.client,
+    super.providerName = 'xAI Grok',
+  }) : super(
+         responsePath: 'responses',
+         credentialProvider: OAuthProviderId.xaiOAuth,
+       );
+}
+
+Map<String, Object?> _normalizeXaiToolSchema(Object? value) {
+  if (value is! Map) return <String, Object?>{};
+  final schema = value.cast<String, Object?>();
+  final union = schema['anyOf'] ?? schema['oneOf'];
+  if (union is List) {
+    for (final branch in union) {
+      if (branch is Map && branch['type'] == 'object') {
+        return branch.cast<String, Object?>();
+      }
+    }
+    return <String, Object?>{'type': 'object'};
+  }
+  return schema;
 }
 
 class _CodexToolCall {
