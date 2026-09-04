@@ -997,6 +997,30 @@ void main() {
       expect(response.text, 'hi');
       expect(response.finishReason, 'completed');
     });
+    test('Codex Responses disables server-side response storage', () async {
+      http.Request? captured;
+      final provider = OpenAICodexProvider(
+        baseUrl: OpenAICodexOAuthFlow.defaultBaseUrl,
+        client: MockClient((request) async {
+          captured = request;
+          return http.Response(
+            'data: ${jsonEncode({
+              'type': 'response.completed',
+              'response': {'status': 'completed'},
+            })}\n\n',
+            200,
+            headers: {'content-type': 'text/event-stream'},
+          );
+        }),
+      );
+
+      await provider.completeChat(
+        const AIChatRequest(model: 'gpt-5.3-codex', messages: [], tools: []),
+        apiKey: 'codex-token',
+      );
+
+      expect(jsonDecode(captured!.body)['store'], false);
+    });
   });
 
   test('discovers Codex models from OMP model endpoint', () async {
@@ -2087,6 +2111,7 @@ void main() {
         );
       }),
     );
+
     final credential = OAuthCredential(
       provider: OAuthProviderId.googleAntigravity,
       accessToken: 'access-token',
@@ -2108,6 +2133,56 @@ void main() {
     expect(
       seen.single,
       'POST https://daily-cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse',
+    );
+  });
+  test('Google Antigravity merges consecutive user turns', () async {
+    Map<String, Object?>? captured;
+    final provider = GoogleCloudCodeAssistProvider(
+      baseUrl: GoogleAntigravityOAuthFlow.defaultBaseUrl,
+      client: MockClient((request) async {
+        captured = jsonDecode(request.body) as Map<String, Object?>;
+        return http.Response(
+          'data: ${jsonEncode({
+            'response': {
+              'candidates': [
+                {
+                  'content': {
+                    'parts': [
+                      {'text': 'ok'},
+                    ],
+                  },
+                  'finishReason': 'STOP',
+                },
+              ],
+            },
+          })}\n\n',
+          200,
+          headers: {'content-type': 'text/event-stream'},
+        );
+      }),
+    );
+
+    await provider.completeChat(
+      const AIChatRequest(
+        model: 'gemini-3.1-pro',
+        messages: [
+          AIChatMessage(role: 'user', content: 'one'),
+          AIChatMessage(role: 'user', content: 'two'),
+          AIChatMessage(role: 'user', content: 'three'),
+        ],
+        tools: [],
+      ),
+      apiKey: jsonEncode({'token': 'access-token', 'projectId': 'project-123'}),
+    );
+
+    final body = captured!['request'] as Map<String, Object?>;
+    final contents = body['contents'] as List<Object?>;
+    expect(contents, hasLength(1));
+    expect(
+      ((contents.single as Map)['parts'] as List).map(
+        (part) => (part as Map)['text'],
+      ),
+      ['one', 'two', 'three'],
     );
   });
 

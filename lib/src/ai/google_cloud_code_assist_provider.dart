@@ -254,12 +254,19 @@ class GoogleCloudCodeAssistProvider extends AIProvider {
     final toolNamesById = <String, String>{};
     final pendingFunctionResponses = <Map<String, Object?>>[];
 
+    void appendContent(String role, List<Map<String, Object?>> parts) {
+      if (parts.isEmpty) return;
+      final last = contents.lastOrNull;
+      if (last != null && last['role'] == role && last['parts'] is List) {
+        (last['parts'] as List<Object?>).addAll(parts);
+        return;
+      }
+      contents.add({'role': role, 'parts': parts});
+    }
+
     void flushFunctionResponses() {
       if (pendingFunctionResponses.isEmpty) return;
-      contents.add({
-        'role': 'user',
-        'parts': List.of(pendingFunctionResponses),
-      });
+      appendContent('user', List.of(pendingFunctionResponses));
       pendingFunctionResponses.clear();
     }
 
@@ -298,7 +305,7 @@ class GoogleCloudCodeAssistProvider extends AIProvider {
             }
           }
         }
-        if (parts.isNotEmpty) contents.add({'role': 'model', 'parts': parts});
+        if (parts.isNotEmpty) appendContent('model', parts);
         continue;
       }
       if (message.role == 'tool') {
@@ -312,12 +319,9 @@ class GoogleCloudCodeAssistProvider extends AIProvider {
         continue;
       }
       if (message.content.trim().isNotEmpty) {
-        contents.add({
-          'role': 'user',
-          'parts': [
-            {'text': message.content},
-          ],
-        });
+        appendContent('user', [
+          {'text': message.content},
+        ]);
       }
     }
     flushFunctionResponses();

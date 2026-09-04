@@ -252,8 +252,9 @@ class AppController extends ChangeNotifier {
       await refreshAll();
     } catch (error, stackTrace) {
       logDetailedAIError(error, stackTrace, context: 'Project creation failed');
-      lastError =
-          'Could not create the project folder. Use a real shared-storage path such as ${AppIdentity.instance.defaultSharedStoragePath}/<project>.';
+      lastError = Platform.isAndroid
+          ? 'Could not create the project folder. Choose any folder under /storage/emulated/0 and try again.'
+          : 'Could not create the project folder. Check folder permissions and try again.';
       notifyListeners();
     }
   }

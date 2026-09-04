@@ -1,9 +1,7 @@
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:path/path.dart' as p;
 import '../../app.dart';
-import '../../core/app_identity.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_typography.dart';
 import '../widgets/app_buttons.dart';
@@ -19,11 +17,7 @@ Future<void> showCreateProjectModal(
   AppController controller,
 ) async {
   final nameController = TextEditingController();
-  final app = AppIdentity.instance;
-  final defaultPath = Platform.isAndroid
-      ? app.defaultSharedStoragePath
-      : p.join(Directory.systemTemp.path, app.appSlug);
-  final folderController = TextEditingController(text: defaultPath);
+  String? selectedFolder;
   var isSubmitting = false;
 
   await showDialog<void>(
@@ -65,50 +59,40 @@ Future<void> showCreateProjectModal(
                   ),
                 ),
                 const SizedBox(height: 6),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final browseButton = AppIconButton(
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.folder_outlined,
+                      size: 18,
+                      color: AppColors.primaryBright,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        selectedFolder ?? 'Choose an existing project folder',
+                        style: AppTypography.monoSmall.copyWith(
+                          color: selectedFolder == null
+                              ? AppColors.textMuted
+                              : AppColors.textPrimary,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    AppButton(
+                      label: 'Choose Folder',
                       icon: Icons.folder_open_outlined,
-                      tooltip: 'Browse folder',
-                      backgroundColor: AppColors.surfaceElevated,
-                      borderColor: AppColors.border,
+                      compact: true,
+                      variant: AppButtonVariant.ghost,
                       onPressed: () async {
                         final picked = await FilePicker.getDirectoryPath();
                         if (picked != null) {
-                          setState(() {
-                            folderController.text = picked;
-                          });
+                          setState(() => selectedFolder = picked);
                         }
                       },
-                    );
-                    final field = TextField(
-                      controller: folderController,
-                      style: AppTypography.monoSmall,
-                      decoration: const InputDecoration(
-                        hintText: '/path/to/folder',
-                      ),
-                    );
-                    if (constraints.maxWidth < 360) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          field,
-                          const SizedBox(height: 8),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: browseButton,
-                          ),
-                        ],
-                      );
-                    }
-                    return Row(
-                      children: [
-                        Expanded(child: field),
-                        const SizedBox(width: 8),
-                        browseButton,
-                      ],
-                    );
-                  },
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 12),
                 Container(
@@ -162,8 +146,8 @@ Future<void> showCreateProjectModal(
               loading: isSubmitting,
               onPressed: () async {
                 final name = nameController.text.trim();
-                final folder = folderController.text.trim();
-                if (name.isEmpty || folder.isEmpty) return;
+                final folder = selectedFolder;
+                if (name.isEmpty || folder == null || folder.isEmpty) return;
 
                 setState(() => isSubmitting = true);
                 await controller.createProject(name, folder);

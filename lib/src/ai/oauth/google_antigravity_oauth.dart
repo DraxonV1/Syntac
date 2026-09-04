@@ -455,6 +455,25 @@ class GoogleAntigravityOAuthFlow {
       'Content-Type': 'application/json',
       'User-Agent': antigravityUserAgent,
     };
+    for (final endpoint in [dailyCloudCodeEndpoint, cloudCodeEndpoint]) {
+      try {
+        final response = await _client
+            .post(
+              Uri.parse('$endpoint/v1internal:fetchAvailableModels'),
+              headers: headers,
+              body: '{}',
+            )
+            .timeout(const Duration(seconds: 30));
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          continue;
+        }
+        final models = _extractAntigravityModels(jsonDecode(response.body));
+        if (models.isNotEmpty) return models;
+      } catch (_) {
+        continue;
+      }
+    }
+
     final models = <String>{};
     for (final endpoint in [dailyCloudCodeEndpoint, cloudCodeEndpoint]) {
       try {
@@ -627,6 +646,21 @@ class GoogleAntigravityOAuthFlow {
     final bytes = List<int>.generate(24, (_) => random.nextInt(256));
     return base64UrlEncode(bytes).replaceAll('=', '');
   }
+}
+
+List<String> _extractAntigravityModels(Object? value) {
+  if (value is! Map || value['models'] is! Map) {
+    return const <String>[];
+  }
+  final models = <String>[];
+  for (final entry in (value['models'] as Map).entries) {
+    final modelId = entry.key.toString().trim();
+    final metadata = entry.value;
+    if (metadata is Map && metadata['isInternal'] == true) continue;
+    if (!_isSupportedModelName(modelId)) continue;
+    models.add(modelId.replaceFirst('models/', ''));
+  }
+  return models;
 }
 
 String? _extractProjectId(Object? value) {

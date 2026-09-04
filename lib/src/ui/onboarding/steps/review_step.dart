@@ -149,8 +149,14 @@ class _ReviewStepState extends State<ReviewStep> {
         ? (widget.controller.providerModels[provider.id] ?? const [])
         : const <ProviderModel>[];
     final defaultModelName = models.firstOrNull?.model ?? 'Not selected';
+    final modelContextWindow =
+        provider == null || defaultModelName == 'Not selected'
+        ? null
+        : widget.controller.modelsDevCatalog.contextWindowFor(
+            providerKey: provider.providerKey,
+            modelId: defaultModelName,
+          );
     final limits = widget.controller.limits;
-
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       child: Column(
@@ -225,7 +231,12 @@ class _ReviewStepState extends State<ReviewStep> {
                 const SizedBox(width: 24),
                 _buildMetric('Timeout', '${limits.commandTimeoutSeconds}s'),
                 const SizedBox(width: 24),
-                _buildMetric('Context', 'Models.dev'),
+                _buildMetric(
+                  'Context',
+                  modelContextWindow == null
+                      ? 'Unknown'
+                      : '${_formatTokenCount(modelContextWindow)} tokens',
+                ),
               ],
             ),
           ),
@@ -321,4 +332,11 @@ class _ReviewStepState extends State<ReviewStep> {
       ],
     );
   }
+}
+
+String _formatTokenCount(int value) {
+  return value.toString().replaceAllMapped(
+    RegExp(r'\B(?=(\d{3})+(?!\d))'),
+    (_) => ',',
+  );
 }

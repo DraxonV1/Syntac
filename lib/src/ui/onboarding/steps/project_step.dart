@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
@@ -44,8 +43,8 @@ class _ProjectStepState extends State<ProjectStep> {
   Timer? _sampleTimer;
   bool _isUserEditing = false;
   late final TextEditingController _nameController;
-  late final TextEditingController _pathController;
   late final FocusNode _nameFocusNode;
+  String? _selectedFolder;
 
   bool _isCreating = false;
   String? _errorMessage;
@@ -53,13 +52,7 @@ class _ProjectStepState extends State<ProjectStep> {
   @override
   void initState() {
     super.initState();
-    final app = widget.identity ?? AppIdentity.instance;
     _nameController = TextEditingController(text: _sampleIdeas.first);
-    _pathController = TextEditingController(
-      text: Platform.isAndroid
-          ? '${app.defaultSharedStoragePath}/first-project'
-          : '${Directory.current.path}${Platform.pathSeparator}first-project',
-    );
     _nameFocusNode = FocusNode();
 
     _nameFocusNode.addListener(() {
@@ -77,7 +70,6 @@ class _ProjectStepState extends State<ProjectStep> {
         setState(() {
           _currentSampleIndex = (_currentSampleIndex + 1) % _sampleIdeas.length;
           _nameController.text = _sampleIdeas[_currentSampleIndex];
-          _updatePathForName(_nameController.text);
         });
       }
     });
@@ -94,21 +86,10 @@ class _ProjectStepState extends State<ProjectStep> {
     );
   }
 
-  void _updatePathForName(String name) {
-    final slug = ProjectMountNames.fromName(
-      name.isEmpty ? 'first-project' : name,
-    );
-    final app = widget.identity ?? AppIdentity.instance;
-    if (Platform.isAndroid) {
-      _pathController.text = '${app.defaultSharedStoragePath}/$slug';
-    }
-  }
-
   @override
   void dispose() {
     _sampleTimer?.cancel();
     _nameController.dispose();
-    _pathController.dispose();
     _nameFocusNode.dispose();
     super.dispose();
   }
@@ -118,7 +99,7 @@ class _ProjectStepState extends State<ProjectStep> {
       final result = await FilePicker.getDirectoryPath();
       if (result != null && mounted) {
         setState(() {
-          _pathController.text = result;
+          _selectedFolder = result;
           _errorMessage = null;
         });
       }
@@ -131,15 +112,15 @@ class _ProjectStepState extends State<ProjectStep> {
 
   Future<void> _handleCreateProject() async {
     final name = _nameController.text.trim();
-    final path = _pathController.text.trim();
+    final path = _selectedFolder;
 
     if (name.isEmpty) {
       setState(() => _errorMessage = 'Project name is required');
       return;
     }
 
-    if (path.isEmpty) {
-      setState(() => _errorMessage = 'Project directory path is required');
+    if (path == null || path.isEmpty) {
+      setState(() => _errorMessage = 'Choose a project folder first');
       return;
     }
 
@@ -174,7 +155,7 @@ class _ProjectStepState extends State<ProjectStep> {
   @override
   Widget build(BuildContext context) {
     final hasName = _nameController.text.trim().isNotEmpty;
-    final hasPath = _pathController.text.trim().isNotEmpty;
+    final hasPath = _selectedFolder != null;
 
     return Center(
       child: SingleChildScrollView(
@@ -223,8 +204,7 @@ class _ProjectStepState extends State<ProjectStep> {
                     onTap: () {
                       if (!_isUserEditing) _stopCycling();
                     },
-                    onChanged: (val) {
-                      _updatePathForName(val);
+                    onChanged: (_) {
                       setState(() {});
                     },
                     style: AppTypography.display.copyWith(
@@ -275,16 +255,15 @@ class _ProjectStepState extends State<ProjectStep> {
                         ],
                       ),
                       const SizedBox(height: 8),
-                      TextField(
-                        controller: _pathController,
-                        style: AppTypography.codeSmall,
-                        decoration: const InputDecoration(
-                          hintText: '/storage/emulated/0/...',
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 8,
-                          ),
+                      Text(
+                        _selectedFolder ?? 'No folder selected',
+                        style: AppTypography.codeSmall.copyWith(
+                          color: _selectedFolder == null
+                              ? AppColors.textMuted
+                              : AppColors.textPrimary,
                         ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),

@@ -134,7 +134,10 @@ class _ProviderStepState extends State<ProviderStep> {
           models: const [],
         );
       }
-
+      final loginError = widget.controller.lastError;
+      if (loginError != null && loginError.isNotEmpty) {
+        throw StateError(loginError);
+      }
       await widget.controller.refreshAll();
       final providerKey = switch (_selectedProviderKey) {
         'custom' => 'custom-openai-compatible',
