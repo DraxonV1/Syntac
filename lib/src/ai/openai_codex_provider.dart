@@ -538,7 +538,6 @@ class OpenAIResponsesProvider extends OpenAICodexProvider {
        );
 }
 
-
 class _CodexToolCall {
   _CodexToolCall({required this.id, required this.name});
   final String id;
