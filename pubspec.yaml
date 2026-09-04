@@ -32,6 +32,7 @@ dependencies:
   path: ^1.9.1
   path_provider: ^2.1.6
   flutter_secure_storage: ^9.2.4
+  flutter_svg: ^2.3.0
   http: ^1.6.0
   file_picker: ^11.0.3
   uuid: ^4.6.0
@@ -63,6 +64,7 @@ flutter:
   assets:
     - assets/runtime/arch-linux-rootfs-v1.bundle
     - assets/branding/syntac-logo.png
+    - assets/models/models.dev.api.json
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

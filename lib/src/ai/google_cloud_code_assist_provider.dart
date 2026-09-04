@@ -340,7 +340,8 @@ class GoogleCloudCodeAssistProvider extends AIProvider {
       );
     }
     final generationConfig = <String, Object?>{
-      'maxOutputTokens': _maxOutputTokens(wireModel),
+      if (request.maxOutputTokens != null)
+        'maxOutputTokens': request.maxOutputTokens,
       if (request.temperature != null) 'temperature': request.temperature,
     };
     final labels = <String, String>{
@@ -645,11 +646,6 @@ class GoogleCloudCodeAssistProvider extends AIProvider {
     'gemini-3.1-pro' => 'gemini-3.1-pro-low',
     'gemini-3.5-flash' => 'gemini-3.5-flash-extra-low',
     _ => modelId,
-  };
-
-  static int _maxOutputTokens(String modelId) => switch (modelId) {
-    'claude-sonnet-4-6' || 'claude-opus-4-6-thinking' => 64000,
-    _ => 65535,
   };
 
   static String? _modelEnum(String modelId) => switch (modelId) {

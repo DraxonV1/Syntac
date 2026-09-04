@@ -247,44 +247,28 @@ class _ProviderStepState extends State<ProviderStep> {
             key: 'openai-codex',
             title: 'ChatGPT (Codex)',
             subtitle: 'ChatGPT Plus / Pro OAuth',
-            logo: const Icon(
-              Icons.auto_awesome_rounded,
-              size: 22,
-              color: AppColors.primaryBright,
-            ),
+            logo: AppIcons.providerLogo('openai-codex', size: 22),
           ),
           const SizedBox(height: 10),
           _buildProviderChoiceCard(
             key: 'grok',
             title: 'Grok',
             subtitle: 'xAI API key',
-            logo: const Icon(
-              Icons.bolt_rounded,
-              size: 22,
-              color: AppColors.primaryBright,
-            ),
+            logo: AppIcons.providerLogo('xai', size: 22),
           ),
           const SizedBox(height: 10),
           _buildProviderChoiceCard(
             key: 'grok-oauth',
             title: 'Grok OAuth',
             subtitle: 'SuperGrok / X Premium+ device sign-in',
-            logo: const Icon(
-              Icons.lock_open_rounded,
-              size: 22,
-              color: AppColors.primaryBright,
-            ),
+            logo: AppIcons.providerLogo('xai-oauth', size: 22),
           ),
           const SizedBox(height: 10),
           _buildProviderChoiceCard(
             key: 'custom',
             title: 'Custom Provider',
             subtitle: 'OpenAI-compatible endpoints',
-            logo: const Icon(
-              Icons.api_rounded,
-              size: 22,
-              color: AppColors.primaryBright,
-            ),
+            logo: AppIcons.providerLogo('custom', size: 22),
           ),
           const SizedBox(height: 20),
 

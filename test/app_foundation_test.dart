@@ -21,6 +21,7 @@ import 'package:syntac/src/ai/oauth/openai_codex_oauth.dart';
 import 'package:syntac/src/ai/oauth/xai_oauth.dart';
 import 'package:syntac/src/ai/openai_codex_provider.dart';
 import 'package:syntac/src/ai/openai_provider.dart';
+import 'package:syntac/src/ai/models_dev_catalog.dart';
 import 'package:syntac/src/ai/registry/provider_registry.dart';
 import 'package:syntac/src/ai/provider_diagnostics.dart';
 import 'package:syntac/src/core/cancellation.dart';
@@ -902,19 +903,25 @@ void main() {
         ),
       );
     });
-    test('beta registry exposes OMP v18.1.6 provider catalogs', () {
+    test('beta registry uses live discovery without model hardcodes', () {
       final ids = ProviderRegistry.builtIns.map((provider) => provider.id);
 
       expect(ids, contains('openai-codex'));
       expect(ids, contains('xai'));
       expect(ids, contains('xai-oauth'));
       expect(ids, isNot(contains('grok')));
-      expect(ProviderRegistry.googleAntigravity.defaultModels, hasLength(19));
-      expect(ProviderRegistry.openAICodex.defaultModels, hasLength(8));
-      expect(ProviderRegistry.grok.defaultModels, contains('grok-4.6'));
-      expect(ProviderRegistry.grokOAuth.defaultModels, hasLength(9));
-      expect(ProviderRegistry.openRouter.defaultModels, isEmpty);
-      expect(ProviderRegistry.deepSeek.defaultModels, isEmpty);
+      for (final provider in ProviderRegistry.builtIns) {
+        expect(provider.defaultModels, isEmpty);
+      }
+    });
+    test('Models.dev bundle supplies model limits and capabilities', () async {
+      final catalog = await ModelsDevCatalog.load();
+      final model = catalog.lookup(providerKey: 'xai', modelId: 'grok-4.3');
+
+      expect(model, isNotNull);
+      expect(model!.contextWindow, greaterThan(0));
+      expect(model.outputLimit, greaterThan(0));
+      expect(model.toolCall, isTrue);
     });
     test('builds ChatGPT Codex PKCE authorization URL', () {
       final flow = OpenAICodexOAuthFlow();

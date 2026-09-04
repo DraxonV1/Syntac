@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../ai/registry/provider_registry.dart';
 import '../../app.dart';
 import '../../models.dart';
 import '../theme/app_colors.dart';
@@ -152,7 +153,8 @@ class _ProvidersScreenState extends State<ProvidersScreen> {
                     value: 'refresh',
                     child: Text('Refresh Models'),
                   ),
-                  const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                  if (!ProviderRegistry.isBuiltin(provider.providerKey))
+                    const PopupMenuItem(value: 'edit', child: Text('Edit')),
                   const PopupMenuItem(
                     value: 'delete',
                     child: Text(

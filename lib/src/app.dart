@@ -15,6 +15,7 @@ import 'ai/oauth/xai_oauth.dart';
 import 'ai/openai_codex_provider.dart';
 import 'ai/openai_provider.dart';
 import 'ai/registry/provider_registry.dart';
+import 'ai/models_dev_catalog.dart';
 import 'core/app_identity.dart';
 import 'core/update_service.dart';
 import 'models.dart';
@@ -78,9 +79,9 @@ class AppController extends ChangeNotifier {
   final UpdateService _updateService;
   AppRepository? _repository;
   AgentLoop? _agentLoop;
+  ModelsDevCatalog modelsDevCatalog = ModelsDevCatalog.empty();
   ShellRuntimeSettings shellRuntimeSettings = const ShellRuntimeSettings();
   ShellExecutor runtime;
-
   bool loading = true;
   String? lastError;
   List<ProjectSummary> projects = <ProjectSummary>[];
@@ -109,7 +110,6 @@ class AppController extends ChangeNotifier {
   Future<void> initialize() async {
     loading = true;
     lastError = null;
-    notifyListeners();
     try {
       final db = await _openDatabase();
       _repository = AppRepository(
@@ -117,8 +117,10 @@ class AppController extends ChangeNotifier {
         secretStore: _secretStore,
         chatStorageDirectory: _chatStorageDirectory,
       );
+      modelsDevCatalog = await ModelsDevCatalog.load();
       _agentLoop = AgentLoop(
         repository: repository,
+        modelsDevCatalog: modelsDevCatalog,
         shellExecutorFactory: _runtimeExecutorForProject,
         onMessagesChanged: _refreshChatMessages,
       );
@@ -575,7 +577,8 @@ class AppController extends ChangeNotifier {
       final merged = _mergeModels([
         discovered,
         if (!authoritativeDiscovery) existing.map((model) => model.model),
-        if (!authoritativeDiscovery) definition.defaultModels,
+        if (!authoritativeDiscovery)
+          modelsDevCatalog.modelIdsForProvider(definition.modelsDevProvider),
       ]);
       await repository.saveProvider(
         id: provider.id,
@@ -636,7 +639,8 @@ class AppController extends ChangeNotifier {
         models: _mergeModels([
           discoveredModels,
           if (discoveredModels.isEmpty) existingModels,
-          if (discoveredModels.isEmpty) definition.defaultModels,
+          if (discoveredModels.isEmpty)
+            modelsDevCatalog.modelIdsForProvider(definition.modelsDevProvider),
         ]),
       );
       await repository.saveOAuthCredential(provider.id, credential);
@@ -687,7 +691,10 @@ class AppController extends ChangeNotifier {
         apiKey: '',
         models: _mergeModels(switch (discovered) {
           final models? => [models],
-          _ => [existingModels, definition.defaultModels],
+          _ => [
+            existingModels,
+            modelsDevCatalog.modelIdsForProvider(definition.modelsDevProvider),
+          ],
         }),
       );
       await repository.saveOAuthCredential(provider.id, credential);
@@ -739,7 +746,8 @@ class AppController extends ChangeNotifier {
         models: _mergeModels([
           discovered,
           if (discovered.isEmpty) existingModels,
-          if (discovered.isEmpty) definition.defaultModels,
+          if (discovered.isEmpty)
+            modelsDevCatalog.modelIdsForProvider(definition.modelsDevProvider),
         ]),
       );
       await repository.saveOAuthCredential(provider.id, credential);

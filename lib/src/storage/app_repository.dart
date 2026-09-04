@@ -264,13 +264,6 @@ class AppRepository implements CredentialStore {
         .where((model) => model.isNotEmpty)
         .toSet()
         .toList();
-    if (cleanModels.isEmpty) {
-      throw ArgumentError.value(
-        models,
-        'models',
-        'At least one model is required',
-      );
-    }
     final provider = id == null
         ? ProviderConfig.create(
             name: name.trim(),

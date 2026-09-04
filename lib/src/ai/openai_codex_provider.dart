@@ -339,6 +339,8 @@ class OpenAICodexProvider extends AIProvider {
       'model': request.model,
       'input': input,
       'stream': true,
+      if (request.maxOutputTokens != null)
+        'max_output_tokens': request.maxOutputTokens,
     };
     if (instructions != null && instructions.isNotEmpty) {
       body['instructions'] = instructions;

@@ -829,23 +829,19 @@ class AgentLimits {
   const AgentLimits({
     this.maxIterations = 12,
     this.commandTimeoutSeconds = 120,
-    this.maxContextCharacters = 64000,
   });
 
   factory AgentLimits.fromMap(Map<String, Object?> map) => AgentLimits(
     maxIterations: map['max_iterations'] as int? ?? 12,
     commandTimeoutSeconds: map['command_timeout_seconds'] as int? ?? 120,
-    maxContextCharacters: map['max_context_characters'] as int? ?? 64000,
   );
 
   final int maxIterations;
   final int commandTimeoutSeconds;
-  final int maxContextCharacters;
 
   Map<String, Object?> toMap() => {
     'max_iterations': maxIterations,
     'command_timeout_seconds': commandTimeoutSeconds,
-    'max_context_characters': maxContextCharacters,
   };
 }
 

@@ -167,6 +167,18 @@ update/beta.json
 update/nightly.json
 ```
 
-## License
+## Reference and attribution
 
-No license file is currently included. Ask DraxonV1 before reusing or redistributing this code outside this repository.
+Thanks to [oh-my-pi](https://github.com/can1357/oh-my-pi) for giving much reference code. The pinned checkout lives at `reference/omp`.
+
+Runtime source repositories live under `reference/`:
+
+- `reference/omp`: oh-my-pi
+- `reference/proot`: proot
+- `reference/termux`: Termux proot fork
+
+Provider and model icons use the official [Lobe Icons](https://github.com/lobehub/lobe-icons) unpkg CDN:
+`https://unpkg.com/@lobehub/icons-static-svg@latest/icons/{slug}.svg`.
+Provider and model metadata comes from the bundled [Models.dev](https://models.dev) snapshot.
+
+## License

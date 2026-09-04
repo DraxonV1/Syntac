@@ -13,6 +13,7 @@ import '../ai/oauth/oauth_credential.dart';
 import '../ai/oauth/xai_oauth.dart';
 import '../ai/openai_provider.dart';
 import '../ai/openai_codex_provider.dart';
+import '../ai/models_dev_catalog.dart';
 import '../ai/registry/provider_registry.dart';
 import '../core/cancellation.dart';
 import '../models.dart';
@@ -24,6 +25,7 @@ import 'context_builder.dart';
 class AgentLoop {
   AgentLoop({
     required AppRepository repository,
+    ModelsDevCatalog? modelsDevCatalog,
     AIProvider Function(ProviderConfig provider)? providerFactory,
     Future<OAuthCredential> Function(OAuthCredential credential)?
     googleOAuthRefresh,
@@ -33,7 +35,8 @@ class AgentLoop {
     xaiOAuthRefresh,
     Future<ShellExecutor> Function(Project project)? shellExecutorFactory,
     Future<void> Function(String chatId)? onMessagesChanged,
-  }) : _googleOAuthRefresh =
+  }) : _modelsDevCatalog = modelsDevCatalog ?? ModelsDevCatalog.empty(),
+       _googleOAuthRefresh =
            googleOAuthRefresh ??
            ((credential) =>
                GoogleAntigravityOAuthFlow().refreshToken(credential)),
@@ -73,6 +76,7 @@ class AgentLoop {
                  ));
 
   final AppRepository _repository;
+  final ModelsDevCatalog _modelsDevCatalog;
   final AIProvider Function(ProviderConfig provider) _providerFactory;
   final Future<ShellExecutor> Function(Project project) _shellExecutorFactory;
   final Future<void> Function(String chatId)? _onMessagesChanged;
@@ -192,9 +196,18 @@ class AgentLoop {
           projectInstructions != null && projectInstructions.isNotEmpty
           ? '${globalPrompt ?? codingAgentSystemPrompt}\n\n# Project Instructions\n$projectInstructions'
           : (globalPrompt ?? codingAgentSystemPrompt);
-      final contextBuilder = ContextBuilder(
-        maxCharacters: limits.maxContextCharacters,
+      final modelMetadata = _modelsDevCatalog.lookup(
+        providerKey: provider.providerKey,
+        modelId: model.model,
       );
+      final contextCharacters =
+          (_modelsDevCatalog.contextWindowFor(
+                providerKey: provider.providerKey,
+                modelId: model.model,
+              ) ??
+              0) *
+          4;
+      final contextBuilder = ContextBuilder(maxCharacters: contextCharacters);
 
       for (var iteration = 0; iteration < limits.maxIterations; iteration++) {
         token.throwIfCancelled();
@@ -208,6 +221,7 @@ class AgentLoop {
             customSystemPrompt: effectivePrompt,
           ),
           tools: tools.specs,
+          maxOutputTokens: modelMetadata?.outputLimit,
           timeout: const Duration(seconds: 90),
         );
         final response = await _streamAssistantMessage(

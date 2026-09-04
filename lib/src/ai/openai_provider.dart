@@ -128,6 +128,8 @@ class OpenAICompatibleProvider extends AIProvider {
           if (request.tools.isNotEmpty) 'tools': request.tools,
           if (request.tools.isNotEmpty) 'tool_choice': 'auto',
           if (request.temperature != null) 'temperature': request.temperature,
+          if (request.maxOutputTokens != null)
+            'max_tokens': request.maxOutputTokens,
           'stream': true,
         });
 

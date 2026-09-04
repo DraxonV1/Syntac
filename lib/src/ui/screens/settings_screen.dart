@@ -50,7 +50,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late SettingsCategory _selectedCategory;
   late final TextEditingController _iterationsController;
   late final TextEditingController _timeoutController;
-  late final TextEditingController _contextCharsController;
   late final TextEditingController _promptController;
 
   bool _isSavingLimits = false;
@@ -68,9 +67,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
     _timeoutController = TextEditingController(
       text: limits.commandTimeoutSeconds.toString(),
-    );
-    _contextCharsController = TextEditingController(
-      text: limits.maxContextCharacters.toString(),
     );
     _promptController = TextEditingController(text: codingAgentSystemPrompt);
     _loadGlobalPrompt();
@@ -104,7 +100,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void dispose() {
     _iterationsController.dispose();
     _timeoutController.dispose();
-    _contextCharsController.dispose();
     _promptController.dispose();
     super.dispose();
   }
@@ -117,14 +112,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     final iters = int.tryParse(_iterationsController.text.trim()) ?? 12;
     final timeout = int.tryParse(_timeoutController.text.trim()) ?? 120;
-    final contextChars =
-        int.tryParse(_contextCharsController.text.trim()) ?? 64000;
 
     await widget.controller.saveLimits(
       AgentLimits(
         maxIterations: iters.clamp(1, 100),
         commandTimeoutSeconds: timeout.clamp(10, 1800),
-        maxContextCharacters: contextChars.clamp(4000, 500000),
       ),
     );
 
@@ -556,14 +548,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(
                   labelText: 'Command Timeout (seconds)',
-                ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: _contextCharsController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Max Context Characters',
                 ),
               ),
               const SizedBox(height: 12),

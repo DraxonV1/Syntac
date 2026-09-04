@@ -62,6 +62,7 @@ class AIChatRequest {
     required this.messages,
     required this.tools,
     this.temperature,
+    this.maxOutputTokens,
     this.timeout,
   });
 
@@ -69,6 +70,7 @@ class AIChatRequest {
   final List<AIChatMessage> messages;
   final List<Map<String, Object?>> tools;
   final double? temperature;
+  final int? maxOutputTokens;
   final Duration? timeout;
 }
 

@@ -1,7 +1,10 @@
-[submodule "third_party/proot"]
-	path = third_party/proot
+[submodule "reference/proot"]
+	path = reference/proot
 	url = https://github.com/proot-me/proot.git
 	ignore = untracked
-[submodule "third_party/termux-proot"]
-	path = third_party/termux-proot
+[submodule "reference/termux"]
+	path = reference/termux
 	url = https://github.com/termux/proot.git
+[submodule "reference/omp"]
+	path = reference/omp
+	url = https://github.com/can1357/oh-my-pi

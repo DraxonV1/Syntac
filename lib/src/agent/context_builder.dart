@@ -25,7 +25,11 @@ class ContextBuilder {
       final converted = _convert(message);
       final cost =
           converted.content.length + (message.metadataJson?.length ?? 0) + 32;
-      if (used + cost > maxCharacters && messages.length > 1) break;
+      if (maxCharacters > 0 &&
+          used + cost > maxCharacters &&
+          messages.length > 1) {
+        break;
+      }
       messages.insert(1, converted);
       used += cost;
     }

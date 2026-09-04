@@ -17,21 +17,25 @@ Future<void> showProviderConfigDialog(
   ProviderConfig? provider,
 }) async {
   final isEditing = provider != null;
+  final definition = provider == null
+      ? ProviderRegistry.customOpenAICompatible
+      : const ProviderRegistry().byId(provider.providerKey);
+  final isBuiltin =
+      isEditing && ProviderRegistry.isBuiltin(provider.providerKey);
+  final isOAuth = definition.authType != ProviderAuthType.apiKey;
   final existingModels = isEditing
       ? (controller.providerModels[provider.id] ?? <ProviderModel>[])
       : <ProviderModel>[];
-  final defaultProvider = ProviderRegistry.openRouter;
+  final defaultProvider = ProviderRegistry.customOpenAICompatible;
   final nameController = TextEditingController(
     text: provider?.name ?? defaultProvider.name,
   );
   final baseUrlController = TextEditingController(
-    text: provider?.baseUrl ?? defaultProvider.defaultBaseUrl,
+    text: provider?.baseUrl ?? '',
   );
   final apiKeyController = TextEditingController();
   final modelsController = TextEditingController(
-    text: isEditing
-        ? existingModels.map((m) => m.model).join('\n')
-        : defaultProvider.defaultModels.join('\n'),
+    text: existingModels.map((m) => m.model).join('\n'),
   );
 
   var isObscured = true;
@@ -66,10 +70,9 @@ Future<void> showProviderConfigDialog(
                 const SizedBox(height: 6),
                 TextField(
                   controller: nameController,
+                  readOnly: isBuiltin,
                   style: AppTypography.bodyMedium,
-                  decoration: const InputDecoration(
-                    hintText: 'e.g. OpenRouter, OpenAI, LocalAI',
-                  ),
+                  decoration: const InputDecoration(hintText: 'Provider name'),
                 ),
                 const SizedBox(height: 14),
 
@@ -77,52 +80,79 @@ Future<void> showProviderConfigDialog(
                 const SizedBox(height: 6),
                 TextField(
                   controller: baseUrlController,
+                  readOnly: isBuiltin,
                   style: AppTypography.codeSmall,
                   decoration: const InputDecoration(
-                    hintText: 'https://openrouter.ai/api/v1',
+                    hintText: 'https://provider.example/v1',
                   ),
                 ),
-                const SizedBox(height: 14),
 
-                Text(
-                  isEditing
-                      ? 'API Key (leave blank to keep current)'
-                      : 'API Key',
-                  style: AppTypography.label,
-                ),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: apiKeyController,
-                  obscureText: isObscured,
-                  style: AppTypography.codeSmall,
-                  decoration: InputDecoration(
-                    hintText: isEditing ? '••••••••••••••••' : 'sk-...',
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        isObscured
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined,
-                        size: 16,
-                        color: AppColors.textMuted,
+                if (!isOAuth) ...[
+                  Text(
+                    isEditing
+                        ? 'API Key (leave blank to keep current)'
+                        : 'API Key',
+                    style: AppTypography.label,
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: apiKeyController,
+                    obscureText: isObscured,
+                    style: AppTypography.codeSmall,
+                    decoration: InputDecoration(
+                      hintText: isEditing ? '••••••••••••••••' : 'sk-...',
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          isObscured
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                          size: 16,
+                          color: AppColors.textMuted,
+                        ),
+                        onPressed: () =>
+                            setState(() => isObscured = !isObscured),
                       ),
-                      onPressed: () => setState(() => isObscured = !isObscured),
                     ),
                   ),
-                ),
-                const SizedBox(height: 14),
+                  const SizedBox(height: 14),
+                ],
 
-                Text('Models (one per line)', style: AppTypography.label),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: modelsController,
-                  minLines: 2,
-                  maxLines: 5,
-                  style: AppTypography.codeSmall,
-                  decoration: const InputDecoration(
-                    hintText: 'openai/gpt-4o-mini',
+                if (isBuiltin) ...[
+                  Text(
+                    'Models discovered from provider',
+                    style: AppTypography.label,
                   ),
-                ),
-                const SizedBox(height: 14),
+                  const SizedBox(height: 6),
+                  if (existingModels.isEmpty)
+                    Text(
+                      'No live models yet. Refresh after sign-in.',
+                      style: AppTypography.bodySmall,
+                    )
+                  else
+                    for (final model in existingModels)
+                      ListTile(
+                        dense: true,
+                        leading: AppIcons.providerLogo(definition.id, size: 18),
+                        title: Text(
+                          model.model,
+                          style: AppTypography.codeSmall,
+                        ),
+                      ),
+                  const SizedBox(height: 14),
+                ] else ...[
+                  Text('Models (one per line)', style: AppTypography.label),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: modelsController,
+                    minLines: 2,
+                    maxLines: 5,
+                    style: AppTypography.codeSmall,
+                    decoration: const InputDecoration(
+                      hintText: 'Model ID from provider /models',
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                ],
 
                 // Test Connection Row
                 Row(
@@ -366,42 +396,44 @@ Future<void> showProviderConfigDialog(
               compact: true,
               onPressed: () => Navigator.of(dialogContext).pop(),
             ),
-            const SizedBox(width: 8),
-            AppButton(
-              label: isEditing ? 'Save Changes' : 'Add Provider',
-              loading: isSaving,
-              compact: true,
-              onPressed: () async {
-                final name = nameController.text.trim();
-                final baseUrl = baseUrlController.text.trim();
-                final key = apiKeyController.text.trim();
-                final models = modelsController.text
-                    .split('\n')
-                    .map((m) => m.trim())
-                    .where((m) => m.isNotEmpty)
-                    .toList();
+            if (!isBuiltin)
+              AppButton(
+                label: isEditing ? 'Save Changes' : 'Add Provider',
+                loading: isSaving,
+                compact: true,
+                onPressed: () async {
+                  final name = nameController.text.trim();
+                  final baseUrl = baseUrlController.text.trim();
+                  final key = apiKeyController.text.trim();
+                  final models = modelsController.text
+                      .split('\n')
+                      .map((m) => m.trim())
+                      .where((m) => m.isNotEmpty)
+                      .toList();
 
-                if (name.isEmpty || baseUrl.isEmpty) return;
+                  if (name.isEmpty || baseUrl.isEmpty) return;
 
-                setState(() => isSaving = true);
-                try {
-                  await controller.saveProvider(
-                    id: provider?.id,
-                    name: name,
-                    baseUrl: baseUrl,
-                    apiKey: key,
-                    models: models,
-                  );
-                  if (dialogContext.mounted) {
-                    Navigator.of(dialogContext).pop();
+                  setState(() => isSaving = true);
+                  try {
+                    await controller.saveProvider(
+                      id: provider?.id,
+                      name: name,
+                      baseUrl: baseUrl,
+                      apiKey: key,
+                      providerKey: definition.id,
+                      authType: definition.authType.name,
+                      models: models,
+                    );
+                    if (dialogContext.mounted) {
+                      Navigator.of(dialogContext).pop();
+                    }
+                  } finally {
+                    if (dialogContext.mounted) {
+                      setState(() => isSaving = false);
+                    }
                   }
-                } finally {
-                  if (dialogContext.mounted) {
-                    setState(() => isSaving = false);
-                  }
-                }
-              },
-            ),
+                },
+              ),
           ],
         );
       },

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../ai/models_dev_catalog.dart';
 import '../../models.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_icons.dart';
@@ -14,6 +15,7 @@ class ModelSelectorSheet extends StatefulWidget {
     super.key,
     required this.providers,
     required this.providerModels,
+    this.modelsDevCatalog = const ModelsDevCatalog.empty(),
     required this.selectedModelId,
     required this.onModelSelected,
     this.onConfigureProviders,
@@ -22,15 +24,16 @@ class ModelSelectorSheet extends StatefulWidget {
 
   final List<ProviderConfig> providers;
   final Map<String, List<ProviderModel>> providerModels;
+  final ModelsDevCatalog modelsDevCatalog;
   final String? selectedModelId;
   final ValueChanged<ProviderModel> onModelSelected;
   final VoidCallback? onConfigureProviders;
   final Future<void> Function(String providerId)? onRefreshModels;
-
   static Future<void> show({
     required BuildContext context,
     required List<ProviderConfig> providers,
     required Map<String, List<ProviderModel>> providerModels,
+    required ModelsDevCatalog modelsDevCatalog,
     required String? selectedModelId,
     required ValueChanged<ProviderModel> onModelSelected,
     VoidCallback? onConfigureProviders,
@@ -43,6 +46,7 @@ class ModelSelectorSheet extends StatefulWidget {
       child: ModelSelectorSheet(
         providers: providers,
         providerModels: providerModels,
+        modelsDevCatalog: modelsDevCatalog,
         selectedModelId: selectedModelId,
         onModelSelected: onModelSelected,
         onConfigureProviders: onConfigureProviders,
@@ -219,6 +223,11 @@ class _ModelSelectorSheetState extends State<ModelSelectorSheet> {
     final isSelected =
         widget.selectedModelId == model.id ||
         widget.selectedModelId == model.model;
+    final metadata = widget.modelsDevCatalog.lookup(
+      providerKey: provider.providerKey,
+      modelId: model.model,
+    );
+    final tags = _modelTags(metadata);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
@@ -235,12 +244,18 @@ class _ModelSelectorSheetState extends State<ModelSelectorSheet> {
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             child: Row(
               children: [
+                AppIcons.modelLogo(
+                  model.model,
+                  providerKey: provider.providerKey,
+                  size: 20,
+                ),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        model.model,
+                        metadata?.name ?? model.model,
                         style: AppTypography.bodyMedium.copyWith(
                           color: isSelected
                               ? AppColors.textPrimary
@@ -250,12 +265,28 @@ class _ModelSelectorSheetState extends State<ModelSelectorSheet> {
                               : FontWeight.w400,
                         ),
                       ),
-                      if (_modelTags(model.model).isNotEmpty) ...[
+                      if (metadata != null && metadata.name != model.model)
+                        Text(
+                          model.model,
+                          style: AppTypography.codeSmall.copyWith(
+                            color: AppColors.textMuted,
+                          ),
+                        ),
+                      if (metadata != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          _limitsLabel(metadata),
+                          style: AppTypography.bodySmall.copyWith(
+                            color: AppColors.textMuted,
+                          ),
+                        ),
+                      ],
+                      if (tags.isNotEmpty) ...[
                         const SizedBox(height: 4),
                         Wrap(
                           spacing: 4,
                           children: [
-                            for (final tag in _modelTags(model.model))
+                            for (final tag in tags)
                               BadgeChip(
                                 label: tag,
                                 variant: isSelected
@@ -282,21 +313,29 @@ class _ModelSelectorSheetState extends State<ModelSelectorSheet> {
     );
   }
 
-  List<String> _modelTags(String modelName) {
-    final lower = modelName.toLowerCase();
-    final tags = <String>[];
-    if (lower.contains('flash') || lower.contains('mini')) {
-      tags.add('Fast');
-    }
-    if (lower.contains('pro') ||
-        lower.contains('reasoner') ||
-        lower.contains('o1') ||
-        lower.contains('o3')) {
-      tags.add('Reasoning');
-    }
-    if (lower.contains('codex') || lower.contains('code')) {
-      tags.add('Coding');
-    }
-    return tags;
+  List<String> _modelTags(ModelMetadata? metadata) {
+    if (metadata == null) return const <String>[];
+    return <String>[
+      if (metadata.reasoning) 'Reasoning',
+      if (metadata.toolCall) 'Tools',
+      if (metadata.supportsImages) 'Vision',
+      if (metadata.temperature) 'Temperature',
+    ];
+  }
+
+  String _limitsLabel(ModelMetadata metadata) {
+    final values = <String>[
+      if (metadata.contextWindow != null)
+        'Context ${_formatTokens(metadata.contextWindow!)}',
+      if (metadata.outputLimit != null)
+        'Output ${_formatTokens(metadata.outputLimit!)}',
+    ];
+    return values.join(' · ');
+  }
+
+  String _formatTokens(int value) {
+    if (value >= 1000000) return '${(value / 1000000).toStringAsFixed(1)}M';
+    if (value >= 1000) return '${(value / 1000).toStringAsFixed(0)}k';
+    return value.toString();
   }
 }

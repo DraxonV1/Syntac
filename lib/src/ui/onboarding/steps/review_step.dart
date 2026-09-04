@@ -111,7 +111,6 @@ class _ReviewStepState extends State<ReviewStep> {
                   AgentLimits(
                     maxIterations: iters,
                     commandTimeoutSeconds: timeout,
-                    maxContextCharacters: limits.maxContextCharacters,
                   ),
                 );
                 if (mounted) {
@@ -226,10 +225,7 @@ class _ReviewStepState extends State<ReviewStep> {
                 const SizedBox(width: 24),
                 _buildMetric('Timeout', '${limits.commandTimeoutSeconds}s'),
                 const SizedBox(width: 24),
-                _buildMetric(
-                  'Context',
-                  '${(limits.maxContextCharacters / 1000).toStringAsFixed(0)}k',
-                ),
+                _buildMetric('Context', 'Models.dev'),
               ],
             ),
           ),

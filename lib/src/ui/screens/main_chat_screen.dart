@@ -397,6 +397,7 @@ class _MainChatScreenState extends State<MainChatScreen> {
       context: context,
       providers: widget.controller.providers,
       providerModels: widget.controller.providerModels,
+      modelsDevCatalog: widget.controller.modelsDevCatalog,
       selectedModelId: chat?.modelId,
       onRefreshModels: (providerId) =>
           widget.controller.refreshProviderModels(providerId),

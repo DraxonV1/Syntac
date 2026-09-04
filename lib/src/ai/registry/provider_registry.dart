@@ -1,5 +1,3 @@
-import 'omp_model_catalog.dart';
-
 enum ProviderTransport {
   openAIChatCompletions,
   openAIResponses,
@@ -37,6 +35,7 @@ class ProviderDefinition {
     required this.transport,
     required this.authType,
     required this.defaultBaseUrl,
+    required this.modelsDevProvider,
     required this.defaultModels,
     required this.capabilities,
   });
@@ -46,6 +45,7 @@ class ProviderDefinition {
   final ProviderTransport transport;
   final ProviderAuthType authType;
   final String defaultBaseUrl;
+  final String modelsDevProvider;
   final List<String> defaultModels;
   final ProviderCapabilities capabilities;
 }
@@ -58,7 +58,8 @@ class ProviderRegistry {
     name: 'Custom OpenAI-compatible',
     transport: ProviderTransport.openAIChatCompletions,
     authType: ProviderAuthType.apiKey,
-    defaultBaseUrl: 'https://example.com/v1',
+    defaultBaseUrl: '',
+    modelsDevProvider: '',
     defaultModels: <String>[],
     capabilities: ProviderCapabilities(
       supportsStreaming: true,
@@ -72,6 +73,7 @@ class ProviderRegistry {
     transport: ProviderTransport.openAIChatCompletions,
     authType: ProviderAuthType.apiKey,
     defaultBaseUrl: 'https://openrouter.ai/api/v1',
+    modelsDevProvider: 'openrouter',
     defaultModels: <String>[],
     capabilities: ProviderCapabilities(
       supportsStreaming: true,
@@ -85,6 +87,7 @@ class ProviderRegistry {
     transport: ProviderTransport.openAIChatCompletions,
     authType: ProviderAuthType.apiKey,
     defaultBaseUrl: 'https://api.deepseek.com',
+    modelsDevProvider: 'deepseek',
     defaultModels: <String>[],
     capabilities: ProviderCapabilities(
       supportsStreaming: true,
@@ -99,7 +102,8 @@ class ProviderRegistry {
     transport: ProviderTransport.openAIResponses,
     authType: ProviderAuthType.apiKey,
     defaultBaseUrl: 'https://api.x.ai/v1',
-    defaultModels: OmpModelCatalog.xai,
+    modelsDevProvider: 'xai',
+    defaultModels: <String>[],
     capabilities: ProviderCapabilities(
       supportsStreaming: true,
       supportsTools: true,
@@ -114,7 +118,8 @@ class ProviderRegistry {
     transport: ProviderTransport.openAIResponses,
     authType: ProviderAuthType.xaiOAuth,
     defaultBaseUrl: 'https://api.x.ai/v1',
-    defaultModels: OmpModelCatalog.xaiOAuth,
+    modelsDevProvider: 'xai',
+    defaultModels: <String>[],
     capabilities: ProviderCapabilities(
       supportsStreaming: true,
       supportsTools: true,
@@ -129,7 +134,8 @@ class ProviderRegistry {
     transport: ProviderTransport.openAICodexResponses,
     authType: ProviderAuthType.openAICodexOAuth,
     defaultBaseUrl: 'https://chatgpt.com/backend-api',
-    defaultModels: OmpModelCatalog.openAICodex,
+    modelsDevProvider: 'openai',
+    defaultModels: <String>[],
     capabilities: ProviderCapabilities(
       supportsStreaming: true,
       supportsTools: true,
@@ -143,7 +149,8 @@ class ProviderRegistry {
     transport: ProviderTransport.googleCloudCodeAssist,
     authType: ProviderAuthType.googleAntigravityOAuth,
     defaultBaseUrl: 'https://daily-cloudcode-pa.googleapis.com',
-    defaultModels: OmpModelCatalog.googleAntigravity,
+    modelsDevProvider: 'google',
+    defaultModels: <String>[],
     capabilities: ProviderCapabilities(
       supportsStreaming: true,
       supportsTools: true,
@@ -164,6 +171,9 @@ class ProviderRegistry {
 
   static bool isVisibleForBeta(String providerKey) =>
       providerKey != 'custom-anthropic-compatible';
+
+  static bool isBuiltin(String providerKey) =>
+      builtIns.any((definition) => definition.id == providerKey);
 
   ProviderDefinition byId(String id) {
     for (final definition in builtIns) {
