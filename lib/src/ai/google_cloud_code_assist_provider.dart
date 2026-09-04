@@ -343,11 +343,13 @@ class GoogleCloudCodeAssistProvider extends AIProvider {
         ),
       );
     }
+    final outputTokens = _outputTokenLimit(wireModel, request.maxOutputTokens);
     final generationConfig = <String, Object?>{
-      if (request.maxOutputTokens != null)
-        'maxOutputTokens': request.maxOutputTokens,
       if (request.temperature != null) 'temperature': request.temperature,
     };
+    if (outputTokens != null) {
+      generationConfig['maxOutputTokens'] = outputTokens;
+    }
     final labels = <String, String>{
       'last_step_index': '1',
       'trajectory_id': _randomHex(16),
@@ -378,7 +380,7 @@ class GoogleCloudCodeAssistProvider extends AIProvider {
           'toolConfig': {
             'functionCallingConfig': {'mode': 'VALIDATED'},
           },
-        'generationConfig': generationConfig,
+        if (generationConfig.isNotEmpty) 'generationConfig': generationConfig,
         'sessionId': _randomSignedSessionId(),
         'labels': labels,
       },
@@ -647,10 +649,32 @@ class GoogleCloudCodeAssistProvider extends AIProvider {
   }
 
   static String _wireModelId(String modelId) => switch (modelId) {
-    'gemini-3.1-pro' => 'gemini-3.1-pro-low',
+    'gemini-3-flash' ||
+    'gemini-3-flash-preview' ||
     'gemini-3.5-flash' => 'gemini-3.5-flash-extra-low',
+    'gemini-3-pro' || 'gemini-3-pro-preview' => 'gemini-3-pro-low',
+    'gemini-3.1-pro' || 'gemini-3.1-pro-preview' => 'gemini-3.1-pro-low',
+    'gemini-3.5-flash-extra-low' => 'gemini-3.5-flash-extra-low',
+    'gemini-3.5-flash-low' => 'gemini-3.5-flash-low',
+    'gemini-3-flash-agent' => 'gemini-3-flash-agent',
+    'gemini-3.6-flash' => 'gemini-3.6-flash-low',
+    'gemini-3.7-flash' => 'gemini-3.7-flash-low',
+    'gemini-3.8-flash' => 'gemini-3.8-flash-low',
+    'gpt-oss-120b' => 'gpt-oss-120b-medium',
+    'claude-opus-4-5' => 'claude-opus-4-5-thinking',
+    'claude-opus-4-6' => 'claude-opus-4-6-thinking',
     _ => modelId,
   };
+
+  static int? _outputTokenLimit(String wireModel, int? requested) =>
+      switch (wireModel) {
+        'gemini-3.5-flash-extra-low' ||
+        'gemini-3.5-flash-low' ||
+        'gemini-3-flash-agent' => 65536,
+        'gemini-3.1-pro-low' || 'gemini-pro-agent' => 65535,
+        'claude-opus-4-5-thinking' || 'claude-opus-4-6-thinking' => 64000,
+        _ => requested,
+      };
 
   static String? _modelEnum(String modelId) => switch (modelId) {
     'gemini-3.5-flash-extra-low' => 'MODEL_PLACEHOLDER_M187',

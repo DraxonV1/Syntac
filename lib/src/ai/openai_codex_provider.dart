@@ -345,7 +345,8 @@ class OpenAICodexProvider extends AIProvider {
       'input': input,
       'stream': true,
       'store': false,
-      if (request.maxOutputTokens != null)
+      if (_credentialProvider != OAuthProviderId.openAICodex &&
+          request.maxOutputTokens != null)
         'max_output_tokens': request.maxOutputTokens,
     };
     if (instructions != null && instructions.isNotEmpty) {
@@ -431,7 +432,9 @@ class OpenAICodexProvider extends AIProvider {
     if (_credentialProvider == OAuthProviderId.openAICodex) 'originator': 'pi',
     if (_credentialProvider == OAuthProviderId.openAICodex)
       'version': '0.144.1',
-    if (_credentialProvider == OAuthProviderId.xaiOAuth) 'User-Agent': 'pi',
+    if (_credentialProvider == OAuthProviderId.openAICodex ||
+        _credentialProvider == OAuthProviderId.xaiOAuth)
+      'User-Agent': 'pi',
     'Accept': 'text/event-stream',
     'Content-Type': 'application/json',
   };

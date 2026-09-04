@@ -1021,6 +1021,39 @@ void main() {
 
       expect(jsonDecode(captured!.body)['store'], false);
     });
+
+    test('Codex chat omits unsupported output token cap', () async {
+      http.Request? captured;
+      final provider = OpenAICodexProvider(
+        baseUrl: OpenAICodexOAuthFlow.defaultBaseUrl,
+        client: MockClient((request) async {
+          captured = request;
+          return http.Response(
+            'data: ${jsonEncode({
+              'type': 'response.completed',
+              'response': {'status': 'completed'},
+            })}\n\n',
+            200,
+            headers: {'content-type': 'text/event-stream'},
+          );
+        }),
+      );
+
+      await provider.completeChat(
+        const AIChatRequest(
+          model: 'gpt-5.3-codex',
+          messages: [AIChatMessage(role: 'user', content: 'hello')],
+          tools: [],
+          maxOutputTokens: 4096,
+        ),
+        apiKey: 'codex-token',
+      );
+
+      expect(
+        (jsonDecode(captured!.body) as Map).containsKey('max_output_tokens'),
+        isFalse,
+      );
+    });
   });
 
   test('discovers Codex models from OMP model endpoint', () async {
@@ -2256,6 +2289,54 @@ void main() {
       seen.single,
       'POST https://daily-cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse',
     );
+  });
+
+  test('Antigravity matches OMP routed model output cap', () async {
+    Map<String, Object?>? captured;
+    final provider = GoogleCloudCodeAssistProvider(
+      baseUrl: GoogleAntigravityOAuthFlow.defaultBaseUrl,
+      client: MockClient((request) async {
+        captured = jsonDecode(request.body) as Map<String, Object?>;
+        return http.Response(
+          'data: ${jsonEncode({
+            'response': {
+              'candidates': [
+                {
+                  'content': {
+                    'parts': [
+                      {'text': 'ok'},
+                    ],
+                  },
+                  'finishReason': 'STOP',
+                },
+              ],
+            },
+          })}\n\n',
+          200,
+          headers: {'content-type': 'text/event-stream'},
+        );
+      }),
+    );
+
+    await provider.completeChat(
+      const AIChatRequest(
+        model: 'gemini-3.1-pro-preview',
+        messages: [
+          AIChatMessage(role: 'system', content: 'You are a coding agent.'),
+          AIChatMessage(role: 'user', content: 'hello'),
+        ],
+        tools: [],
+        maxOutputTokens: 65536,
+      ),
+      apiKey: jsonEncode({'token': 'access-token', 'projectId': 'project-123'}),
+    );
+
+    expect(captured!['model'], 'gemini-3.1-pro-low');
+    final request = captured!['request'] as Map;
+    final generationConfig = request['generationConfig'] as Map;
+    expect(generationConfig['maxOutputTokens'], 65535);
+    final systemInstruction = request['systemInstruction'] as Map;
+    expect(systemInstruction['role'], 'user');
   });
   test('Google Antigravity merges consecutive user turns', () async {
     Map<String, Object?>? captured;
