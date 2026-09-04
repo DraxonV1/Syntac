@@ -102,7 +102,7 @@ abstract class AppIcons {
       _ when key.contains('deepseek') => 'deepseek',
       _ when key.contains('openrouter') => 'openrouter',
       _ when key.contains('anthropic') || key.contains('claude') => 'anthropic',
-      _ => 'default',
+      _ => 'lobehub',
     };
   }
 
