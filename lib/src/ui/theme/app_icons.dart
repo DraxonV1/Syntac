@@ -82,7 +82,7 @@ abstract class AppIcons {
     final key = runtimeKey?.toLowerCase() ?? '';
     final url = key.contains('termux')
         ? 'https://api.iconify.design/arcticons:termux.svg'
-        : 'https://api.iconify.design/simple-icons:arch-linux.svg';
+        : 'https://api.iconify.design/simple-icons:archlinux.svg';
     return RemoteSvgLogo(
       url: url,
       size: size,
