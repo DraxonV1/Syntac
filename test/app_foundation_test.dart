@@ -1089,6 +1089,128 @@ void main() {
     );
   });
 
+  test('converts chat tool specs to Responses tools for Grok', () async {
+    http.Request? captured;
+    final provider = OpenAIResponsesProvider(
+      baseUrl: 'https://api.x.ai/v1',
+      client: MockClient((request) async {
+        captured = request;
+        return http.Response(
+          'data: ${jsonEncode({
+            'type': 'response.completed',
+            'response': {'status': 'completed'},
+          })}\n\n',
+          200,
+          headers: {'content-type': 'text/event-stream'},
+        );
+      }),
+    );
+
+    await provider.completeChat(
+      AIChatRequest(
+        model: 'grok-4.6',
+        messages: const [AIChatMessage(role: 'user', content: 'read file')],
+        tools: [
+          {
+            'type': 'function',
+            'function': {
+              'name': 'read',
+              'description': 'Read file',
+              'parameters': {
+                'type': 'object',
+                'properties': {
+                  'path': {'type': 'string'},
+                },
+                'required': ['path'],
+                'anyOf': [
+                  {
+                    'required': ['path'],
+                  },
+                  {
+                    'required': ['path'],
+                    'title': 'duplicate',
+                  },
+                ],
+              },
+            },
+          },
+        ],
+      ),
+      apiKey: 'xai-key',
+    );
+
+    final body = jsonDecode(captured!.body) as Map<String, Object?>;
+    final tool = (body['tools'] as List).single as Map;
+    expect(tool['type'], 'function');
+    expect(tool['name'], 'read');
+    expect(tool['description'], 'Read file');
+    final parameters = tool['parameters'] as Map;
+    expect(parameters['type'], 'object');
+    expect(parameters['anyOf'], isNull);
+  });
+
+  test(
+    'does not replay empty assistant message beside Grok tool call',
+    () async {
+      http.Request? captured;
+      final provider = OpenAIResponsesProvider(
+        baseUrl: 'https://api.x.ai/v1',
+        client: MockClient((request) async {
+          captured = request;
+          return http.Response(
+            'data: ${jsonEncode({
+              'type': 'response.completed',
+              'response': {'status': 'completed'},
+            })}\n\n',
+            200,
+            headers: {'content-type': 'text/event-stream'},
+          );
+        }),
+      );
+
+      await provider.completeChat(
+        AIChatRequest(
+          model: 'grok-4.6',
+          messages: [
+            const AIChatMessage(role: 'user', content: 'read file'),
+            AIChatMessage(
+              role: 'assistant',
+              content: '',
+              toolCalls: const [
+                AIToolCall(
+                  id: 'call_1',
+                  name: 'read',
+                  argumentsJson: '{"path":"README.md"}',
+                ),
+              ],
+            ),
+            const AIChatMessage(
+              role: 'tool',
+              content: 'file contents',
+              toolCallId: 'call_1',
+            ),
+            const AIChatMessage(role: 'user', content: 'continue'),
+          ],
+          tools: const [],
+        ),
+        apiKey: 'xai-key',
+      );
+
+      final body = jsonDecode(captured!.body) as Map<String, Object?>;
+      final input = body['input'] as List;
+      expect(
+        input.whereType<Map>().where((item) => item['type'] == 'function_call'),
+        hasLength(1),
+      );
+      expect(
+        input.whereType<Map>().where(
+          (item) => item['type'] == 'message' && item['role'] == 'assistant',
+        ),
+        isEmpty,
+      );
+    },
+  );
+
   test('runs xAI device OAuth with OMP client and scope', () async {
     final requests = <http.Request>[];
     final flow = XAIOAuthFlow(

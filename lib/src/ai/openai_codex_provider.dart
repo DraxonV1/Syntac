@@ -324,16 +324,21 @@ class OpenAICodexProvider extends AIProvider {
           });
         }
       }
-      input.add({
-        'type': 'message',
-        'role': message.role == 'assistant' ? 'assistant' : 'user',
-        'content': [
-          {
-            'type': message.role == 'assistant' ? 'output_text' : 'input_text',
-            'text': message.content,
-          },
-        ],
-      });
+      if (message.role != 'assistant' || message.content.isNotEmpty) {
+        input.add({
+          'type': 'message',
+          'role': message.role == 'assistant' ? 'assistant' : 'user',
+          'content': [
+            {
+              'type': message.role == 'assistant'
+                  ? 'output_text'
+                  : 'input_text',
+              'text': message.content,
+            },
+          ],
+          if (message.role == 'assistant') 'status': 'completed',
+        });
+      }
     }
     final body = <String, Object?>{
       'model': request.model,
@@ -347,23 +352,73 @@ class OpenAICodexProvider extends AIProvider {
       body['instructions'] = instructions;
     }
     if (request.tools case final tools when tools.isNotEmpty) {
-      body['tools'] = tools
-          .map(
-            (tool) => {
-              'type': 'function',
-              'name': tool['name'] ?? 'tool',
-              if (tool['description'] != null)
-                'description': tool['description'],
-              'parameters': tool['parameters'] is Map
-                  ? (_credentialProvider == OAuthProviderId.xaiOAuth
-                        ? _normalizeXaiToolSchema(tool['parameters'])
-                        : tool['parameters'])
-                  : <String, Object?>{},
-            },
-          )
-          .toList();
+      final responseTools = <Map<String, Object?>>[];
+      for (final tool in tools) {
+        final function = tool['function'];
+        final definition = function is Map
+            ? function.cast<String, Object?>()
+            : tool;
+        final name = definition['name']?.toString().trim();
+        if (name == null || name.isEmpty) continue;
+        final parameters = definition['parameters'];
+        responseTools.add({
+          'type': 'function',
+          'name': name,
+          if (definition['description'] != null)
+            'description': definition['description'],
+          'parameters': parameters is Map
+              ? (_credentialProvider == OAuthProviderId.xaiOAuth
+                    ? _normalizeXaiToolSchema(parameters)
+                    : parameters)
+              : <String, Object?>{},
+        });
+      }
+      if (responseTools.isNotEmpty) body['tools'] = responseTools;
     }
     return body;
+  }
+
+  static Map<String, Object?> _normalizeXaiToolSchema(Object value) {
+    if (value is! Map) return <String, Object?>{};
+    final schema = value.cast<String, Object?>();
+    final unionKey = schema['anyOf'] is List
+        ? 'anyOf'
+        : schema['oneOf'] is List
+        ? 'oneOf'
+        : null;
+    final union = unionKey == null ? null : schema[unionKey];
+    final type = schema['type'];
+    final typedObject =
+        type == 'object' ||
+        (type is List && type.contains('object')) ||
+        schema['properties'] is Map;
+    if (unionKey != null &&
+        union is List &&
+        union.isNotEmpty &&
+        typedObject &&
+        union.every(_isExclusiveRequiredBranch)) {
+      final flattened = Map<String, Object?>.from(schema);
+      flattened.remove(unionKey);
+      return flattened;
+    }
+    return schema;
+  }
+
+  static bool _isExclusiveRequiredBranch(Object? value) {
+    if (value is! Map) return false;
+    if (value.containsKey('type')) return false;
+    final required = value['required'];
+    if (required is! List ||
+        required.isEmpty ||
+        !required.every((name) => name is String && name.isNotEmpty)) {
+      return false;
+    }
+    for (final key in value.keys) {
+      if (key != 'required' && key != 'description' && key != 'title') {
+        return false;
+      }
+    }
+    return true;
   }
 
   Map<String, String> _headers(OAuthCredential credential) => {
@@ -483,20 +538,6 @@ class OpenAIResponsesProvider extends OpenAICodexProvider {
        );
 }
 
-Map<String, Object?> _normalizeXaiToolSchema(Object? value) {
-  if (value is! Map) return <String, Object?>{};
-  final schema = value.cast<String, Object?>();
-  final union = schema['anyOf'] ?? schema['oneOf'];
-  if (union is List) {
-    for (final branch in union) {
-      if (branch is Map && branch['type'] == 'object') {
-        return branch.cast<String, Object?>();
-      }
-    }
-    return <String, Object?>{'type': 'object'};
-  }
-  return schema;
-}
 
 class _CodexToolCall {
   _CodexToolCall({required this.id, required this.name});
