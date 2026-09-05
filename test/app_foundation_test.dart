@@ -949,7 +949,7 @@ void main() {
       expect(url.queryParameters['client_id'], OpenAICodexOAuthFlow.clientId);
       expect(url.queryParameters['code_challenge_method'], 'S256');
       expect(url.queryParameters['state'], 'state');
-      expect(url.queryParameters['originator'], 'pi');
+      expect(url.queryParameters['originator'], 'codex_cli_rs');
     });
     test('exchanges ChatGPT Codex token and extracts account id', () async {
       final payload = base64UrlEncode(
@@ -1102,7 +1102,7 @@ void main() {
       'https://chatgpt.com/backend-api/codex/models?client_version=0.144.1',
     );
     expect(captured?.headers['chatgpt-account-id'], 'account-id');
-    expect(captured?.headers['originator'], 'pi');
+    expect(captured?.headers['originator'], 'codex_cli_rs');
     expect(captured?.headers['version'], '0.144.1');
     expect(captured?.headers['User-Agent'], 'Syntac');
   });

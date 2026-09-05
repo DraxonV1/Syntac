@@ -25,7 +25,7 @@ class OpenAICodexOAuthFlow {
   static const tokenUrl = 'https://auth.openai.com/oauth/token';
   static const scope =
       'openid profile email offline_access api.connectors.read api.connectors.invoke';
-  static const originator = 'pi';
+  static const originator = 'codex_cli_rs';
 
   final http.Client _client;
   final DateTime Function() _now;

@@ -97,7 +97,7 @@ class OpenAICodexProvider extends AIProvider {
                 'Authorization': 'Bearer ${credential.accessToken}',
                 ...accountHeaders,
                 'OpenAI-Beta': 'responses=experimental',
-                'originator': 'pi',
+                'originator': 'codex_cli_rs',
                 'version': clientVersion,
                 'User-Agent': 'Syntac',
                 'Accept': 'application/json',
@@ -430,7 +430,8 @@ class OpenAICodexProvider extends AIProvider {
       'chatgpt-account-id': credential.accountId!,
     if (_credentialProvider == OAuthProviderId.openAICodex)
       'OpenAI-Beta': 'responses=experimental',
-    if (_credentialProvider == OAuthProviderId.openAICodex) 'originator': 'pi',
+    if (_credentialProvider == OAuthProviderId.openAICodex)
+      'originator': 'codex_cli_rs',
     if (_credentialProvider == OAuthProviderId.openAICodex)
       'version': '0.144.1',
     if (_credentialProvider == OAuthProviderId.openAICodex ||
