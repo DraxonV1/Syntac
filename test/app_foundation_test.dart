@@ -1092,6 +1092,7 @@ void main() {
     expect(captured?.headers['chatgpt-account-id'], 'account-id');
     expect(captured?.headers['originator'], 'pi');
     expect(captured?.headers['version'], '0.144.1');
+    expect(captured?.headers['User-Agent'], 'Syntac');
   });
 
   test('routes xAI through Responses API and discovers models', () async {

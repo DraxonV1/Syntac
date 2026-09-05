@@ -99,6 +99,7 @@ class OpenAICodexProvider extends AIProvider {
                 'OpenAI-Beta': 'responses=experimental',
                 'originator': 'pi',
                 'version': clientVersion,
+                'User-Agent': 'Syntac',
                 'Accept': 'application/json',
               },
             )
@@ -434,7 +435,7 @@ class OpenAICodexProvider extends AIProvider {
       'version': '0.144.1',
     if (_credentialProvider == OAuthProviderId.openAICodex ||
         _credentialProvider == OAuthProviderId.xaiOAuth)
-      'User-Agent': 'pi',
+      'User-Agent': 'Syntac',
     'Accept': 'text/event-stream',
     'Content-Type': 'application/json',
   };
