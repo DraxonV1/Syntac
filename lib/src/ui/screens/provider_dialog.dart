@@ -5,6 +5,7 @@ import '../../app.dart';
 import '../../ai/ai_error_messages.dart';
 import '../../ai/registry/provider_registry.dart';
 import '../../models.dart';
+import '../onboarding/steps/provider_step.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_icons.dart';
 import '../theme/app_typography.dart';
@@ -16,23 +17,32 @@ Future<void> showProviderConfigDialog(
   AppController controller, {
   ProviderConfig? provider,
 }) async {
-  final isEditing = provider != null;
-  final definition = provider == null
-      ? ProviderRegistry.customOpenAICompatible
-      : const ProviderRegistry().byId(provider.providerKey);
-  final isBuiltin =
-      isEditing && ProviderRegistry.isBuiltin(provider.providerKey);
+  if (provider == null) {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      builder: (sheetContext) => SafeArea(
+        child: FractionallySizedBox(
+          heightFactor: 0.92,
+          child: ProviderStep(
+            controller: controller,
+            settingsMode: true,
+            continueLabel: 'Done',
+            onNext: () => Navigator.of(sheetContext).pop(),
+          ),
+        ),
+      ),
+    );
+    return;
+  }
+  final definition = const ProviderRegistry().byId(provider.providerKey);
+  final isBuiltin = ProviderRegistry.isBuiltin(provider.providerKey);
   final isOAuth = definition.authType != ProviderAuthType.apiKey;
-  final existingModels = isEditing
-      ? (controller.providerModels[provider.id] ?? <ProviderModel>[])
-      : <ProviderModel>[];
-  final defaultProvider = ProviderRegistry.customOpenAICompatible;
-  final nameController = TextEditingController(
-    text: provider?.name ?? defaultProvider.name,
-  );
-  final baseUrlController = TextEditingController(
-    text: provider?.baseUrl ?? '',
-  );
+  final existingModels =
+      controller.providerModels[provider.id] ?? <ProviderModel>[];
+  final nameController = TextEditingController(text: provider.name);
+  final baseUrlController = TextEditingController(text: provider.baseUrl);
   final apiKeyController = TextEditingController();
   final modelsController = TextEditingController(
     text: existingModels.map((m) => m.model).join('\n'),
@@ -57,10 +67,7 @@ Future<void> showProviderConfigDialog(
             borderRadius: BorderRadius.circular(14),
             side: const BorderSide(color: AppColors.border, width: 1),
           ),
-          title: Text(
-            isEditing ? 'Configure Provider' : 'Add AI Provider',
-            style: AppTypography.titleLarge,
-          ),
+          title: Text('Configure Provider', style: AppTypography.titleLarge),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -89,9 +96,7 @@ Future<void> showProviderConfigDialog(
 
                 if (!isOAuth) ...[
                   Text(
-                    isEditing
-                        ? 'API Key (leave blank to keep current)'
-                        : 'API Key',
+                    'API Key (leave blank to keep current)',
                     style: AppTypography.label,
                   ),
                   const SizedBox(height: 6),
@@ -100,7 +105,7 @@ Future<void> showProviderConfigDialog(
                     obscureText: isObscured,
                     style: AppTypography.codeSmall,
                     decoration: InputDecoration(
-                      hintText: isEditing ? '••••••••••••••••' : 'sk-...',
+                      hintText: '••••••••••••••••',
                       suffixIcon: IconButton(
                         icon: Icon(
                           isObscured
@@ -174,7 +179,7 @@ Future<void> showProviderConfigDialog(
                         });
 
                         try {
-                          if (isEditing && key.isEmpty) {
+                          if (key.isEmpty) {
                             final result = await controller.testProvider(
                               provider.id,
                             );
@@ -193,7 +198,7 @@ Future<void> showProviderConfigDialog(
                                 testResult = 'Testing endpoint...';
                               });
                               final res = await controller.repository
-                                  .getProvider(provider?.id ?? '');
+                                  .getProvider(provider.id);
                               if (res != null) {
                                 final r = await controller.testProvider(res.id);
                                 setState(() {
@@ -398,7 +403,7 @@ Future<void> showProviderConfigDialog(
             ),
             if (!isBuiltin)
               AppButton(
-                label: isEditing ? 'Save Changes' : 'Add Provider',
+                label: 'Save Changes',
                 loading: isSaving,
                 compact: true,
                 onPressed: () async {
@@ -416,7 +421,7 @@ Future<void> showProviderConfigDialog(
                   setState(() => isSaving = true);
                   try {
                     await controller.saveProvider(
-                      id: provider?.id,
+                      id: provider.id,
                       name: name,
                       baseUrl: baseUrl,
                       apiKey: key,

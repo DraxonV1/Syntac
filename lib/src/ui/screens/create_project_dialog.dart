@@ -5,6 +5,7 @@ import '../../app.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_typography.dart';
 import '../widgets/app_buttons.dart';
+import '../widgets/storage_access_prompt.dart';
 
 Future<void> showCreateProjectDialog(
   BuildContext context,
@@ -86,6 +87,12 @@ Future<void> showCreateProjectModal(
                       compact: true,
                       variant: AppButtonVariant.ghost,
                       onPressed: () async {
+                        if (!await ensureAndroidStorageAccess(
+                          context,
+                          controller,
+                        )) {
+                          return;
+                        }
                         final picked = await FilePicker.getDirectoryPath();
                         if (picked != null) {
                           setState(() => selectedFolder = picked);
@@ -148,6 +155,9 @@ Future<void> showCreateProjectModal(
                 final name = nameController.text.trim();
                 final folder = selectedFolder;
                 if (name.isEmpty || folder == null || folder.isEmpty) return;
+                if (!await ensureAndroidStorageAccess(context, controller)) {
+                  return;
+                }
 
                 setState(() => isSubmitting = true);
                 await controller.createProject(name, folder);

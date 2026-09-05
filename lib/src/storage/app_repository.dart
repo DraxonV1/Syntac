@@ -458,6 +458,32 @@ class AppRepository implements CredentialStore {
     }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
+  Future<Map<String, String>?> readDefaultModelSelection() async {
+    final rows = await _db.query(
+      'settings',
+      where: 'key = ?',
+      whereArgs: ['default_model_selection'],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    final decoded = jsonDecode(rows.first['value_json']! as String);
+    if (decoded is! Map) return null;
+    final providerId = decoded['providerId'];
+    final model = decoded['model'];
+    if (providerId is! String || model is! String) return null;
+    return {'providerId': providerId, 'model': model};
+  }
+
+  Future<void> saveDefaultModelSelection({
+    required String providerId,
+    required String model,
+  }) async {
+    await _db.insert('settings', {
+      'key': 'default_model_selection',
+      'value_json': jsonEncode({'providerId': providerId, 'model': model}),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
   Future<void> _touchProject(String projectId) async {
     await _db.update(
       'projects',

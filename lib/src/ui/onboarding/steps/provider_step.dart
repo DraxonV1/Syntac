@@ -23,11 +23,15 @@ class ProviderStep extends StatefulWidget {
     required this.controller,
     required this.onNext,
     this.identity,
+    this.continueLabel = 'Continue to System Prompt',
+    this.settingsMode = false,
   });
 
   final AppController controller;
   final VoidCallback onNext;
   final AppIdentity? identity;
+  final String continueLabel;
+  final bool settingsMode;
 
   @override
   State<ProviderStep> createState() => _ProviderStepState();
@@ -42,6 +46,7 @@ class _ProviderStepState extends State<ProviderStep> {
   ProviderTestState _testState = ProviderTestState.idle;
   String _streamedResponse = '';
   String? _testError;
+  final Set<String> _connectedProviderIds = <String>{};
   ProviderConfig? _activeConfig;
   String? _selectedModel;
   bool _isConnecting = false;
@@ -49,6 +54,9 @@ class _ProviderStepState extends State<ProviderStep> {
   @override
   void initState() {
     super.initState();
+    _connectedProviderIds.addAll(
+      widget.controller.providers.map((provider) => provider.id),
+    );
     _applyPreset('google-antigravity');
   }
 
@@ -205,6 +213,7 @@ class _ProviderStepState extends State<ProviderStep> {
       if (mounted) {
         setState(() {
           _testState = ProviderTestState.success;
+          _connectedProviderIds.add(config.id);
           if (_streamedResponse.isEmpty) {
             _streamedResponse =
                 'Provider Connected: ${config.name} - ${app.appName}';
@@ -222,21 +231,32 @@ class _ProviderStepState extends State<ProviderStep> {
 
   @override
   Widget build(BuildContext context) {
-    final hasActiveSuccess = _testState == ProviderTestState.success;
-
+    final hasConnectedProvider =
+        _connectedProviderIds.isNotEmpty ||
+        widget.controller.providers.isNotEmpty;
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header
-          Text('Configure AI Provider', style: AppTypography.titleLarge),
+          Text(
+            widget.settingsMode ? 'Add AI Provider' : 'Configure AI Provider',
+            style: AppTypography.titleLarge,
+          ),
           const SizedBox(height: 4),
           Text(
             'Connect your preferred LLM provider for code generation and agent workflows.',
             style: AppTypography.bodySmall,
           ),
           const SizedBox(height: 20),
+          if (hasConnectedProvider) ...[
+            Text(
+              '${_connectedProviderIds.length} provider${_connectedProviderIds.length == 1 ? '' : 's'} connected. Add another or continue.',
+              style: AppTypography.bodySmall.copyWith(color: AppColors.success),
+            ),
+            const SizedBox(height: 12),
+          ],
 
           // Provider Cards Selection
           _buildProviderChoiceCard(
@@ -284,16 +304,17 @@ class _ProviderStepState extends State<ProviderStep> {
           // Connect / Authenticate Button
           if (_testState == ProviderTestState.idle ||
               _testState == ProviderTestState.error) ...[
-            SizedBox(
-              width: double.infinity,
+            Align(
+              alignment: Alignment.centerLeft,
               child: AppButton(
                 label: _selectedProviderKey == 'google-antigravity'
-                    ? 'Connect with Google'
+                    ? 'Sign in with Google'
                     : _selectedProviderKey == 'openai-codex'
-                    ? 'Connect with ChatGPT'
+                    ? 'Sign in with ChatGPT'
                     : _selectedProviderKey == 'grok-oauth'
-                    ? 'Connect with Grok'
+                    ? 'Sign in with Grok'
                     : 'Connect Provider',
+                compact: true,
                 loading: _isConnecting,
                 onPressed: _isConnecting ? null : _handleConnect,
               ),
@@ -311,12 +332,12 @@ class _ProviderStepState extends State<ProviderStep> {
           SizedBox(
             width: double.infinity,
             child: AppButton(
-              label: 'Continue to System Prompt',
+              label: widget.continueLabel,
               icon: AppIcons.forward,
-              variant: hasActiveSuccess
+              variant: hasConnectedProvider
                   ? AppButtonVariant.primary
                   : AppButtonVariant.ghost,
-              onPressed: hasActiveSuccess ? widget.onNext : null,
+              onPressed: hasConnectedProvider ? widget.onNext : null,
             ),
           ),
         ],

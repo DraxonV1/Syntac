@@ -2,8 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
-
+import 'package:uuid/uuid.dart';
 import '../core/cancellation.dart';
 import 'ai_provider.dart';
 import 'oauth/google_antigravity_oauth.dart';
@@ -350,11 +351,14 @@ class GoogleCloudCodeAssistProvider extends AIProvider {
     if (outputTokens != null) {
       generationConfig['maxOutputTokens'] = outputTokens;
     }
+    final trajectoryId = Uuid().v4();
+    final step = _antigravityStep(request);
+    final isClaude = wireModel.startsWith('claude-');
     final labels = <String, String>{
-      'last_step_index': '1',
-      'trajectory_id': _randomHex(16),
-      'used_claude': wireModel.startsWith('claude-').toString(),
-      'used_claude_conservative': wireModel.startsWith('claude-').toString(),
+      'last_step_index': '${step - 1}',
+      'trajectory_id': trajectoryId,
+      'used_claude': isClaude.toString(),
+      'used_claude_conservative': isClaude.toString(),
       if (_modelEnum(wireModel) != null) 'model_enum': _modelEnum(wireModel)!,
     };
     return {
@@ -363,7 +367,7 @@ class GoogleCloudCodeAssistProvider extends AIProvider {
       'userAgent': 'antigravity',
       'requestType': 'agent',
       'requestId':
-          'agent/${_randomHex(12)}/${DateTime.now().millisecondsSinceEpoch}/${_randomHex(12)}/2',
+          'agent/${Uuid().v4()}/${DateTime.now().millisecondsSinceEpoch}/$trajectoryId/$step',
       'request': {
         'contents': contents,
         if (systemParts.isNotEmpty)
@@ -381,7 +385,7 @@ class GoogleCloudCodeAssistProvider extends AIProvider {
             'functionCallingConfig': {'mode': 'VALIDATED'},
           },
         if (generationConfig.isNotEmpty) 'generationConfig': generationConfig,
-        'sessionId': _randomSignedSessionId(),
+        'sessionId': _sessionIdForRequest(request),
         'labels': labels,
       },
     };
@@ -711,13 +715,24 @@ class GoogleCloudCodeAssistProvider extends AIProvider {
     return '$cleanBase$cleanSuffix';
   }
 
-  static String _randomHex(int length) {
-    final random = Random.secure();
-    const chars = '0123456789abcdef';
-    return List.generate(
-      length,
-      (_) => chars[random.nextInt(chars.length)],
-    ).join();
+  static int _antigravityStep(AIChatRequest request) =>
+      2 +
+      request.messages.where((message) => message.role == 'assistant').length;
+
+  static String _sessionIdForRequest(AIChatRequest request) {
+    final firstUser = request.messages
+        .where(
+          (message) =>
+              message.role == 'user' && message.content.trim().isNotEmpty,
+        )
+        .firstOrNull;
+    if (firstUser == null) return _randomSignedSessionId();
+    final digest = sha256.convert(utf8.encode(firstUser.content)).bytes;
+    var value = 0;
+    for (var i = 0; i < 8; i++) {
+      value = (value << 8) | digest[i];
+    }
+    return '-${value & 0x7fffffffffffffff}';
   }
 
   static String _randomSignedSessionId() {

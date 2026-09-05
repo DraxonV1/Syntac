@@ -6,6 +6,12 @@ import '../../core/app_identity.dart';
 import '../../models.dart';
 import '../components/animated_hamburger.dart';
 import '../navigation/central_navigation_overlay.dart';
+import 'main_chat_screen.dart';
+import 'chats_screen.dart';
+import 'create_project_dialog.dart';
+import 'providers_screen.dart';
+import 'runtime_screen.dart';
+import 'settings_screen.dart';
 import '../onboarding/onboarding_screen.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_icons.dart';
@@ -15,12 +21,7 @@ import '../widgets/app_buttons.dart';
 import '../widgets/app_card.dart';
 import '../widgets/badge_chip.dart';
 import '../widgets/empty_state.dart';
-import 'chats_screen.dart';
-import 'create_project_dialog.dart';
-import 'main_chat_screen.dart';
-import 'providers_screen.dart';
-import 'runtime_screen.dart';
-import 'settings_screen.dart';
+import '../widgets/storage_access_prompt.dart';
 
 /// Redesigned Home Screen with visual paged project grid, search bar,
 /// and central floating navigation overlay.
@@ -33,9 +34,10 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _checkedOnboarding = false;
   bool _isOnboarding = false;
+  bool _checkingOnboarding = false;
 
   final TextEditingController _searchController = TextEditingController();
   String _filter = '';
@@ -45,6 +47,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     widget.controller.addListener(_handleControllerChanged);
     _maybeCheckOnboardingState();
     _searchController.addListener(() {
@@ -57,9 +60,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     widget.controller.removeListener(_handleControllerChanged);
     _searchController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    _checkedOnboarding = false;
+    _maybeCheckOnboardingState();
   }
 
   @override
@@ -68,6 +79,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (oldWidget.controller == widget.controller) return;
     oldWidget.controller.removeListener(_handleControllerChanged);
     _checkedOnboarding = false;
+    _checkingOnboarding = false;
     _isOnboarding = false;
     widget.controller.addListener(_handleControllerChanged);
     _maybeCheckOnboardingState();
@@ -79,15 +91,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _maybeCheckOnboardingState() {
     if (_checkedOnboarding ||
+        _checkingOnboarding ||
         widget.controller.loading ||
         widget.controller.lastError != null) {
       return;
     }
+    _checkingOnboarding = true;
     unawaited(_checkOnboardingState());
   }
 
   Future<void> _checkOnboardingState() async {
     try {
+      await ensureAndroidStorageAccess(context, widget.controller);
       final state = await widget.controller.repository.readOnboardingState();
       if (!state.completed && mounted) {
         setState(() {
@@ -115,6 +130,8 @@ class _HomeScreenState extends State<HomeScreen> {
           _checkedOnboarding = true;
         });
       }
+    } finally {
+      _checkingOnboarding = false;
     }
   }
 

@@ -690,7 +690,7 @@ void _collectGeminiModels(Object? value, Set<String> models) {
   for (final key in const ['model', 'modelId', 'id', 'name']) {
     final model = value[key];
     if (model is String && _isSupportedModelName(model)) {
-      models.add(model);
+      models.add(model.trim().replaceFirst('models/', ''));
     }
   }
   for (final child in value.values) {

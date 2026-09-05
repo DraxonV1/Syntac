@@ -91,6 +91,8 @@ class AppController extends ChangeNotifier {
   List<ProviderConfig> providers = <ProviderConfig>[];
   Map<String, List<ProviderModel>> providerModels =
       <String, List<ProviderModel>>{};
+  String? defaultProviderId;
+  String? defaultModelName;
   RuntimeStatus runtimeStatus = const RuntimeStatus(
     state: RuntimeState.unavailable,
     message: 'Not checked yet',
@@ -176,6 +178,9 @@ class AppController extends ChangeNotifier {
         provider.id,
       );
     }
+    final defaultSelection = await repository.readDefaultModelSelection();
+    defaultProviderId = defaultSelection?['providerId'];
+    defaultModelName = defaultSelection?['model'];
     limits = await repository.readAgentLimits();
     shellRuntimeSettings = await repository.readShellRuntimeSettings();
     runtime = _executorForRuntime(shellRuntimeSettings.selected);
@@ -383,13 +388,38 @@ class AppController extends ChangeNotifier {
     await refreshAll();
   }
 
-  ProviderConfig? _defaultProvider() =>
-      providers.isEmpty ? null : providers.first;
+  ProviderConfig? get defaultProvider {
+    for (final provider in providers) {
+      if (provider.id == defaultProviderId) return provider;
+    }
+    return providers.firstOrNull;
+  }
+
+  ProviderConfig? _defaultProvider() => defaultProvider;
 
   ProviderModel? _firstModelForProvider(ProviderConfig? provider) {
     if (provider == null) return null;
     final models = providerModels[provider.id] ?? <ProviderModel>[];
-    return models.isEmpty ? null : models.first;
+    for (final model in models) {
+      if (model.model == defaultModelName) return model;
+    }
+    return models.firstOrNull;
+  }
+
+  ProviderModel? get defaultModel {
+    final provider = defaultProvider;
+    if (provider == null) return null;
+    return _firstModelForProvider(provider);
+  }
+
+  Future<void> saveDefaultModelSelection(ProviderModel model) async {
+    await repository.saveDefaultModelSelection(
+      providerId: model.providerId,
+      model: model.model,
+    );
+    defaultProviderId = model.providerId;
+    defaultModelName = model.model;
+    notifyListeners();
   }
 
   static List<String> _mergeModels(Iterable<Iterable<String>> groups) {
@@ -975,6 +1005,18 @@ class AppController extends ChangeNotifier {
     final executor = ArchLinuxRuntime();
     runtimeStatus = await executor.remove();
     notifyListeners();
+  }
+
+  Future<bool> hasAndroidStorageAccess() async {
+    if (!Platform.isAndroid) return true;
+    try {
+      final status = await const MethodChannel(
+        'syntac/runtime',
+      ).invokeMethod<Map<Object?, Object?>>('storageAccessStatus');
+      return status?['granted'] == true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> openAndroidStorageSettings() async {

@@ -58,11 +58,15 @@ abstract class AppIcons {
     String? providerKey, {
     double size = 18,
     Color? color,
-  }) => LobeLogo(
-    slug: _providerSlug(providerKey),
-    size: size,
-    color: color ?? AppColors.textPrimary,
-  );
+  }) {
+    final slug = _providerSlug(providerKey);
+    return LobeLogo(
+      slug: slug,
+      size: size,
+      color: color ?? AppColors.textPrimary,
+      preserveColors: slug == 'google' || slug == 'codex',
+    );
+  }
 
   static Widget modelLogo(
     String modelId, {
@@ -128,6 +132,7 @@ class LobeLogo extends StatelessWidget {
     required this.slug,
     this.size = 18,
     this.color = Colors.white,
+    this.preserveColors = false,
   });
 
   static const cdnBase =
@@ -136,11 +141,14 @@ class LobeLogo extends StatelessWidget {
   final String slug;
   final double size;
   final Color color;
+  final bool preserveColors;
+
   @override
   Widget build(BuildContext context) => RemoteSvgLogo(
-    url: '$cdnBase/$slug.svg',
+    url: '$cdnBase/${preserveColors ? '$slug-color' : slug}.svg',
     size: size,
     color: color,
+    preserveColors: preserveColors,
     semanticsLabel: '$slug logo',
   );
 }
@@ -152,13 +160,14 @@ class RemoteSvgLogo extends StatefulWidget {
     required this.semanticsLabel,
     this.size = 18,
     this.color = Colors.white,
+    this.preserveColors = false,
   });
 
   final String url;
   final String semanticsLabel;
   final double size;
   final Color color;
-
+  final bool preserveColors;
   @override
   State<RemoteSvgLogo> createState() => _RemoteSvgLogoState();
 }
@@ -205,7 +214,9 @@ class _RemoteSvgLogoState extends State<RemoteSvgLogo> {
         svg,
         width: widget.size,
         height: widget.size,
-        colorFilter: ColorFilter.mode(widget.color, BlendMode.srcIn),
+        colorFilter: widget.preserveColors
+            ? null
+            : ColorFilter.mode(widget.color, BlendMode.srcIn),
         semanticsLabel: widget.semanticsLabel,
       );
     },

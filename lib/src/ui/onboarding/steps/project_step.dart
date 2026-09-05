@@ -10,6 +10,7 @@ import '../../theme/app_icons.dart';
 import '../../theme/app_typography.dart';
 import '../../widgets/app_buttons.dart';
 import '../../widgets/app_card.dart';
+import '../../widgets/storage_access_prompt.dart';
 
 /// Step 6 — Progressive Create First Project
 /// Features animated cycling idea phrases, inline hero editing, and progressive disclosure
@@ -95,6 +96,15 @@ class _ProjectStepState extends State<ProjectStep> {
   }
 
   Future<void> _pickDirectory() async {
+    if (!await ensureAndroidStorageAccess(context, widget.controller)) {
+      if (mounted) {
+        setState(
+          () => _errorMessage =
+              'All files access is required to choose a project folder.',
+        );
+      }
+      return;
+    }
     try {
       final result = await FilePicker.getDirectoryPath();
       if (result != null && mounted) {
@@ -121,6 +131,13 @@ class _ProjectStepState extends State<ProjectStep> {
 
     if (path == null || path.isEmpty) {
       setState(() => _errorMessage = 'Choose a project folder first');
+      return;
+    }
+    if (!await ensureAndroidStorageAccess(context, widget.controller)) {
+      setState(
+        () => _errorMessage =
+            'All files access is required to create a project folder.',
+      );
       return;
     }
 

@@ -47,6 +47,7 @@ class MainActivity : FlutterActivity() {
                 "installLocalRuntime" -> localRuntime.install(result)
                 "retryLocalRuntimeTest" -> localRuntime.retrySelfTest(result)
                 "removeLocalRuntime" -> runLocalRuntimeRemove(result)
+                "storageAccessStatus" -> result.success(storageAccessStatus())
                 "openStorageSettings" -> {
                     openStorageSettings()
                     result.success(null)
@@ -102,6 +103,25 @@ class MainActivity : FlutterActivity() {
             "state" to "ready",
             "message" to "Termux is installed and RUN_COMMAND permission is granted.",
             "details" to "Termux installed: yes\nRUN_COMMAND available: yes\nallow-external-apps: unknown\n${storageAccessDetails()}\nApp foreground: ${if (appForeground) "yes" else "no"}\nLast Termux bridge result: ${TermuxBridge.lastBridgeResult}\nLast command launch state: ${TermuxBridge.lastLaunchState}\nLast runtime error category: ${TermuxBridge.lastRuntimeErrorCategory}\nTermux must set allow-external-apps=true and have storage access for shared project paths."
+        )
+    }
+
+    private fun storageAccessStatus(): Map<String, Any?> {
+        val granted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Environment.isExternalStorageManager()
+        } else {
+            ContextCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.READ_EXTERNAL_STORAGE
+            ) == PackageManager.PERMISSION_GRANTED &&
+                ContextCompat.checkSelfPermission(
+                    this,
+                    android.Manifest.permission.WRITE_EXTERNAL_STORAGE
+                ) == PackageManager.PERMISSION_GRANTED
+        }
+        return mapOf(
+            "granted" to granted,
+            "details" to storageAccessDetails()
         )
     }
 

@@ -49,22 +49,47 @@ class _ReviewStepState extends State<ReviewStep> {
     }
   }
 
-  void _editModelSheet(ProviderConfig provider, List<ProviderModel> models) {
+  void _editModelSheet() {
+    final providers = widget.controller.providers;
     AdaptiveSheet.show(
       context: context,
       title: 'Select Default Model',
-      subtitle: provider.name,
+      subtitle: 'Used for new chats',
       child: Column(
         children: [
-          for (final model in models)
-            ListTile(
-              title: Text(model.model, style: AppTypography.bodyMedium),
-              trailing: const Icon(AppIcons.chevronRight, size: 16),
-              onTap: () async {
-                Navigator.of(context).pop();
-                await widget.controller.refreshAll();
-              },
+          for (final provider in providers) ...[
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                child: Text(
+                  provider.name,
+                  style: AppTypography.caption.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
             ),
+            for (final model
+                in widget.controller.providerModels[provider.id] ??
+                    const <ProviderModel>[])
+              ListTile(
+                title: Text(model.model, style: AppTypography.bodyMedium),
+                trailing:
+                    model.providerId == widget.controller.defaultProviderId &&
+                        model.model == widget.controller.defaultModelName
+                    ? const Icon(
+                        Icons.check,
+                        size: 18,
+                        color: AppColors.primaryBright,
+                      )
+                    : const Icon(AppIcons.chevronRight, size: 16),
+                onTap: () async {
+                  await widget.controller.saveDefaultModelSelection(model);
+                  if (mounted) Navigator.of(context).pop();
+                },
+              ),
+          ],
         ],
       ),
     );
@@ -78,7 +103,6 @@ class _ReviewStepState extends State<ReviewStep> {
     final timeoutController = TextEditingController(
       text: limits.commandTimeoutSeconds.toString(),
     );
-
     AdaptiveSheet.show(
       context: context,
       title: 'Edit Generation Limits',
@@ -144,17 +168,14 @@ class _ReviewStepState extends State<ReviewStep> {
   @override
   Widget build(BuildContext context) {
     final app = widget.identity ?? AppIdentity.instance;
-    final provider = widget.controller.providers.firstOrNull;
-    final models = provider != null
-        ? (widget.controller.providerModels[provider.id] ?? const [])
-        : const <ProviderModel>[];
-    final defaultModelName = models.firstOrNull?.model ?? 'Not selected';
-    final modelContextWindow =
-        provider == null || defaultModelName == 'Not selected'
+    final provider = widget.controller.defaultProvider;
+    final defaultModel = widget.controller.defaultModel;
+    final defaultModelName = defaultModel?.model ?? 'Not selected';
+    final modelContextWindow = provider == null || defaultModel == null
         ? null
         : widget.controller.modelsDevCatalog.contextWindowFor(
             providerKey: provider.providerKey,
-            modelId: defaultModelName,
+            modelId: defaultModel.model,
           );
     final limits = widget.controller.limits;
     return SingleChildScrollView(
@@ -198,12 +219,17 @@ class _ReviewStepState extends State<ReviewStep> {
           _buildReviewCard(
             title: 'Model',
             icon: AppIcons.code,
-            trailingAction: models.isNotEmpty
+            trailingAction:
+                widget.controller.providers.any(
+                  (provider) =>
+                      (widget.controller.providerModels[provider.id] ?? [])
+                          .isNotEmpty,
+                )
                 ? AppButton(
                     label: 'Change',
                     compact: true,
                     variant: AppButtonVariant.ghost,
-                    onPressed: () => _editModelSheet(provider!, models),
+                    onPressed: _editModelSheet,
                   )
                 : null,
             content: Text(

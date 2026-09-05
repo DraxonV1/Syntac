@@ -192,6 +192,18 @@ void main() {
         await dir.delete(recursive: true);
       },
     );
+    test('persists selected default provider model', () async {
+      final repo = await repository();
+      await repo.saveDefaultModelSelection(
+        providerId: 'provider-1',
+        model: 'gemini-3.1-pro',
+      );
+
+      expect(await repo.readDefaultModelSelection(), {
+        'providerId': 'provider-1',
+        'model': 'gemini-3.1-pro',
+      });
+    });
 
     test('reconciles stale running jobs into interrupted state', () async {
       final repo = await repository();
@@ -751,7 +763,7 @@ void main() {
                   'cloudaicompanionProject': {'id': 'project-123'},
                   'supportedModels': [
                     {'model': 'gemini-3.5-flash'},
-                    {'id': 'gemini-3.1-pro'},
+                    {'id': 'models/gemini-3.1-pro'},
                     {'name': 'not-a-gemini-model'},
                     {'modelId': 'MODEL_PLACEHOLDER'},
                   ],
@@ -2999,6 +3011,70 @@ void main() {
     expect(parameters['additionalProperties'], isNull);
     expect((parameters['properties'] as Map)['path']['format'], isNull);
     expect((parameters['properties'] as Map)['optional'], isA<Map>());
+  });
+  test('Cloud Code Assist accepts normal agent tool payload', () async {
+    Map<String, Object?>? captured;
+    final provider = GoogleCloudCodeAssistProvider(
+      baseUrl: GoogleAntigravityOAuthFlow.defaultBaseUrl,
+      client: MockClient((request) async {
+        captured = jsonDecode(request.body) as Map<String, Object?>;
+        return http.Response(
+          'data: ${jsonEncode({
+            'response': {
+              'candidates': [
+                {
+                  'content': {
+                    'parts': [
+                      {'text': 'ok'},
+                    ],
+                  },
+                  'finishReason': 'STOP',
+                },
+              ],
+            },
+          })}\n',
+          200,
+          headers: {'content-type': 'text/event-stream'},
+        );
+      }),
+    );
+    final tools = ProjectTools(
+      projectRoot: '.',
+      shellExecutor: CapturingShellExecutor(
+        const CommandResult(
+          stdout: '',
+          stderr: '',
+          exitCode: 0,
+          duration: Duration.zero,
+          timedOut: false,
+          cancelled: false,
+        ),
+      ),
+    ).specs;
+
+    await provider.completeChat(
+      AIChatRequest(
+        model: 'gemini-3.1-pro-preview',
+        messages: const [
+          AIChatMessage(role: 'system', content: 'You are a coding agent.'),
+          AIChatMessage(role: 'user', content: 'Read pubspec.yaml'),
+        ],
+        tools: tools,
+        maxOutputTokens: 65536,
+      ),
+      apiKey: jsonEncode({'token': 'access-token', 'projectId': 'project-123'}),
+    );
+
+    final request = captured!['request'] as Map<String, Object?>;
+    expect((request['contents'] as List), hasLength(1));
+    expect(request['systemInstruction'], isA<Map>());
+    final declarations =
+        ((request['tools'] as List).single as Map)['functionDeclarations']
+            as List;
+    expect(declarations, hasLength(tools.length));
+    for (final declaration in declarations) {
+      expect((declaration as Map)['parameters'], isA<Map>());
+    }
   });
 }
 
