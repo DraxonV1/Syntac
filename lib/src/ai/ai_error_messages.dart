@@ -29,36 +29,22 @@ String describeAIErrorForUser(
   final name = providerName.trim().isEmpty ? 'provider' : providerName.trim();
   if (error is OperationCancelledException) return 'Stopped by user';
   if (error is AIProviderException) {
+    final transportKind = _transportErrorKind(error);
+    if (transportKind != null) {
+      return _displayProviderError(
+        transportKind,
+        providerName: name,
+        statusCode: error.statusCode,
+      );
+    }
     if (error.details != null) {
       return error.details!.copyWith(providerName: name).toDisplayText();
     }
-    return switch (error.kind) {
-      'malformed_endpoint' =>
-        'Provider URL is invalid. Enter a valid http:// or https:// URL.',
-      'no_network' =>
-        "Couldn't connect to $name. Check your internet connection and try again.",
-      'dns_failure' =>
-        "Couldn't find $name. Check your internet connection and provider URL.",
-      'tls_failure' =>
-        "Couldn't verify the secure connection to $name. Check device date/time and network settings.",
-      'timeout' => '$name did not respond in time. Try again.',
-      'auth_error' => '$name rejected the request. Check the API key.',
-      'oauth_error' => '$name sign-in failed. Try again.',
-      'rate_limited' => '$name rate limit reached. Try again later.',
-      'context_length' =>
-        '$name rejected the request because context is too large.',
-      'bad_request' =>
-        '$name rejected the request. Check provider settings and model name.',
-      'server_error' => '$name server error. Try again later.',
-      'http_error' =>
-        error.statusCode == null
-            ? '$name returned an HTTP error.'
-            : '$name returned HTTP ${error.statusCode}.',
-      'malformed_response' => '$name returned a malformed response.',
-      'network_error' =>
-        "Couldn't connect to $name. Check your internet connection and try again.",
-      _ => '$name request failed. Check provider settings and try again.',
-    };
+    return _displayProviderError(
+      error.kind,
+      providerName: name,
+      statusCode: error.statusCode,
+    );
   }
 
   if (error is TimeoutException) return 'timeout: Agent operation timed out.';
@@ -85,6 +71,74 @@ String describeAIErrorForUser(
   }
   return 'internal_exception: ${error.runtimeType}: $details';
 }
+
+String? _transportErrorKind(AIProviderException error) {
+  final raw = [
+    error.kind,
+    error.message,
+    error.details?.exceptionMessage ?? '',
+  ].join(' ').toLowerCase();
+  if (error.kind == 'dns_failure' ||
+      raw.contains('failed host lookup') ||
+      raw.contains('no address associated with hostname') ||
+      raw.contains('nodename nor servname') ||
+      raw.contains('name or service not known')) {
+    return 'dns_failure';
+  }
+  if (error.kind == 'tls_failure' || raw.contains('handshakeexception')) {
+    return 'tls_failure';
+  }
+  if (error.kind == 'timeout' ||
+      raw.contains('timeout') ||
+      raw.contains('timed out')) {
+    return 'timeout';
+  }
+  if (error.kind == 'no_network' ||
+      raw.contains('network is unreachable') ||
+      raw.contains('no route to host')) {
+    return 'no_network';
+  }
+  if (error.kind == 'network_error' ||
+      raw.contains('socketexception') ||
+      raw.contains('clientexception') ||
+      raw.contains('connection refused') ||
+      raw.contains('connection reset')) {
+    return 'network_error';
+  }
+  return null;
+}
+
+String _displayProviderError(
+  String kind, {
+  required String providerName,
+  int? statusCode,
+}) => switch (kind) {
+  'malformed_endpoint' =>
+    'Provider URL is invalid. Enter a valid http:// or https:// URL.',
+  'no_network' =>
+    "Couldn't connect to $providerName. Check your internet connection and try again.",
+  'dns_failure' =>
+    "Couldn't find $providerName. Check your internet connection and provider URL.",
+  'tls_failure' =>
+    "Couldn't verify the secure connection to $providerName. Check device date/time and network settings.",
+  'timeout' => '$providerName did not respond in time. Try again.',
+  'auth_error' => '$providerName rejected the request. Check the API key.',
+  'oauth_error' => '$providerName sign-in failed. Try again.',
+  'rate_limited' => '$providerName rate limit reached. Try again later.',
+  'context_length' =>
+    '$providerName rejected the request because context is too large.',
+  'bad_request' =>
+    '$providerName rejected the request. Check provider settings and model name.',
+  'server_error' => '$providerName server error. Try again later.',
+  'http_error' =>
+    statusCode == null
+        ? '$providerName returned an HTTP error.'
+        : '$providerName returned HTTP $statusCode.',
+  'malformed_response' => '$providerName returned a malformed response.',
+  'network_error' =>
+    "Couldn't connect to $providerName. Check your internet connection and try again.",
+  _ => '$providerName request failed. Check provider settings and try again.',
+};
 
 String _safeErrorText(String value) {
   final compact = value

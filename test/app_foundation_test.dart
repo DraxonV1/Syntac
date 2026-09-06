@@ -753,6 +753,31 @@ void main() {
       expect(userMessage, isNot(contains('ClientException')));
       expect(userMessage, isNot(contains('SocketException')));
     });
+    test('sanitizes provider errors wrapping DNS exceptions', () {
+      final message = describeAIErrorForUser(
+        AIProviderException(
+          'Cloud Code Assist request failed',
+          kind: 'provider_error',
+          details: ProviderErrorDetails(
+            providerName: 'Google',
+            modelId: 'gemini',
+            requestUrl:
+                'https://cloudcode-pa.googleapis.com/v1internal:streamGenerateContent',
+            errorType: 'provider_error',
+            exceptionMessage:
+                "ClientException with SocketException: Failed host lookup: 'cloudcode-pa.googleapis.com' (OS Error: No address associated with hostname, errno = 7)",
+          ),
+        ),
+        providerName: 'Google',
+      );
+
+      expect(
+        message,
+        "Couldn't find Google. Check your internet connection and provider URL.",
+      );
+      expect(message, isNot(contains('ClientException')));
+      expect(message, isNot(contains('SocketException')));
+    });
 
     test('rejects malformed provider endpoints before HTTP', () {
       expect(

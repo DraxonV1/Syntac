@@ -285,6 +285,40 @@ void main() {
 
     expect(sentText, 'Fix auth bug');
   });
+  testWidgets('ComposerView wraps advanced controls on narrow screens', (
+    tester,
+  ) async {
+    final errors = <FlutterErrorDetails>[];
+    final previousErrorHandler = FlutterError.onError;
+    FlutterError.onError = errors.add;
+    try {
+      await tester.pumpWidget(
+        _wrap(
+          SizedBox(
+            width: 320,
+            child: ComposerView(
+              onSend: (_) {},
+              onStop: () {},
+              onPickAttachment: () {},
+              onSelectModel: () {},
+              isRunning: false,
+              selectedModelName: 'OpenRouter GPT-4o Mini',
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+    } finally {
+      FlutterError.onError = previousErrorHandler;
+    }
+
+    expect(
+      errors.where(
+        (details) => details.exceptionAsString().contains('overflow'),
+      ),
+      isEmpty,
+    );
+  });
 
   testWidgets('ComposerView shows Stop button when agent is running', (
     tester,

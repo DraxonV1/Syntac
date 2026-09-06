@@ -103,6 +103,210 @@ class ComposerViewState extends State<ComposerView> {
     widget.onSend(text);
   }
 
+  Widget _buildAttachmentButton() {
+    return Tooltip(
+      message: 'Add attachment',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: widget.isRunning ? null : widget.onPickAttachment,
+          borderRadius: BorderRadius.circular(8),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.border, width: 0.8),
+              ),
+              child: Icon(
+                Icons.add,
+                size: 16,
+                color: widget.isRunning
+                    ? AppColors.textMuted
+                    : AppColors.textSecondary,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModelButton(String modelLabel) {
+    return Tooltip(
+      message: 'Select model',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: widget.onSelectModel,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 40),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.border, width: 0.8),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.memory_outlined,
+                  size: 14,
+                  color: AppColors.textMuted,
+                ),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    modelLabel,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.monoSmall.copyWith(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                const Icon(
+                  Icons.keyboard_arrow_down,
+                  size: 14,
+                  color: AppColors.textMuted,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEffortButton() {
+    return PopupMenuButton<AIReasoningEffort>(
+      enabled: !widget.isRunning,
+      tooltip: 'Reasoning effort',
+      initialValue: widget.reasoningEffort,
+      onSelected: widget.onSelectEffort,
+      color: AppColors.surfaceElevated,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+      itemBuilder: (context) => [
+        for (final effort in AIReasoningEffort.values)
+          PopupMenuItem(
+            value: effort,
+            child: Text(effort.label, style: AppTypography.monoSmall),
+          ),
+      ],
+      child: _compactControl(
+        Icons.tune,
+        widget.reasoningEffort.label,
+        enabled: !widget.isRunning,
+      ),
+    );
+  }
+
+  Widget _buildThinkingButton() {
+    return Tooltip(
+      message: widget.thinkingEnabled
+          ? 'Disable model thinking'
+          : 'Enable model thinking',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: widget.isRunning ? null : widget.onToggleThinking,
+          borderRadius: BorderRadius.circular(8),
+          child: _compactControl(
+            widget.thinkingEnabled
+                ? Icons.psychology
+                : Icons.psychology_outlined,
+            widget.thinkingEnabled ? 'Think' : 'No think',
+            enabled: !widget.isRunning,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSendButton(bool canSend) {
+    if (widget.isRunning) {
+      return Tooltip(
+        message: 'Stop',
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: widget.onStop,
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              constraints: const BoxConstraints(minWidth: 64, minHeight: 40),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.errorSubtle,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: AppColors.error.withValues(alpha: 0.4),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: AppColors.error,
+                      borderRadius: BorderRadius.all(Radius.circular(1.5)),
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    'Stop',
+                    style: AppTypography.monoSmall.copyWith(
+                      color: AppColors.errorText,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 11.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Tooltip(
+      message: canSend ? 'Send message' : 'Enter a message',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: canSend ? _handleSubmit : null,
+          borderRadius: BorderRadius.circular(8),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+            decoration: BoxDecoration(
+              color: canSend ? AppColors.accent : AppColors.surface,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: canSend ? AppColors.accent : AppColors.border,
+              ),
+            ),
+            child: Center(
+              child: Icon(
+                Icons.arrow_upward_rounded,
+                size: 18,
+                color: canSend ? Colors.white : AppColors.textMuted,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _controller.removeListener(_onTextChanged);
@@ -201,212 +405,47 @@ class ComposerViewState extends State<ComposerView> {
                 ),
               ),
 
-              // Bottom Action Controls Bar
+              // Primary controls stay on one row; advanced controls move below
+              // them on phone-width windows instead of overflowing horizontally.
               Padding(
                 padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-                child: Row(
-                  children: [
-                    // Attachment '+' button
-                    Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: widget.isRunning
-                            ? null
-                            : widget.onPickAttachment,
-                        borderRadius: BorderRadius.circular(8),
-                        child: Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: AppColors.surface,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: AppColors.border,
-                              width: 0.8,
-                            ),
-                          ),
-                          child: Icon(
-                            Icons.add,
-                            size: 16,
-                            color: widget.isRunning
-                                ? AppColors.textMuted
-                                : AppColors.textSecondary,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-
-                    // Model Selector Pill
-                    Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: widget.onSelectModel,
-                        borderRadius: BorderRadius.circular(8),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 9,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.surface,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: AppColors.border,
-                              width: 0.8,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              ConstrainedBox(
-                                constraints: const BoxConstraints(
-                                  maxWidth: 160,
-                                ),
-                                child: Text(
-                                  modelLabel,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: AppTypography.monoSmall.copyWith(
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w500,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              const Icon(
-                                Icons.keyboard_arrow_down,
-                                size: 13,
-                                color: AppColors.textMuted,
-                              ),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final compact = constraints.maxWidth < 440;
+                    final advancedControls = Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [_buildEffortButton(), _buildThinkingButton()],
+                    );
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            _buildAttachmentButton(),
+                            const SizedBox(width: 8),
+                            Expanded(child: _buildModelButton(modelLabel)),
+                            if (!compact) ...[
+                              const SizedBox(width: 6),
+                              _buildEffortButton(),
+                              const SizedBox(width: 6),
+                              _buildThinkingButton(),
                             ],
-                          ),
+                            const SizedBox(width: 8),
+                            _buildSendButton(canSend),
+                          ],
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    PopupMenuButton<AIReasoningEffort>(
-                      enabled: !widget.isRunning,
-                      tooltip: 'Reasoning effort',
-                      initialValue: widget.reasoningEffort,
-                      onSelected: widget.onSelectEffort,
-                      color: AppColors.surfaceElevated,
-                      itemBuilder: (context) => [
-                        for (final effort in AIReasoningEffort.values)
-                          PopupMenuItem(
-                            value: effort,
-                            child: Text(
-                              effort.label,
-                              style: AppTypography.monoSmall,
+                        if (compact)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: advancedControls,
                             ),
                           ),
                       ],
-                      child: _compactControl(
-                        Icons.tune,
-                        widget.reasoningEffort.label,
-                        enabled: !widget.isRunning,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: widget.isRunning
-                            ? null
-                            : widget.onToggleThinking,
-                        borderRadius: BorderRadius.circular(8),
-                        child: _compactControl(
-                          widget.thinkingEnabled
-                              ? Icons.psychology
-                              : Icons.psychology_outlined,
-                          widget.thinkingEnabled ? 'Think' : 'No think',
-                          enabled: !widget.isRunning,
-                        ),
-                      ),
-                    ),
-                    const Spacer(),
-
-                    // Send or Stop Button
-                    if (widget.isRunning)
-                      Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: widget.onStop,
-                          borderRadius: BorderRadius.circular(8),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.errorSubtle,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: AppColors.error.withValues(alpha: 0.4),
-                                width: 1,
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  width: 8,
-                                  height: 8,
-                                  decoration: const BoxDecoration(
-                                    color: AppColors.error,
-                                    borderRadius: BorderRadius.all(
-                                      Radius.circular(1.5),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 5),
-                                Text(
-                                  'Stop',
-                                  style: AppTypography.monoSmall.copyWith(
-                                    color: AppColors.errorText,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 11.5,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      )
-                    else
-                      Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: canSend ? _handleSubmit : null,
-                          borderRadius: BorderRadius.circular(8),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 150),
-                            width: 32,
-                            height: 32,
-                            decoration: BoxDecoration(
-                              color: canSend
-                                  ? AppColors.accent
-                                  : AppColors.surface,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: canSend
-                                    ? AppColors.accent
-                                    : AppColors.border,
-                                width: 1,
-                              ),
-                            ),
-                            child: Center(
-                              child: Icon(
-                                Icons.arrow_upward_rounded,
-                                size: 18,
-                                color: canSend
-                                    ? Colors.white
-                                    : AppColors.textMuted,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
+                    );
+                  },
                 ),
               ),
             ],
