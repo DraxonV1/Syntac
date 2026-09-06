@@ -1,20 +1,35 @@
+// Lightweight markdown renderer for code blocks, images, Unicode, and inline math.
+
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:flutter/services.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_typography.dart';
+import 'syntax_highlighted_code.dart';
 
-/// Clean, high-performance markdown renderer tailored for coding agent outputs.
+/// Renders bounded agent markdown with code, image, and math support.
 class MarkdownContent extends StatelessWidget {
   const MarkdownContent({super.key, required this.content, this.textStyle});
 
   final String content;
   final TextStyle? textStyle;
+  static final _blockCache = <String, List<_MarkdownBlock>>{};
 
   @override
   Widget build(BuildContext context) {
     if (content.isEmpty) return const SizedBox.shrink();
+    const maxDisplayCharacters = 160000;
+    final displayContent = content.length <= maxDisplayCharacters
+        ? content
+        : '${content.substring(0, maxDisplayCharacters)}\n\n'
+              '[content truncated for display; full message remains available]';
 
-    final blocks = _parseBlocks(content);
+    final blocks = _blockCache[displayContent] ??= _parseBlocks(displayContent);
+    if (_blockCache.length > 32) {
+      _blockCache.remove(_blockCache.keys.first);
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -290,15 +305,11 @@ class _CodeBlockWidget extends StatelessWidget {
               ],
             ),
           ),
-
           // Code Content
           SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
+            scrollDirection: Axis.vertical,
             padding: const EdgeInsets.all(12),
-            child: SelectableText(
-              code,
-              style: AppTypography.mono.copyWith(fontSize: 12.5, height: 1.45),
-            ),
+            child: SyntaxHighlightedCode(text: code, language: langLabel),
           ),
         ],
       ),
@@ -321,8 +332,9 @@ class _InlineMarkdownText extends StatelessWidget {
 
   List<InlineSpan> _parseInlineSpans(String text, TextStyle base) {
     final spans = <InlineSpan>[];
-    // Regex for inline code `...`, bold **...**, italic *...*
-    final pattern = RegExp(r'(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*)');
+    final pattern = RegExp(
+      r'(!\[[^\]]*\]\([^)]+\)|(?:https?://|data:image/)[^\s]+|\$[^$\n]+\$|\\\([^)]+\)|`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*)',
+    );
     var lastIndex = 0;
 
     for (final match in pattern.allMatches(text)) {
@@ -333,7 +345,31 @@ class _InlineMarkdownText extends StatelessWidget {
       }
 
       final matchedText = match.group(0)!;
-      if (matchedText.startsWith('`') && matchedText.endsWith('`')) {
+      final imageUrl = _imageUrlFromMarkdown(matchedText);
+      if (imageUrl != null) {
+        spans.add(
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: _buildInlineImage(imageUrl),
+          ),
+        );
+      } else if (matchedText.startsWith('\$') ||
+          matchedText.startsWith(r'\(')) {
+        final math = matchedText.startsWith('\$')
+            ? matchedText.substring(1, matchedText.length - 1)
+            : matchedText.substring(2, matchedText.length - 2);
+        spans.add(
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: Math.tex(
+              math,
+              mathStyle: MathStyle.text,
+              textStyle: base,
+              onErrorFallback: (_) => Text(math, style: base),
+            ),
+          ),
+        );
+      } else if (matchedText.startsWith('`') && matchedText.endsWith('`')) {
         final code = matchedText.substring(1, matchedText.length - 1);
         spans.add(
           WidgetSpan(
@@ -351,10 +387,9 @@ class _InlineMarkdownText extends StatelessWidget {
           ),
         );
       } else if (matchedText.startsWith('**') && matchedText.endsWith('**')) {
-        final bold = matchedText.substring(2, matchedText.length - 2);
         spans.add(
           TextSpan(
-            text: bold,
+            text: matchedText.substring(2, matchedText.length - 2),
             style: base.copyWith(
               fontWeight: FontWeight.w600,
               color: AppColors.textPrimary,
@@ -362,10 +397,9 @@ class _InlineMarkdownText extends StatelessWidget {
           ),
         );
       } else if (matchedText.startsWith('*') && matchedText.endsWith('*')) {
-        final italic = matchedText.substring(1, matchedText.length - 1);
         spans.add(
           TextSpan(
-            text: italic,
+            text: matchedText.substring(1, matchedText.length - 1),
             style: base.copyWith(fontStyle: FontStyle.italic),
           ),
         );
@@ -377,9 +411,75 @@ class _InlineMarkdownText extends StatelessWidget {
     if (lastIndex < text.length) {
       spans.add(TextSpan(text: text.substring(lastIndex), style: base));
     }
-
     return spans;
   }
+
+  String? _imageUrlFromMarkdown(String value) {
+    if (value.startsWith('![')) {
+      final match = RegExp(r'^!\[[^\]]*\]\(([^)]+)\)$').firstMatch(value);
+      return match?.group(1);
+    }
+    if (value.startsWith('data:image/')) return value;
+    if (RegExp(
+      r'^https?://[^\s?#]+\.(?:png|jpe?g|gif|webp|bmp|svg|avif|heic|heif|tiff?|ico)(?:[?#].*)?$',
+      caseSensitive: false,
+    ).hasMatch(value)) {
+      return value;
+    }
+    return null;
+  }
+
+  Widget _buildInlineImage(String source) {
+    final image = source.startsWith('data:image/')
+        ? _decodeDataImage(source)
+        : Image.network(
+            source,
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) =>
+                _imageFallback(source),
+          );
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 260, maxHeight: 200),
+      margin: const EdgeInsets.symmetric(horizontal: 3, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: AppColors.border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: image,
+    );
+  }
+
+  Widget _decodeDataImage(String source) {
+    try {
+      final comma = source.indexOf(',');
+      if (comma < 0) return _imageFallback('Invalid image data');
+      final header = source.substring(0, comma);
+      final payload = source.substring(comma + 1);
+      if (!header.endsWith(';base64')) {
+        return _imageFallback('Unsupported image data');
+      }
+      return Image.memory(
+        base64Decode(payload),
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) =>
+            _imageFallback('Invalid image data'),
+      );
+    } catch (_) {
+      return _imageFallback('Invalid image data');
+    }
+  }
+
+  Widget _imageFallback(String label) => Padding(
+    padding: const EdgeInsets.all(8),
+    child: Text(
+      label,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: AppTypography.caption.copyWith(color: AppColors.textMuted),
+    ),
+  );
 }
 
 // Data classes for markdown blocks

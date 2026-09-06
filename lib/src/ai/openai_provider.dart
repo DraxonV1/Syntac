@@ -1,3 +1,5 @@
+// OpenAI-compatible Chat Completions transport and stream decoder.
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -182,6 +184,17 @@ class OpenAICompatibleProvider extends AIProvider {
         finishReason = choice['finish_reason']?.toString() ?? finishReason;
         final delta = choice['delta'];
         if (delta is! Map) continue;
+        final reasoning =
+            delta['reasoning_content'] ??
+            delta['reasoning'] ??
+            delta['thinking'];
+        if (reasoning is String && reasoning.isNotEmpty) {
+          yield AIStreamEvent.thinking(
+            reasoning,
+            networkChunkAt: eventAt,
+            providerEventAt: eventAt,
+          );
+        }
         final content = delta['content'];
         if (content is String && content.isNotEmpty) {
           yield AIStreamEvent.text(

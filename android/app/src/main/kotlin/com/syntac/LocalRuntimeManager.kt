@@ -1,9 +1,13 @@
+// Installs Arch rootfs and runs bounded PRoot commands off Flutter UI thread.
+
 package com.syntac
 
 import android.app.Activity
+import android.content.Intent
 import android.os.Build
 import android.system.Os
 import android.system.OsConstants
+import androidx.core.content.ContextCompat
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 import java.io.InputStream
@@ -23,18 +27,35 @@ class LocalRuntimeManager(
     private val cancelled = ConcurrentHashMap.newKeySet<String>()
     private var last = LocalRunResult()
     @Volatile private var installRunning = false
+    private val nativeDir = File(activity.applicationInfo.nativeLibraryDir)
+    private val launcher = File(nativeDir, "libsyntac_proot.so")
 
+    private fun startBackgroundWork() {
+        try {
+            ContextCompat.startForegroundService(
+                activity,
+                Intent(activity, RuntimeForegroundService::class.java)
+                    .setAction(RuntimeForegroundService.actionStart),
+            )
+        } catch (_: Exception) {
+            // Runtime still returns structured errors if foreground service is unavailable.
+        }
+    }
+
+    private fun stopBackgroundWorkIfIdle() {
+        if (!installRunning && active.isEmpty()) {
+            activity.stopService(Intent(activity, RuntimeForegroundService::class.java))
+        }
+    }
     private val runtimeDir = File(activity.filesDir, "runtime")
     private val rootfsDir = File(runtimeDir, "arch")
     private val installingDir = File(runtimeDir, "arch.installing")
     private val cacheDir = File(runtimeDir, "cache")
     private val tmpDir = File(runtimeDir, "tmp")
     private val metadataFile = File(runtimeDir, "local-runtime.json")
-    private val nativeDir = File(activity.applicationInfo.nativeLibraryDir)
-    private val launcher = File(nativeDir, "libsyntac_proot.so")
     private val minFreeAfterInstallBytes = 512L * 1024L * 1024L
     private val minFreeBeforePackageBytes = 512L * 1024L * 1024L
-    private val maxRuntimeStreamChars = 64_000
+    private val maxRuntimeStreamChars = 2_000_000
 
     fun status(): Map<String, Any?> {
         val current = metadata()?.takeIf { metadataBelongsToCurrentRuntime(it) }
@@ -66,6 +87,7 @@ class LocalRuntimeManager(
             return
         }
         installRunning = true
+        startBackgroundWork()
         Thread {
             val output = try {
                 installBlocking()
@@ -73,17 +95,26 @@ class LocalRuntimeManager(
                 finishError("install_failed: ${safe(error)}")
             } finally {
                 installRunning = false
+                stopBackgroundWorkIfIdle()
             }
             activity.runOnUiThread { result.success(output) }
         }.start()
     }
 
     fun retrySelfTest(result: MethodChannel.Result) {
+        startBackgroundWork()
         Thread {
-            val output = runSelfTestOnly()
+            val output = try {
+                runSelfTestOnly()
+            } catch (error: Throwable) {
+                finishError("self_test_failed: ${safe(error)}")
+            } finally {
+                stopBackgroundWorkIfIdle()
+            }
             activity.runOnUiThread { result.success(output) }
         }.start()
     }
+
     fun remove(): Map<String, Any?> {
         active.forEach { (id, process) ->
             cancelled.add(id)
@@ -92,6 +123,7 @@ class LocalRuntimeManager(
         active.clear()
         runtimeDir.deleteRecursively()
         last = LocalRunResult()
+        stopBackgroundWorkIfIdle()
         return mapOf("state" to "notInstalled", "message" to "ARCH Linux Runtime removed.", "details" to lightweightDetails("notInstalled", null))
     }
 
@@ -102,6 +134,7 @@ class LocalRuntimeManager(
         val timeout = (args?.get("timeoutSeconds") as? Number)?.toLong()?.takeIf { it > 0 } ?: 120L
         val activeProject = parseProject(args?.get("activeProject") as? Map<*, *>) ?: BoundProject(File(workDir.ifBlank { runtimeDir.absolutePath }), mountNameForPath(workDir.ifBlank { "project" }))
         val projects = parseProjects(args?.get("availableProjects")).ifEmpty { listOf(activeProject) }
+        startBackgroundWork()
         Thread {
             val output = try {
                 val validation = validateRootfs(rootfsDir)
@@ -110,8 +143,10 @@ class LocalRuntimeManager(
                     !runtimeMetadataMatches(metadata()) || !validation.ready -> runFailure("local_runtime_not_installed", "ARCH Linux Runtime is not installed. Arch rootfs validation: ${validation.summary}")
                     else -> execute(id, command, activeProject, projects, timeout)
                 }
-            } catch (error: Exception) {
+            } catch (error: Throwable) {
                 runFailure("runtime_exec_failed", safe(error))
+            } finally {
+                stopBackgroundWorkIfIdle()
             }
             activity.runOnUiThread { result.success(output) }
         }.start()

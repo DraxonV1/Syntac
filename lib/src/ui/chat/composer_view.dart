@@ -1,4 +1,7 @@
+// Message composer with attachments, model, effort, thinking, and send controls.
+
 import 'package:flutter/material.dart';
+import '../../ai/ai_provider.dart';
 import '../../models.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_typography.dart';
@@ -12,7 +15,11 @@ class ComposerView extends StatefulWidget {
     required this.onStop,
     required this.onPickAttachment,
     required this.onSelectModel,
+    this.onSelectEffort,
+    this.onToggleThinking,
     required this.isRunning,
+    this.reasoningEffort = AIReasoningEffort.medium,
+    this.thinkingEnabled = true,
     this.selectedModelName,
     this.attachments = const <Attachment>[],
     this.onRemoveAttachment,
@@ -22,7 +29,11 @@ class ComposerView extends StatefulWidget {
   final VoidCallback onStop;
   final VoidCallback onPickAttachment;
   final VoidCallback onSelectModel;
+  final ValueChanged<AIReasoningEffort>? onSelectEffort;
+  final VoidCallback? onToggleThinking;
   final bool isRunning;
+  final AIReasoningEffort reasoningEffort;
+  final bool thinkingEnabled;
   final String? selectedModelName;
   final List<Attachment> attachments;
   final ValueChanged<Attachment>? onRemoveAttachment;
@@ -53,6 +64,35 @@ class ComposerViewState extends State<ComposerView> {
     _controller.text = text;
     _controller.selection = TextSelection.fromPosition(
       TextPosition(offset: _controller.text.length),
+    );
+  }
+
+  Widget _compactControl(IconData icon, String label, {required bool enabled}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.border, width: 0.8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 14,
+            color: enabled ? AppColors.textSecondary : AppColors.textMuted,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: AppTypography.monoSmall.copyWith(
+              fontSize: 10.5,
+              color: enabled ? AppColors.textSecondary : AppColors.textMuted,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -243,7 +283,46 @@ class ComposerViewState extends State<ComposerView> {
                         ),
                       ),
                     ),
-
+                    const SizedBox(width: 6),
+                    PopupMenuButton<AIReasoningEffort>(
+                      enabled: !widget.isRunning,
+                      tooltip: 'Reasoning effort',
+                      initialValue: widget.reasoningEffort,
+                      onSelected: widget.onSelectEffort,
+                      color: AppColors.surfaceElevated,
+                      itemBuilder: (context) => [
+                        for (final effort in AIReasoningEffort.values)
+                          PopupMenuItem(
+                            value: effort,
+                            child: Text(
+                              effort.label,
+                              style: AppTypography.monoSmall,
+                            ),
+                          ),
+                      ],
+                      child: _compactControl(
+                        Icons.tune,
+                        widget.reasoningEffort.label,
+                        enabled: !widget.isRunning,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: widget.isRunning
+                            ? null
+                            : widget.onToggleThinking,
+                        borderRadius: BorderRadius.circular(8),
+                        child: _compactControl(
+                          widget.thinkingEnabled
+                              ? Icons.psychology
+                              : Icons.psychology_outlined,
+                          widget.thinkingEnabled ? 'Think' : 'No think',
+                          enabled: !widget.isRunning,
+                        ),
+                      ),
+                    ),
                     const Spacer(),
 
                     // Send or Stop Button

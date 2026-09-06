@@ -1,3 +1,5 @@
+// Timeline list with stable rows, bounded repaint work, and auto-scroll.
+
 import 'package:flutter/material.dart';
 import '../../models.dart';
 import '../theme/app_colors.dart';
@@ -128,14 +130,18 @@ class ChatMessageListState extends State<ChatMessageList> {
           itemBuilder: (context, index) {
             final item = timeline[index];
             return switch (item) {
-              MessageTimelineItem(:final message) => ChatMessageView(
-                message: message,
-                attachments: widget.attachments
-                    .where((a) => a.messageId == message.id)
-                    .toList(),
+              MessageTimelineItem(:final message) => RepaintBoundary(
+                key: ValueKey('message-${message.id}'),
+                child: ChatMessageView(
+                  message: message,
+                  attachments: widget.attachments
+                      .where((a) => a.messageId == message.id)
+                      .toList(),
+                ),
               ),
-              ToolTimelineItem(:final execution) => ToolCallCard(
-                execution: execution,
+              ToolTimelineItem(:final execution) => RepaintBoundary(
+                key: ValueKey('tool-${execution.id}'),
+                child: ToolCallCard(execution: execution),
               ),
             };
           },

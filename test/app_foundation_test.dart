@@ -1,3 +1,5 @@
+// Regression tests for app orchestration, persistence, providers, tools, and UI contracts.
+
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
@@ -590,6 +592,69 @@ void main() {
         await dir.delete(recursive: true);
       },
     );
+    test('read caps line output at 500 and exposes continuation', () async {
+      final dir = await Directory.systemTemp.createTemp('syntac_read_cap_');
+      final file = File('${dir.path}${Platform.pathSeparator}large.txt');
+      await file.writeAsString(
+        List<String>.generate(750, (index) => 'line-${index + 1}').join('\n'),
+      );
+      final tools = ProjectTools(
+        projectRoot: dir.path,
+        shellExecutor: LocalProcessShellExecutor(),
+      );
+
+      final first = await tools.readFile('large.txt');
+      expect(first['startLine'], 1);
+      expect(first['endLine'], 500);
+      expect(first['requestedLines'], 500);
+      expect(first['hasMore'], isTrue);
+      expect(first['nextStartLine'], 501);
+      expect(first['notice'], contains('startLine 501'));
+      expect((first['content'] as String).split('\n'), hasLength(500));
+
+      final second = await tools.readFile(
+        'large.txt',
+        startLine: first['nextStartLine']! as int,
+        limit: 500,
+      );
+      expect(second['startLine'], 501);
+      expect(second['endLine'], 750);
+      expect(second['hasMore'], isFalse);
+      expect((second['content'] as String).split('\n'), hasLength(250));
+      await dir.delete(recursive: true);
+    });
+
+    test('bash line overflow creates readable local artifact', () async {
+      final dir = await Directory.systemTemp.createTemp(
+        'syntac_bash_artifact_',
+      );
+      final tools = ProjectTools(
+        projectRoot: dir.path,
+        shellExecutor: CapturingShellExecutor(
+          CommandResult(
+            stdout: List<String>.generate(
+              80,
+              (index) => 'output-${index + 1}',
+            ).join('\n'),
+            stderr: '',
+            exitCode: 0,
+            duration: const Duration(milliseconds: 1),
+            timedOut: false,
+            cancelled: false,
+          ),
+        ),
+      );
+
+      final result = await tools.execute('bash', {'command': 'echo many'});
+      final payload = result['result']! as Map<String, Object?>;
+      final artifact = payload['outputArtifact']! as String;
+      expect(artifact, startsWith('local://'));
+      expect(payload['outputTruncated'], isTrue);
+      expect(payload['stdout'].toString(), contains('showing first 50 lines'));
+      final artifactRead = await tools.readFile(artifact);
+      expect(artifactRead['content'], contains('output-80'));
+      await dir.delete(recursive: true);
+    });
   });
 
   group('provider', () {

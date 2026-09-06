@@ -20,9 +20,14 @@
 - Runtime diagnostics must redact local file paths and private app paths.
 - Guest command exit code != 0 is command failure, not runtime crash.
 - PRoot/native signal or launch failure is runtime failure.
+- Native stdout/stderr streams cap at 2,000,000 characters per stream and report truncation.
 - Cancellation returns cancelled/interrupted state and must stop native process tree.
 - Keep `ShellExecutor` abstraction clean; UI/tools should not know native details.
 
 ## Tests
 
 Use `test/local_runtime_test.dart` for runtime status/diagnostics parsing and fixtures. Use `test/app_foundation_test.dart` for bash behavior through tools/agent loop.
+
+## Documentation
+
+Keep `README.md` aligned with adapter ownership, MethodChannel contracts, shared/private storage boundaries, process-tree cancellation, output limits, diagnostics, and physical-device verification. Update `PROJECT_STRUCTURE.md` when runtime files or ownership change.

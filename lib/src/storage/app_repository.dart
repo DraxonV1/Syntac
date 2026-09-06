@@ -1,3 +1,5 @@
+// Repository joining SQLite metadata, JSONL chats, attachments, and secrets.
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -19,21 +21,110 @@ class AppRepository implements CredentialStore {
     Directory? chatStorageDirectory,
   }) : _db = localDatabase.database,
        _localDatabasePath = localDatabase.path,
-       _chatStore = ChatJsonlStore(
-         chatStorageDirectory ??
-             Directory(
-               p.join(File(localDatabase.path).parent.path, 'chats_jsonl'),
-             ),
-       ),
+       _chatStore = _createChatStore(localDatabase, chatStorageDirectory),
+       _ompAgentDirectory = _defaultOmpAgentDirectory(localDatabase.path),
        _secretStore = secretStore;
+
+  static ChatJsonlStore _createChatStore(
+    LocalDatabase localDatabase,
+    Directory? overrideDirectory,
+  ) {
+    final legacyDirectories = <Directory>[
+      Directory(p.join(File(localDatabase.path).parent.path, 'chats_jsonl')),
+      if (localDatabase.legacyPath != null)
+        Directory(
+          p.join(File(localDatabase.legacyPath!).parent.path, 'chats_jsonl'),
+        ),
+    ];
+    if (Platform.isAndroid) {
+      legacyDirectories.addAll([
+        Directory(p.join('/storage/emulated/0', '.syntac', 'chats_jsonl')),
+        Directory(p.join('/storage/emulated/0', '.omp', 'agent', 'sessions')),
+      ]);
+    }
+    final rootDirectory =
+        overrideDirectory ?? _defaultChatStorageDirectory(localDatabase.path);
+    return ChatJsonlStore(
+      rootDirectory,
+      legacyRootDirectories: overrideDirectory == null
+          ? legacyDirectories
+          : const <Directory>[],
+    );
+  }
+
+  static Directory _defaultChatStorageDirectory(String databasePath) {
+    if (Platform.isAndroid) {
+      return Directory(
+        p.join('/storage/emulated/0', '.syntac', 'agent', 'sessions'),
+      );
+    }
+    return Directory(p.join(File(databasePath).parent.path, 'chats_jsonl'));
+  }
+
+  static Directory _defaultOmpAgentDirectory(String databasePath) {
+    if (Platform.isAndroid) {
+      return Directory(p.join('/storage/emulated/0', '.syntac', 'agent'));
+    }
+    return Directory(p.join(File(databasePath).parent.path, '.omp', 'agent'));
+  }
 
   final Database _db;
   final String _localDatabasePath;
   final ChatJsonlStore _chatStore;
   final SecretStore _secretStore;
+  final Directory _ompAgentDirectory;
   Future<void>? _chatMigration;
 
   String get localDatabasePath => _localDatabasePath;
+  String get chatStoragePath => _chatStore.rootDirectory.path;
+  String get ompAgentDirectoryPath => _ompAgentDirectory.path;
+  String get settingsConfigPath =>
+      File(p.join(_ompAgentDirectory.path, 'config.yml')).path;
+
+  Future<void> migrateSettingsToOmp() async {
+    await _ompAgentDirectory.create(recursive: true);
+    final configFile = File(settingsConfigPath);
+    if (await configFile.exists()) return;
+
+    final legacyFiles = <File>[
+      File(p.join(File(_localDatabasePath).parent.path, 'settings.json')),
+      File(p.join('/storage/emulated/0', '.syntac', 'settings.json')),
+      File(p.join('/storage/emulated/0', '.omp', 'agent', 'config.yml')),
+    ];
+    for (final legacyFile in legacyFiles) {
+      if (await legacyFile.exists()) {
+        await legacyFile.copy(configFile.path);
+        return;
+      }
+    }
+
+    await _mirrorSettingsToOmp();
+  }
+
+  Future<void> _mirrorSettingsToOmp() async {
+    await _ompAgentDirectory.create(recursive: true);
+    final configFile = File(settingsConfigPath);
+    if (await configFile.exists()) return;
+    final rows = await _db.query('settings');
+    if (rows.isEmpty) return;
+    final values = <String, Object?>{};
+    for (final row in rows) {
+      final key = row['key']?.toString();
+      final raw = row['value_json']?.toString();
+      if (key == null || raw == null) continue;
+      try {
+        values[key] = jsonDecode(raw);
+      } catch (_) {
+        values[key] = raw;
+      }
+    }
+    if (values.isEmpty) return;
+    const encoder = JsonEncoder.withIndent('  ');
+    await configFile.writeAsString(
+      '# Syntac settings mirror; JSON is valid YAML.\n${encoder.convert(values)}\n',
+      flush: true,
+    );
+  }
 
   String _providerSecretKey(String providerId) =>
       'provider_api_key_$providerId';

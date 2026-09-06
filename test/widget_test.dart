@@ -17,6 +17,7 @@ import 'package:syntac/src/ui/components/animated_hamburger.dart';
 import 'package:syntac/src/ui/components/wipe_reveal_text.dart';
 import 'package:syntac/src/ui/navigation/central_navigation_overlay.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_math_fork/flutter_math.dart';
 
 Widget _wrap(Widget child) {
   return MaterialApp(
@@ -108,6 +109,22 @@ void main() {
     expect(find.text('Copy'), findsOneWidget);
     expect(find.textContaining('void main()'), findsOneWidget);
   });
+  testWidgets('MarkdownContent renders TeX and embedded base64 images', (
+    tester,
+  ) async {
+    const markdown =
+        r'Equation: $\frac{a}{b} + \alpha$ ![pixel](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=)';
+
+    await tester.pumpWidget(
+      _wrap(
+        const SingleChildScrollView(child: MarkdownContent(content: markdown)),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byType(Math), findsOneWidget);
+    expect(find.byType(Image), findsOneWidget);
+  });
 
   testWidgets('ToolCallCard renders collapsed bash and expands on tap', (
     tester,
@@ -136,8 +153,6 @@ void main() {
     await tester.tap(find.text('Bash'));
     await tester.pumpAndSettle();
 
-    expect(find.text('COMMAND'), findsOneWidget);
-    expect(find.text('STDOUT'), findsOneWidget);
     expect(find.text('All tests passed!'), findsOneWidget);
   });
 
@@ -160,11 +175,8 @@ void main() {
       _wrap(ToolCallCard(execution: execution, initiallyExpanded: true)),
     );
 
-    expect(find.text('Exit 1'), findsOneWidget);
-    expect(find.text('STDOUT'), findsOneWidget);
-    expect(find.text('STDERR'), findsOneWidget);
-    expect(find.text('(empty)'), findsWidgets);
-    expect(find.text('Exit code: 1'), findsOneWidget);
+    expect(find.text('exit 1'), findsOneWidget);
+    expect(find.text('(no output)'), findsOneWidget);
   });
 
   testWidgets('ToolCallCard renders write content preview', (tester) async {

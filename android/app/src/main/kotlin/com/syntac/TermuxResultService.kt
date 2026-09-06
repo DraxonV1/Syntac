@@ -1,3 +1,4 @@
+// Receives asynchronous Termux RUN_COMMAND results for the Flutter bridge.
 
 package com.syntac
 

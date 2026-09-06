@@ -1,3 +1,5 @@
+// Manages Android shell runtime installation, permissions, diagnostics, and tests.
+
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -197,7 +199,7 @@ class _RuntimeScreenState extends State<RuntimeScreen> {
             id: ShellRuntimeId.archLinux,
             name: 'Arch Linux (Isolated PRoot)',
             tagline:
-                'Full local package ecosystem with python, bash, and tools',
+                'Full local package ecosystem with bash; install python with pacman',
             logo: AppIcons.runtimeLogo('arch', size: 22),
             isRecommended: true,
           ),
@@ -243,6 +245,15 @@ class _RuntimeScreenState extends State<RuntimeScreen> {
                     variant: AppButtonVariant.secondary,
                     onPressed: () =>
                         widget.controller.openAndroidStorageSettings(),
+                  ),
+                if (Platform.isAndroid)
+                  AppButton(
+                    label: 'Allow Background Work',
+                    icon: AppIcons.settings,
+                    compact: true,
+                    variant: AppButtonVariant.secondary,
+                    onPressed: () =>
+                        widget.controller.requestAndroidBackgroundExecution(),
                   ),
                 AppButton(
                   label: 'Remove Rootfs',

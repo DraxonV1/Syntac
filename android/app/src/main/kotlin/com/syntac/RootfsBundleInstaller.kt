@@ -1,3 +1,5 @@
+// Verifies and extracts pinned Arch rootfs bundles into private runtime storage.
+
 package com.syntac
 
 import android.content.res.AssetManager

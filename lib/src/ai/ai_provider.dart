@@ -1,3 +1,5 @@
+// Shared request, response, and streaming contracts for AI providers.
+
 import '../core/cancellation.dart';
 import 'provider_diagnostics.dart';
 
@@ -56,6 +58,33 @@ class AIToolCall {
   };
 }
 
+enum AIReasoningEffort {
+  minimal,
+  low,
+  medium,
+  high,
+  xhigh,
+  max;
+
+  String get wireValue => switch (this) {
+    AIReasoningEffort.minimal => 'minimal',
+    AIReasoningEffort.low => 'low',
+    AIReasoningEffort.medium => 'medium',
+    AIReasoningEffort.high => 'high',
+    AIReasoningEffort.xhigh => 'xhigh',
+    AIReasoningEffort.max => 'max',
+  };
+
+  String get label => switch (this) {
+    AIReasoningEffort.minimal => 'Minimal',
+    AIReasoningEffort.low => 'Low',
+    AIReasoningEffort.medium => 'Medium',
+    AIReasoningEffort.high => 'High',
+    AIReasoningEffort.xhigh => 'XHigh',
+    AIReasoningEffort.max => 'Max',
+  };
+}
+
 class AIChatRequest {
   const AIChatRequest({
     required this.model,
@@ -64,6 +93,8 @@ class AIChatRequest {
     this.temperature,
     this.maxOutputTokens,
     this.timeout,
+    this.reasoningEffort = AIReasoningEffort.medium,
+    this.includeThinking = true,
   });
 
   final String model;
@@ -72,6 +103,8 @@ class AIChatRequest {
   final double? temperature;
   final int? maxOutputTokens;
   final Duration? timeout;
+  final AIReasoningEffort? reasoningEffort;
+  final bool includeThinking;
 }
 
 class AIChatResponse {
@@ -93,7 +126,20 @@ class AIStreamEvent {
     this.textDelta, {
     DateTime? networkChunkAt,
     DateTime? providerEventAt,
-  }) : toolCalls = const <AIToolCall>[],
+  }) : thinkingDelta = '',
+       toolCalls = const <AIToolCall>[],
+       finishReason = null,
+       providerMetadata = const <String, Object?>{},
+       done = false,
+       networkChunkAt = networkChunkAt ?? DateTime.now(),
+       providerEventAt = providerEventAt ?? networkChunkAt ?? DateTime.now();
+
+  AIStreamEvent.thinking(
+    this.thinkingDelta, {
+    DateTime? networkChunkAt,
+    DateTime? providerEventAt,
+  }) : textDelta = '',
+       toolCalls = const <AIToolCall>[],
        finishReason = null,
        providerMetadata = const <String, Object?>{},
        done = false,
@@ -107,11 +153,13 @@ class AIStreamEvent {
     DateTime? networkChunkAt,
     DateTime? providerEventAt,
   }) : textDelta = '',
+       thinkingDelta = '',
        done = true,
        networkChunkAt = networkChunkAt ?? DateTime.now(),
        providerEventAt = providerEventAt ?? networkChunkAt ?? DateTime.now();
 
   final String textDelta;
+  final String thinkingDelta;
   final List<AIToolCall> toolCalls;
   final String? finishReason;
   final Map<String, Object?> providerMetadata;

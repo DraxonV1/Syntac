@@ -32,3 +32,7 @@
 ## Tests
 
 Use `test/app_foundation_test.dart` for agent loop contracts: duplicate runs, tool calls, malformed tool calls, cancellation, streaming errors, context trimming, provider preflight errors.
+
+## Documentation
+
+Keep `README.md` aligned with loop ownership, state transitions, persistence ordering, cancellation behavior, and test workflow. Update it when agent responsibilities or contracts change.

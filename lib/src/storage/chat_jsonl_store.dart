@@ -1,3 +1,5 @@
+// User-accessible JSONL chat store with safe legacy-directory migration.
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -8,11 +10,18 @@ import 'package:sqflite/sqflite.dart';
 import '../models.dart';
 
 class ChatJsonlStore {
-  ChatJsonlStore(this.rootDirectory);
+  ChatJsonlStore(
+    this.rootDirectory, {
+    List<Directory> legacyRootDirectories = const <Directory>[],
+  }) : legacyRootDirectories = List<Directory>.unmodifiable(
+         legacyRootDirectories,
+       );
 
   final Directory rootDirectory;
+  final List<Directory> legacyRootDirectories;
   final _writeLocks = <String, Future<void>>{};
   bool _ready = false;
+  bool _legacyMigrationChecked = false;
 
   File get _chatsFile => File(p.join(rootDirectory.path, 'chats.jsonl'));
   File get _attachmentsFile =>
@@ -24,7 +33,32 @@ class ChatJsonlStore {
     if (_ready) return;
     await rootDirectory.create(recursive: true);
     await _recoverInterruptedWrites();
+    if (!_legacyMigrationChecked) {
+      _legacyMigrationChecked = true;
+      for (final legacy in legacyRootDirectories) {
+        await _copyLegacyStore(legacy);
+      }
+    }
     _ready = true;
+  }
+
+  Future<void> _copyLegacyStore(Directory legacy) async {
+    if (!await legacy.exists()) return;
+    final currentPath = p.normalize(rootDirectory.absolute.path);
+    final legacyPath = p.normalize(legacy.absolute.path);
+    if (currentPath == legacyPath) return;
+
+    await for (final entity in legacy.list(
+      recursive: true,
+      followLinks: false,
+    )) {
+      if (entity is! File || entity.path.endsWith('.tmp')) continue;
+      final relative = p.relative(entity.path, from: legacy.path);
+      final target = File(p.join(rootDirectory.path, relative));
+      if (await target.exists()) continue;
+      await target.parent.create(recursive: true);
+      await entity.copy(target.path);
+    }
   }
 
   Future<T> _withFileLock<T>(File file, Future<T> Function() action) async {

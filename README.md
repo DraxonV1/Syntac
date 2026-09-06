@@ -47,6 +47,19 @@ Core behavior:
 - Startup, runtime, provider, and storage diagnostics.
 - Built-in update check with stable, beta, and nightly channels.
 
+## Shared app storage
+
+On Android, user-visible Syntac data lives under `/storage/emulated/0/.syntac/` when All files access is granted:
+
+```text
+.syntac/syntac.sqlite
+.syntac/agent/config.yml
+.syntac/agent/sessions/chats.jsonl
+.syntac/agent/sessions/attachments.jsonl
+```
+
+Runtime rootfs, caches, temporary PRoot files, and secrets stay app-private. Existing private and legacy chat stores migrate into this layout without overwriting current files. Grant storage access from Shell Runtime settings when Android reports shared access unavailable.
+
 ## Android runtime
 
 Syntac can run shell commands through:

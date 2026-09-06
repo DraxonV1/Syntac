@@ -1,12 +1,15 @@
+// Main project chat screen and composer state for model/runtime interactions.
+
 import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 
+import '../../ai/ai_provider.dart';
 import '../../app.dart';
 import '../../core/app_identity.dart';
-import '../../models.dart';
 import '../chat/agent_running_indicator.dart';
+import '../../models.dart';
 import '../chat/chat_message_list.dart';
 import '../chat/composer_view.dart';
 import '../chat/empty_chat_view.dart';
@@ -40,6 +43,8 @@ class _MainChatScreenState extends State<MainChatScreen> {
   final GlobalKey<ComposerViewState> _composerKey =
       GlobalKey<ComposerViewState>();
   final List<Attachment> _pendingAttachments = <Attachment>[];
+  AIReasoningEffort _reasoningEffort = AIReasoningEffort.medium;
+  bool _thinkingEnabled = true;
 
   @override
   Widget build(BuildContext context) {
@@ -246,6 +251,11 @@ class _MainChatScreenState extends State<MainChatScreen> {
           key: _composerKey,
           isRunning: isRunning,
           selectedModelName: _resolveSelectedModelName(chat),
+          onSelectEffort: (effort) => setState(() => _reasoningEffort = effort),
+          onToggleThinking: () =>
+              setState(() => _thinkingEnabled = !_thinkingEnabled),
+          reasoningEffort: _reasoningEffort,
+          thinkingEnabled: _thinkingEnabled,
           attachments: _pendingAttachments,
           onSend: _handleSendMessage,
           onStop: () => widget.controller.stopCurrentChat(),
@@ -456,6 +466,13 @@ class _MainChatScreenState extends State<MainChatScreen> {
   void _handleSendMessage(String text) {
     final attachmentsToSend = List<Attachment>.of(_pendingAttachments);
     setState(() => _pendingAttachments.clear());
-    unawaited(widget.controller.sendMessage(text, attachmentsToSend));
+    unawaited(
+      widget.controller.sendMessage(
+        text,
+        attachmentsToSend,
+        reasoningEffort: _reasoningEffort,
+        includeThinking: _thinkingEnabled,
+      ),
+    );
   }
 }

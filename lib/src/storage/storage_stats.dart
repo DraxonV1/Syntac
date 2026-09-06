@@ -1,3 +1,5 @@
+// Calculates readable storage usage for app, chats, cache, and attachments.
+
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import '../core/app_identity.dart';
@@ -63,8 +65,7 @@ class StorageStatsService {
 
     // 2. Chats (JSONL)
     try {
-      final dbPath = File(repository.localDatabasePath);
-      final chatsDir = Directory(p.join(dbPath.parent.path, 'chats_jsonl'));
+      final chatsDir = Directory(repository.chatStoragePath);
       final chatBytes = await _dirSize(chatsDir);
       categories.add(
         StorageCategorySize(

@@ -1,3 +1,5 @@
+// Runs Termux, Arch PRoot, and local shell commands with bounded streaming output.
+
 import 'dart:async';
 import 'dart:io';
 
@@ -106,6 +108,8 @@ class CommandOutputUpdate {
 }
 
 typedef CommandOutputCallback = FutureOr<void> Function(CommandOutputUpdate);
+
+const _maxRuntimeOutputCharacters = 2 * 1024 * 1024;
 
 class _OutputAccumulator {
   _OutputAccumulator(this.maxCharacters);
@@ -601,8 +605,8 @@ class LocalProcessShellExecutor implements ShellExecutor {
       workingDirectory: workingDirectory,
       runInShell: false,
     );
-    final stdout = _OutputAccumulator(maxPersistedTextCharacters);
-    final stderr = _OutputAccumulator(maxPersistedTextCharacters);
+    final stdout = _OutputAccumulator(_maxRuntimeOutputCharacters);
+    final stderr = _OutputAccumulator(_maxRuntimeOutputCharacters);
     final outputQueue = onOutput == null ? null : _CommandOutputQueue(onOutput);
     final outDone = Completer<void>();
     final errDone = Completer<void>();

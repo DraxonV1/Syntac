@@ -1,6 +1,9 @@
+// Model-callable project tools with sandboxed paths, bounded output, and artifacts.
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' show min;
 
 import 'package:path/path.dart' as p;
 
@@ -33,11 +36,13 @@ class ProjectTools {
   final int maxReadBytes;
   final int maxSearchResults;
   final int maxCommandOutputCharacters;
-
+  static const maxReadLines = 500;
+  static const maxPreviewLines = 50;
+  static const maxArtifactCharacters = 8 * 1024 * 1024;
   List<Map<String, Object?>> get specs => [
     _spec(
       'read',
-      'Read a bounded file range inside the project.',
+      'Read up to 500 lines or bounded bytes inside project. Use startLine to continue.',
       {
         'path': _string('Relative file path'),
         'offset': {
@@ -126,7 +131,7 @@ class ProjectTools {
     ),
     _spec(
       'bash',
-      'Run a shell command in the project directory through the configured runtime.',
+      'Run shell command. UI shows first 50 lines; full output is saved to local:// artifact when truncated.',
       {
         'command': _string('Command'),
         'timeout_seconds': {
@@ -264,7 +269,9 @@ class ProjectTools {
     String? unit,
     bool raw = false,
   }) async {
-    final path = await _resolve(inputPath);
+    final path = inputPath.startsWith('local://')
+        ? await _resolveLocalArtifact(inputPath)
+        : await _resolve(inputPath);
     final type = await FileSystemEntity.type(path);
     if (type == FileSystemEntityType.notFound) {
       throw ToolFailure('File does not exist: $inputPath');
@@ -302,10 +309,14 @@ class ProjectTools {
     }
     if (readUnit != 'line') throw ToolFailure('Unsupported read unit: $unit');
     final start = (startLine ?? offset ?? 1).clamp(1, 1 << 30).toInt();
-    final requestedEnd = endLine ?? (limit == null ? null : start + limit - 1);
-    if (requestedEnd != null && requestedEnd < start) {
+    final requestedEndInput =
+        endLine ?? (limit == null ? null : start + limit - 1);
+    if (requestedEndInput != null && requestedEndInput < start) {
       throw ToolFailure('endLine must be greater than or equal to startLine');
     }
+    final requestedEnd = requestedEndInput == null
+        ? start + maxReadLines - 1
+        : requestedEndInput.clamp(start, start + maxReadLines - 1).toInt();
     final selected = <String>[];
     var totalLines = 0;
     var selectedBytes = 0;
@@ -317,7 +328,7 @@ class ProjectTools {
             .transform(const LineSplitter())) {
       totalLines++;
       if (totalLines < start) continue;
-      if (requestedEnd != null && totalLines > requestedEnd) continue;
+      if (totalLines > requestedEnd) continue;
       if (truncated) continue;
       final lineBytes = utf8.encode(line).length + 1;
       if (selectedBytes + lineBytes > maxReadBytes) {
@@ -328,9 +339,8 @@ class ProjectTools {
       selectedBytes += lineBytes;
     }
     final end = selected.isEmpty ? start - 1 : start + selected.length - 1;
-    final requestedLimit = requestedEnd == null
-        ? null
-        : requestedEnd - start + 1;
+    final requestedLimit = requestedEnd - start + 1;
+    final hasMore = end < totalLines;
     return {
       'path': inputPath,
       'bytes': length,
@@ -338,13 +348,15 @@ class ProjectTools {
       'startLine': start,
       'endLine': end,
       'totalLines': totalLines,
-      'content': selected.join(raw ? '\n' : '\n'),
-      'truncated': truncated,
-      'contentTruncated': truncated,
-      'hasMore': requestedEnd == null
-          ? end < totalLines
-          : requestedEnd < totalLines,
+      'content': selected.join('\n'),
+      'truncated': truncated || hasMore,
+      'contentTruncated': truncated || hasMore,
+      'hasMore': hasMore,
       'requestedLines': requestedLimit,
+      if (hasMore) 'nextStartLine': end + 1,
+      if (hasMore)
+        'notice':
+            'Output truncated at $maxReadLines lines. Read again with startLine ${end + 1} (or :${end + 1}) to continue.',
     };
   }
 
@@ -678,13 +690,35 @@ class ProjectTools {
     );
     final json = result.toJson();
     final output = _boundedOutputPair(result.stdout, result.stderr);
-    json['stdout'] = output.stdout;
-    json['stderr'] = output.stderr;
-    if (output.stdoutTruncated) {
+    final artifactUri = output.stdoutTruncated || output.stderrTruncated
+        ? await _writeOutputArtifact(
+            command: command,
+            stdout: result.stdout,
+            stderr: result.stderr,
+          )
+        : null;
+    final notice = artifactUri == null
+        ? null
+        : 'Output truncated: showing first $maxPreviewLines lines. Read full output with read path $artifactUri.';
+    final rendered = notice == null
+        ? output
+        : _boundedOutputPair(
+            '${output.stdout}\n\n$notice',
+            output.stderr,
+            limitLines: false,
+          );
+    json['stdout'] = rendered.stdout;
+    json['stderr'] = rendered.stderr;
+    if (artifactUri != null) {
+      json['outputTruncated'] = true;
+      json['outputArtifact'] = artifactUri;
+      json['truncationNotice'] = notice;
+    }
+    if (rendered.stdoutTruncated || output.stdoutTruncated) {
       json['stdoutTruncated'] = true;
       json.putIfAbsent('stdoutOriginalLength', () => result.stdout.length);
     }
-    if (output.stderrTruncated) {
+    if (rendered.stderrTruncated || output.stderrTruncated) {
       json['stderrTruncated'] = true;
       json.putIfAbsent('stderrOriginalLength', () => result.stderr.length);
     }
@@ -716,6 +750,39 @@ class ProjectTools {
             'Android blocked starting a Termux command while Syntac was in the background.',
       ...json,
     };
+  }
+
+  Future<String?> _writeOutputArtifact({
+    required String command,
+    required String stdout,
+    required String stderr,
+  }) async {
+    final directory = Directory(p.join(projectRoot, '.omp', 'agent', 'blobs'));
+    await directory.create(recursive: true);
+    final name = 'bash-run-${DateTime.now().microsecondsSinceEpoch}.log';
+    final file = File(p.join(directory.path, name));
+    final content = StringBuffer()
+      ..writeln('command: $command')
+      ..writeln()
+      ..writeln(stdout)
+      ..writeln()
+      ..writeln('--- stderr ---')
+      ..writeln(stderr);
+    final text = content.toString();
+    await file.writeAsString(
+      text.length > maxArtifactCharacters
+          ? '${text.substring(0, maxArtifactCharacters)}\n\n[artifact truncated at $maxArtifactCharacters characters]'
+          : text,
+    );
+    return 'local://$name';
+  }
+
+  Future<String> _resolveLocalArtifact(String inputPath) async {
+    final raw = inputPath.substring('local://'.length).replaceAll('\\', '/');
+    final relative = raw.startsWith('.omp/')
+        ? raw
+        : p.join('.omp', 'agent', 'blobs', raw);
+    return _resolve(relative);
   }
 
   Future<String> _resolve(String inputPath, {bool forWrite = false}) async {
@@ -837,38 +904,70 @@ class ProjectTools {
   ({String text, bool truncated}) _boundedOutput(
     String value, {
     int? maxLength,
+    bool limitLines = true,
   }) {
     final limit = maxLength ?? maxCommandOutputCharacters;
-    if (value.length <= limit) {
-      return (text: value, truncated: false);
+    final lines = value.split('\n');
+    final lineTruncated = limitLines && lines.length > maxPreviewLines;
+    final linePreview = lineTruncated
+        ? lines.take(maxPreviewLines).join('\n')
+        : value;
+    if (linePreview.length <= limit) {
+      return (text: linePreview, truncated: lineTruncated);
     }
     return (
-      text: truncatePersistedText(value, maxLength: limit),
+      text: truncatePersistedText(linePreview, maxLength: limit),
       truncated: true,
     );
   }
 
   ({String stdout, bool stdoutTruncated, String stderr, bool stderrTruncated})
-  _boundedOutputPair(String stdout, String stderr) {
-    if (stdout.length + stderr.length <= maxCommandOutputCharacters) {
+  _boundedOutputPair(String stdout, String stderr, {bool limitLines = true}) {
+    final initialStdout = _boundedOutput(stdout, limitLines: limitLines);
+    final initialStderr = _boundedOutput(stderr, limitLines: limitLines);
+    final initialTotal = initialStdout.text.length + initialStderr.text.length;
+    if (initialTotal <= maxCommandOutputCharacters) {
       return (
-        stdout: stdout,
-        stdoutTruncated: false,
-        stderr: stderr,
-        stderrTruncated: false,
+        stdout: initialStdout.text,
+        stdoutTruncated: initialStdout.truncated,
+        stderr: initialStderr.text,
+        stderrTruncated: initialStderr.truncated,
       );
     }
-    final stdoutBudget = stdout.length <= maxCommandOutputCharacters ~/ 2
-        ? stdout.length
-        : maxCommandOutputCharacters ~/ 2;
-    final stderrBudget = maxCommandOutputCharacters - stdoutBudget;
-    final boundedStdout = _boundedOutput(stdout, maxLength: stdoutBudget);
-    final boundedStderr = _boundedOutput(stderr, maxLength: stderrBudget);
+
+    var stdoutBudget = min(
+      initialStdout.text.length,
+      maxCommandOutputCharacters ~/ 2,
+    );
+    var stderrBudget = min(
+      initialStderr.text.length,
+      maxCommandOutputCharacters - stdoutBudget,
+    );
+    var remaining = maxCommandOutputCharacters - stdoutBudget - stderrBudget;
+    if (remaining > 0) {
+      final stdoutRoom = initialStdout.text.length - stdoutBudget;
+      final stdoutExtra = min(remaining, stdoutRoom);
+      stdoutBudget += stdoutExtra;
+      remaining -= stdoutExtra;
+    }
+    if (remaining > 0) {
+      stderrBudget += min(remaining, initialStderr.text.length - stderrBudget);
+    }
+    final boundedStdout = _boundedOutput(
+      stdout,
+      maxLength: stdoutBudget,
+      limitLines: limitLines,
+    );
+    final boundedStderr = _boundedOutput(
+      stderr,
+      maxLength: stderrBudget,
+      limitLines: limitLines,
+    );
     return (
       stdout: boundedStdout.text,
-      stdoutTruncated: boundedStdout.truncated,
+      stdoutTruncated: boundedStdout.truncated || boundedStdout.text != stdout,
       stderr: boundedStderr.text,
-      stderrTruncated: boundedStderr.truncated,
+      stderrTruncated: boundedStderr.truncated || boundedStderr.text != stderr,
     );
   }
 }

@@ -1,3 +1,5 @@
+// Pins packaged PRoot binaries, Arch rootfs metadata, hashes, and sizes.
+
 package com.syntac
 
 import java.io.File

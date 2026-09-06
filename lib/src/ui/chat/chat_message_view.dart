@@ -1,3 +1,7 @@
+// Renders one chat message, including collapsible reasoning and rich markdown.
+
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../models.dart';
@@ -86,69 +90,125 @@ class ChatMessageView extends StatelessWidget {
   }
 
   Widget _buildAssistantMessage(BuildContext context) {
-    if (message.content.trim().isEmpty) return const SizedBox.shrink();
+    final thinking = _thinkingText();
+    if (message.content.trim().isEmpty && thinking.trim().isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Content flows naturally against dark background
-          MarkdownContent(
-            content: message.content,
-            textStyle: AppTypography.bodyLarge.copyWith(
-              color: AppColors.textPrimary,
-              height: 1.55,
-            ),
-          ),
-
-          // Message Bottom Action Bar
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                InkWell(
-                  onTap: () {
-                    Clipboard.setData(ClipboardData(text: message.content));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Message copied to clipboard'),
-                        duration: Duration(seconds: 1),
-                      ),
-                    );
-                  },
-                  borderRadius: BorderRadius.circular(4),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                      vertical: 2,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          AppIcons.copy,
-                          size: 13,
-                          color: AppColors.textMuted,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Copy response',
-                          style: AppTypography.caption.copyWith(
-                            color: AppColors.textMuted,
-                          ),
-                        ),
-                      ],
-                    ),
+          if (thinking.trim().isNotEmpty)
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              decoration: BoxDecoration(
+                color: AppColors.surface.withValues(alpha: 0.55),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.borderSubtle),
+              ),
+              child: Theme(
+                data: Theme.of(context).copyWith(
+                  dividerColor: Colors.transparent,
+                  listTileTheme: const ListTileThemeData(
+                    dense: true,
+                    contentPadding: EdgeInsets.symmetric(horizontal: 10),
                   ),
                 ),
-              ],
+                child: ExpansionTile(
+                  tilePadding: const EdgeInsets.symmetric(horizontal: 10),
+                  childrenPadding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+                  title: Text(
+                    'Thinking',
+                    style: AppTypography.caption.copyWith(
+                      color: AppColors.textMuted,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  iconColor: AppColors.textMuted,
+                  collapsedIconColor: AppColors.textMuted,
+                  children: [
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: SelectableText(
+                        thinking,
+                        style: AppTypography.monoSmall.copyWith(
+                          color: AppColors.textMuted,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ),
+          if (message.content.trim().isNotEmpty)
+            MarkdownContent(
+              content: message.content,
+              textStyle: AppTypography.bodyLarge.copyWith(
+                color: AppColors.textPrimary,
+                height: 1.55,
+              ),
+            ),
+          if (message.content.trim().isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  InkWell(
+                    onTap: () {
+                      Clipboard.setData(ClipboardData(text: message.content));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Message copied to clipboard'),
+                          duration: Duration(seconds: 1),
+                        ),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(4),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 2,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            AppIcons.copy,
+                            size: 13,
+                            color: AppColors.textMuted,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Copy response',
+                            style: AppTypography.caption.copyWith(
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );
+  }
+
+  String _thinkingText() {
+    final raw = message.metadataJson;
+    if (raw == null || raw.isEmpty) return '';
+    try {
+      final decoded = jsonDecode(raw);
+      return decoded is Map ? decoded['thinking']?.toString() ?? '' : '';
+    } catch (_) {
+      return '';
+    }
   }
 
   Widget _buildInternalMessage(BuildContext context) {

@@ -1,3 +1,5 @@
+// OpenAI Codex Responses transport with OAuth and reasoning events.
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -207,6 +209,16 @@ class OpenAICodexProvider extends AIProvider {
               providerEventAt: eventAt,
             );
           }
+        } else if (type == 'response.reasoning_summary_text.delta' ||
+            type == 'response.reasoning_text.delta') {
+          final delta = decoded['delta'];
+          if (request.includeThinking && delta is String && delta.isNotEmpty) {
+            yield AIStreamEvent.thinking(
+              delta,
+              networkChunkAt: eventAt,
+              providerEventAt: eventAt,
+            );
+          }
         } else if (type == 'response.output_item.added') {
           final item = decoded['item'];
           if (item is Map && item['type'] == 'function_call') {
@@ -349,6 +361,13 @@ class OpenAICodexProvider extends AIProvider {
       if (_credentialProvider != OAuthProviderId.openAICodex &&
           request.maxOutputTokens != null)
         'max_output_tokens': request.maxOutputTokens,
+      if (!request.includeThinking || request.reasoningEffort != null)
+        'reasoning': {
+          'effort': request.includeThinking
+              ? request.reasoningEffort!.wireValue
+              : 'none',
+          if (request.includeThinking) 'summary': 'auto',
+        },
     };
     if (instructions != null && instructions.isNotEmpty) {
       body['instructions'] = instructions;

@@ -18,7 +18,7 @@ lib/src/models.dart                      Domain models, enums, serialization, ca
 lib/src/core/app_identity.dart           Brand, developer, repo, version, update channel
 lib/src/agent/                           Agent loop, context, system prompt
 lib/src/ai/                              Provider contracts, transports, OAuth
-lib/src/storage/                         SQLite metadata + JSONL chat store
+lib/src/storage/                         SQLite metadata + shared JSONL chat store
 lib/src/tools/                           Model-callable project tools
 lib/src/runtime/                         ShellExecutor and runtime adapters
 lib/src/ui/                              Screens, onboarding, chat widgets, theme
@@ -28,9 +28,22 @@ scripts/                                 Runtime/native packaging scripts
 test/                                    Regression tests
 ```
 
+## Structure maintenance
+
+- Treat `PROJECT_STRUCTURE.md` as living architecture map. Update it in same change whenever files, directories, ownership, storage roots, or platform boundaries change.
+- Preserve this structure across future modifications. Do not silently create parallel folders, duplicate responsibilities, or leave stale tree entries.
+- Every owned source directory needs both `AGENTS.md` for binding change instructions and `README.md` for human-facing purpose, boundaries, workflows, and verification guidance when directory complexity warrants it.
+- Keep folder documentation actionable: state what belongs there, what must not be added, invariants, dependency boundaries, migration rules, and tests/validation expected.
+- Update affected folder `AGENTS.md` and `README.md` whenever behavior or ownership changes, not only when adding files.
+
 ## Non-negotiable invariants
 
 - Local-first: project files stay in user-selected directories.
+- On Android, user-visible metadata and chat data live under `/storage/emulated/0/.syntac`; app-private storage is reserved for runtime binaries, caches, and platform-required state.
+- Shared-storage initialization must be permission-gated and must retain a safe private fallback when access is unavailable.
+- Runtime rootfs stays app-private; selected project files stay in user-selected shared-storage directories.
+- Tool cards show command/edit intent first, bounded output second; edit cards use line-numbered colored diffs.
+- Markdown rendering uses real TeX widgets for math and supports remote/data-URI images without hardcoded symbol substitution.
 - Secrets stay in `SecretStore`/secure storage, never SQLite/JSONL/logs/diagnostics.
 - SQLite stores metadata; JSONL stores chat-owned runtime data.
 - File tools must stay inside project root after realpath/symlink resolution.

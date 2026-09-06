@@ -1,3 +1,5 @@
+// Compact tool timeline card with direct output, previews, copy, and details.
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,6 +10,7 @@ import '../widgets/badge_chip.dart';
 import '../widgets/status_indicator.dart';
 import '../theme/app_icons.dart';
 import '../theme/app_motion.dart';
+import 'syntax_highlighted_code.dart';
 
 /// Compact, expandable tool call card matching the developer aesthetics.
 class ToolCallCard extends StatefulWidget {
@@ -151,6 +154,7 @@ class _ToolCallCardState extends State<ToolCallCard>
                     _formatToolName(widget.execution.name),
                     style: AppTypography.monoSmall.copyWith(
                       fontWeight: FontWeight.w600,
+                      fontStyle: FontStyle.italic,
                       color: AppColors.textPrimary,
                     ),
                   ),
@@ -350,71 +354,79 @@ class _ToolCallCardState extends State<ToolCallCard>
     final timedOut = result['timedOut'] == true;
     final cancelled = result['cancelled'] == true;
 
+    final outputText = stdout.isNotEmpty || stderr.isNotEmpty;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildCodeBox(title: 'COMMAND', content: command, copyable: true),
-        if (workingDirectory.isNotEmpty) ...[
-          const SizedBox(height: 6),
-          _buildCodeBox(
-            title: 'WORKING DIRECTORY',
-            content: workingDirectory,
-            copyable: true,
+        if (command.isNotEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.codeBackground,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: AppColors.warning, width: 1),
+            ),
+            child: Text(
+              '\$ $command',
+              style: AppTypography.monoSmall.copyWith(
+                color: AppColors.textPrimary,
+              ),
+            ),
           ),
-        ],
-        const SizedBox(height: 6),
-        _buildCodeBox(
-          title: result['stdoutTruncated'] == true
-              ? 'STDOUT (TRUNCATED)'
-              : 'STDOUT',
-          content: stdout.isEmpty ? '(empty)' : stdout,
-          copyContent: stdout,
-          copyable: true,
-          maxHeight: 180,
-        ),
-        const SizedBox(height: 6),
-        _buildCodeBox(
-          title: result['stderrTruncated'] == true
-              ? 'STDERR (TRUNCATED)'
-              : 'STDERR',
-          content: stderr.isEmpty ? '(empty)' : stderr,
-          copyContent: stderr,
-          copyable: true,
-          isError:
-              stderr.isNotEmpty ||
-              widget.execution.status == ToolExecutionStatus.error,
-          maxHeight: 140,
-        ),
-        const SizedBox(height: 6),
-        Wrap(
-          spacing: 10,
-          runSpacing: 4,
-          children: [
-            if (exitCode != null)
-              Text(
-                'Exit code: $exitCode',
-                style: AppTypography.monoSmall.copyWith(
-                  color: exitCode == 0
-                      ? AppColors.textSecondary
-                      : AppColors.errorText,
-                ),
-              ),
-            if (durationMs != null)
-              Text(
-                'Duration: ${(durationMs / 1000).toStringAsFixed(2)}s',
-                style: AppTypography.monoSmall,
-              ),
-            if (category != null)
-              Text('Category: $category', style: AppTypography.monoSmall),
-            if (failureKind != null)
-              Text('Failure: $failureKind', style: AppTypography.monoSmall),
-            if (timedOut) Text('Timed out', style: AppTypography.monoSmall),
-            if (cancelled) Text('Cancelled', style: AppTypography.monoSmall),
-          ],
-        ),
+        if (outputText) const SizedBox(height: 6),
+        if (stdout.isNotEmpty)
+          _buildPlainOutputBox(
+            stdout,
+            copyContent: stdout,
+            language: 'bash',
+            maxHeight: 220,
+          ),
+        if (stdout.isNotEmpty && stderr.isNotEmpty) const SizedBox(height: 6),
+        if (stderr.isNotEmpty)
+          _buildPlainOutputBox(
+            stderr,
+            copyContent: stderr,
+            language: 'text',
+            isError: true,
+            maxHeight: 160,
+          ),
+        if (!outputText && message == null)
+          Text(
+            '(no output)',
+            style: AppTypography.monoSmall.copyWith(color: AppColors.textMuted),
+          ),
         if (message != null && message.isNotEmpty) ...[
           const SizedBox(height: 6),
-          _buildCodeBox(title: 'MESSAGE', content: message, isError: true),
+          _buildPlainOutputBox(message, isError: true),
+        ],
+        if (workingDirectory.isNotEmpty ||
+            exitCode != null ||
+            durationMs != null ||
+            category != null ||
+            failureKind != null ||
+            timedOut ||
+            cancelled) ...[
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 10,
+            runSpacing: 4,
+            children: [
+              if (exitCode != null)
+                Text('exit $exitCode', style: AppTypography.monoSmall),
+              if (durationMs != null)
+                Text(
+                  '${(durationMs / 1000).toStringAsFixed(2)}s',
+                  style: AppTypography.monoSmall,
+                ),
+              if (category != null)
+                Text(category, style: AppTypography.monoSmall),
+              if (failureKind != null)
+                Text(failureKind, style: AppTypography.monoSmall),
+              if (timedOut) Text('timed out', style: AppTypography.monoSmall),
+              if (cancelled) Text('cancelled', style: AppTypography.monoSmall),
+            ],
+          ),
         ],
       ],
     );
@@ -571,12 +583,7 @@ class _ToolCallCardState extends State<ToolCallCard>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildKeyValueDetails([
-          ('Path', path),
-          ('Removed lines', removedLines.toString()),
-          ('Added lines', addedLines.toString()),
-          ('Replacements', result['replacements']?.toString() ?? 'unknown'),
-        ], copyValue: path),
+        _buildEditHeader(path, removedLines, addedLines),
         if (target.isNotEmpty || replacement.isNotEmpty) ...[
           const SizedBox(height: 6),
           _buildDiffBox(
@@ -586,6 +593,46 @@ class _ToolCallCardState extends State<ToolCallCard>
         ],
       ],
     );
+  }
+
+  Widget _buildEditHeader(String path, int removedLines, int addedLines) {
+    final delta = addedLines - removedLines;
+    final badge = delta == 0 ? null : '[${delta > 0 ? '+' : ''}$delta]';
+    return Row(
+      children: [
+        const Icon(Icons.build_outlined, size: 14, color: AppColors.textMuted),
+        const SizedBox(width: 6),
+        Text(
+          'Edit:',
+          style: AppTypography.monoSmall.copyWith(color: AppColors.textMuted),
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            _compactPath(path),
+            overflow: TextOverflow.ellipsis,
+            style: AppTypography.monoSmall.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+        if (badge != null) ...[
+          const SizedBox(width: 8),
+          Text(
+            badge,
+            style: AppTypography.monoSmall.copyWith(
+              color: AppColors.accentText,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  String _compactPath(String path) {
+    if (path.length <= 52) return path;
+    return '${path.substring(0, 24)}…${path.substring(path.length - 24)}';
   }
 
   Widget _buildDeleteDetails(
@@ -689,7 +736,8 @@ class _ToolCallCardState extends State<ToolCallCard>
   String _previewText(String content) {
     if (content.length <= _codePreviewCharacters) return content;
     final omitted = content.length - _codePreviewCharacters;
-    return '${content.substring(0, _codePreviewCharacters)}\n[preview truncated $omitted characters; copy gets full value]';
+    return '${content.substring(0, _codePreviewCharacters)}\n'
+        '[preview truncated $omitted characters; copy gets full value]';
   }
 
   String _addedContentPreview(String content) =>
@@ -725,7 +773,9 @@ class _ToolCallCardState extends State<ToolCallCard>
     final spans = <TextSpan>[
       for (var i = 0; i < lines.length; i++)
         TextSpan(
-          text: i == lines.length - 1 ? lines[i] : '${lines[i]}\n',
+          text:
+              '${(i + 1).toString().padLeft(4)}  ${lines[i]}'
+              '${i == lines.length - 1 ? '' : '\n'}',
           style: _diffLineStyle(lines[i]),
         ),
     ];
@@ -772,14 +822,53 @@ class _ToolCallCardState extends State<ToolCallCard>
             border: Border.all(color: AppColors.codeBorder, width: 1),
           ),
           child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.vertical,
-              child: SelectableText.rich(TextSpan(children: spans)),
-            ),
+            scrollDirection: Axis.vertical,
+            child: SelectableText.rich(TextSpan(children: spans)),
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildPlainOutputBox(
+    String content, {
+    String? copyContent,
+    String? language,
+    bool isError = false,
+    double maxHeight = 180,
+  }) {
+    final visibleContent = _previewText(content);
+    return Container(
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      width: double.infinity,
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: isError ? AppColors.errorSubtle : AppColors.codeBackground,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: isError
+              ? AppColors.error.withValues(alpha: 0.35)
+              : AppColors.codeBorder,
+        ),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.vertical,
+        child: GestureDetector(
+          onLongPress: () {
+            Clipboard.setData(ClipboardData(text: copyContent ?? content));
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Copied to clipboard'),
+                duration: Duration(seconds: 1),
+              ),
+            );
+          },
+          child: SyntaxHighlightedCode(
+            text: visibleContent,
+            language: language,
+          ),
+        ),
+      ),
     );
   }
 
@@ -863,15 +952,10 @@ class _ToolCallCardState extends State<ToolCallCard>
             ),
           ),
           child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.vertical,
-              child: SelectableText(
-                visibleContent,
-                style: AppTypography.monoSmall.copyWith(
-                  color: isError ? AppColors.errorText : AppColors.textPrimary,
-                ),
-              ),
+            scrollDirection: Axis.vertical,
+            child: SyntaxHighlightedCode(
+              text: visibleContent,
+              language: title.toLowerCase(),
             ),
           ),
         ),

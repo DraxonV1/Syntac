@@ -33,3 +33,7 @@
 ## Tests
 
 Use `test/app_foundation_test.dart` for provider registry, streaming, tool calls, OAuth exchange/refresh, model discovery, sanitized diagnostics, and beta provider visibility.
+
+## Documentation
+
+Keep `README.md` aligned with provider ownership, wire contracts, credential boundaries, model discovery, error taxonomy, and focused verification. Update it when provider behavior or supported capabilities change.

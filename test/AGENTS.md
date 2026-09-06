@@ -35,3 +35,7 @@ C:/tools/flutter/bin/flutter.bat test test/local_runtime_test.dart
 C:/tools/flutter/bin/flutter.bat test test/widget_test.dart
 C:/tools/flutter/bin/flutter.bat test
 ```
+
+## Documentation
+
+Keep `README.md` aligned with test ownership, regression expectations, fixture policy, deterministic setup, security assertions, and release verification commands. Update `PROJECT_STRUCTURE.md` when test areas or fixtures change.

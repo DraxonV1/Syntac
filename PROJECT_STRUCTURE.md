@@ -30,6 +30,7 @@ Generated/ignored folders such as `build/`, `.dart_tool/`, `.gradle/`, and local
 │   └── nightly.json
 ├── android/
 │   ├── AGENTS.md
+│   ├── README.md
 │   ├── build.gradle.kts
 │   ├── gradle.properties
 │   ├── gradlew
@@ -50,13 +51,15 @@ Generated/ignored folders such as `build/`, `.dart_tool/`, `.gradle/`, and local
 │               │   └── com/
 │               │       └── syntac/
 │               │           ├── AGENTS.md
+│               │           ├── README.md
 │               │           ├── MainActivity.kt
 │               │           ├── LocalRuntimeManager.kt
 │               │           ├── LocalRuntimeConfig.kt
 │               │           ├── LocalRunResult.kt
 │               │           ├── RootfsBundleInstaller.kt
 │               │           ├── TermuxBridge.kt
-│               │           └── TermuxResultService.kt
+│               │           ├── TermuxResultService.kt
+│               │           └── RuntimeForegroundService.kt
 │               ├── jniLibs/
 │               │   └── arm64-v8a/
 │               │       ├── libsyntac_proot.so
@@ -75,17 +78,22 @@ Generated/ignored folders such as `build/`, `.dart_tool/`, `.gradle/`, and local
 │   └── runtime/
 │       └── arch-linux-rootfs-v1.bundle
 ├── lib/
+│   ├── README.md
 │   ├── main.dart
 │   └── src/
+│       ├── AGENTS.md
+│       ├── README.md
 │       ├── app.dart
 │       ├── models.dart
 │       ├── agent/
 │       │   ├── AGENTS.md
+│       │   ├── README.md
 │       │   ├── agent_loop.dart
 │       │   ├── context_builder.dart
 │       │   └── system_prompt.dart
 │       ├── ai/
 │       │   ├── AGENTS.md
+│       │   ├── README.md
 │       │   ├── ai_error_messages.dart
 │       │   ├── ai_provider.dart
 │       │   ├── google_cloud_code_assist_provider.dart
@@ -101,32 +109,42 @@ Generated/ignored folders such as `build/`, `.dart_tool/`, `.gradle/`, and local
 │       │   └── registry/
 │       │       └── provider_registry.dart
 │       ├── core/
+│       │   ├── AGENTS.md
+│       │   ├── README.md
 │       │   ├── app_identity.dart
 │       │   ├── cancellation.dart
 │       │   └── update_service.dart
 │       ├── runtime/
 │       │   ├── AGENTS.md
+│       │   ├── README.md
 │       │   └── shell_executor.dart
 │       ├── security/
+│       │   ├── AGENTS.md
+│       │   ├── README.md
 │       │   └── secret_store.dart
 │       ├── storage/
 │       │   ├── AGENTS.md
+│       │   ├── README.md
 │       │   ├── app_repository.dart
 │       │   ├── chat_jsonl_store.dart
 │       │   ├── local_database.dart
 │       │   └── storage_stats.dart
 │       ├── tools/
 │       │   ├── AGENTS.md
+│       │   ├── README.md
 │       │   └── agent_tools.dart
 │       └── ui/
 │           ├── AGENTS.md
+│           ├── README.md
 │           ├── chat/
+│           │   ├── README.md
 │           │   ├── agent_running_indicator.dart
 │           │   ├── chat_message_list.dart
 │           │   ├── chat_message_view.dart
 │           │   ├── composer_view.dart
 │           │   ├── empty_chat_view.dart
 │           │   ├── markdown_content.dart
+│           │   ├── syntax_highlighted_code.dart
 │           │   ├── model_selector_sheet.dart
 │           │   └── tool_call_card.dart
 │           ├── components/
@@ -175,11 +193,13 @@ Generated/ignored folders such as `build/`, `.dart_tool/`, `.gradle/`, and local
 │   └── talloc_compat/
 ├── scripts/
 │   ├── AGENTS.md
+│   ├── README.md
 │   ├── build_android_proot.py
 │   ├── build_android_proot.ps1
 │   └── prepare_arch_rootfs.py
 ├── test/
 │   ├── AGENTS.md
+│   ├── README.md
 │   ├── app_foundation_test.dart
 │   ├── local_runtime_test.dart
 │   ├── widget_test.dart
@@ -204,10 +224,10 @@ Generated/ignored folders such as `build/`, `.dart_tool/`, `.gradle/`, and local
 
 - `README.md`: user-first app overview, features, build instructions, release notes for humans.
 - `CONTRIBUTING.md`: contribution rules and PR checklist.
-- `PROJECT_STRUCTURE.md`: this source map.
-- `AGENTS.md`: global rules for AI agents and developers.
+- `PROJECT_STRUCTURE.md`: living source map and ownership boundaries.
+- `AGENTS.md`: global rules for AI agents and developers, including documentation maintenance requirements.
 - `STATE.md`: running engineering state log for resumable AI work.
-- `pubspec.yaml`: Flutter package metadata, app version, dependencies, assets.
+- `pubspec.yaml`: Flutter package metadata, app version, dependencies, assets; includes `flutter_math_fork` for TeX rendering.
 - `.github/workflows/`: CI and APK build automation.
 - `update/`: public update manifests for stable, beta, and nightly channels.
 
@@ -242,21 +262,22 @@ Generated/ignored folders such as `build/`, `.dart_tool/`, `.gradle/`, and local
 
 ### Storage
 
-- `lib/src/storage/local_database.dart`: SQLite metadata schema and migrations.
-- `lib/src/storage/app_repository.dart`: storage facade used by app, agent, and UI.
-- `lib/src/storage/chat_jsonl_store.dart`: JSONL chat index, messages, tool executions, jobs, attachments, migration, recovery.
+- `lib/src/storage/local_database.dart`: SQLite metadata schema and migrations. Android prefers `/storage/emulated/0/.syntac/syntac.sqlite`, then falls back to app-private storage when shared access is unavailable.
+- `lib/src/storage/app_repository.dart`: storage facade used by app, agent, and UI; initializes shared `.syntac/agent/config.yml` and `.syntac/agent/sessions/` paths.
+- `lib/src/storage/chat_jsonl_store.dart`: JSONL chat index, messages, tool executions, jobs, attachments, migration, recovery. Android stores this under `/storage/emulated/0/.syntac/agent/sessions/`, matching OMP's `agent/sessions` layout under Syntac's shared root.
 - `lib/src/storage/storage_stats.dart`: storage breakdown shown in settings.
-- `lib/src/security/secret_store.dart`: secure storage boundary for secrets.
+- `lib/src/security/secret_store.dart`: secure storage boundary for secrets; credentials never move to shared storage.
 
 ### Tools
 
-- `lib/src/tools/agent_tools.dart`: model-callable `read`, `write`, `edit`, `delete`, `list`, `search`, and `bash` tools. Owns path sandboxing, output caps, and tool result shape.
+- `lib/src/tools/agent_tools.dart`: model-callable `read`, `write`, `edit`, `delete`, `list`, `search`, and `bash` tools. Owns path sandboxing, output caps, persisted truncation notices, and tool result shape.
 
 ### Runtime
 
 - `lib/src/runtime/shell_executor.dart`: shell abstraction, local process executor, Termux runtime adapter, Arch Linux runtime adapter, command output streaming, diagnostics redaction.
-- `android/app/src/main/kotlin/com/syntac/MainActivity.kt`: MethodChannel `syntac/runtime`, runtime status, storage settings, command routing.
-- `LocalRuntimeManager.kt`: Arch Linux PRoot install/run/cancel/remove/self-test.
+- `android/app/src/main/kotlin/com/syntac/MainActivity.kt`: MethodChannel `syntac/runtime`, runtime status, storage settings, background execution permissions, command routing.
+- `LocalRuntimeManager.kt`: Arch Linux PRoot install/run/cancel/remove/self-test and foreground-service lifecycle.
+- `RuntimeForegroundService.kt`: visible Android foreground service for long install/command work.
 - `RootfsBundleInstaller.kt`: rootfs bundle verification and extraction.
 - `LocalRuntimeConfig.kt`: pinned native/runtime asset names, sizes, hashes.
 - `LocalRunResult.kt`: native command result and stream-bounding helpers.
@@ -276,11 +297,8 @@ Generated/ignored folders such as `build/`, `.dart_tool/`, `.gradle/`, and local
 - `providers_screen.dart`: provider list/actions.
 - `provider_dialog.dart`: provider create/edit/test form.
 - `runtime_screen.dart`: runtime status, install, shell test, storage access.
-- `settings_screen.dart`: settings categories, diagnostics, system info.
-- `create_project_dialog.dart`: project creation flow.
-- `lib/src/ui/onboarding/`: first-run wizard.
-- `lib/src/ui/chat/`: chat message rendering, composer, model selector, tool cards, markdown.
-- `lib/src/ui/theme/`: colors, typography, motion, icon system, Flutter theme.
+- `lib/src/ui/chat/`: chat timeline, composer, tool cards, markdown, TeX, images, and model selector.
+- `lib/src/ui/chat/tool_call_card.dart`: command cards use bordered shell blocks; edit cards use file headers, delta badges, line-numbered colored diffs, and bounded previews.
 - `lib/src/ui/components/` and `lib/src/ui/widgets/`: reusable cards, buttons, sheets, empty states, glass surfaces, maximizable panels.
 
 ### Scripts and native code

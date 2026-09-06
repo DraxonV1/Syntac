@@ -1,3 +1,4 @@
+// Bridges Termux RUN_COMMAND results with bounded, cancellable Flutter commands.
 
 package com.syntac
 

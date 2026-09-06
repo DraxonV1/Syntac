@@ -20,3 +20,7 @@
 - Release build expects `android/key.properties`; never commit real signing secrets.
 - Native assets must match `LocalRuntimeConfig.kt` hashes/sizes.
 - Android runtime changes need `test/local_runtime_test.dart` plus physical phone validation when possible.
+
+## Documentation
+
+Keep `README.md` aligned with Gradle/manifest ownership, package identity, signing boundaries, native asset rules, MethodChannel contracts, and phone validation steps. Update `PROJECT_STRUCTURE.md` when Android folders or platform boundaries change.

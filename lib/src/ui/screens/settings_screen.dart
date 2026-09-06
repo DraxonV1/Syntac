@@ -1,3 +1,5 @@
+// Settings screen for providers, agent limits, storage, and runtime options.
+
 import 'dart:async';
 import 'package:flutter/material.dart';
 
@@ -786,18 +788,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: Column(
             children: [
               if (stats != null) ...[
-                for (final cat in stats.categories) ...[
+                for (final cat in stats.categories)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(cat.label, style: AppTypography.bodySmall),
-                        const Spacer(),
-                        Text(cat.formattedSize, style: AppTypography.codeSmall),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                cat.label,
+                                style: AppTypography.bodySmall,
+                              ),
+                            ),
+                            Text(
+                              cat.formattedSize,
+                              style: AppTypography.codeSmall,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          cat.path,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.caption.copyWith(
+                            color: AppColors.textMuted,
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                ],
               ] else ...[
                 const Text('Computing storage breakdown...'),
               ],

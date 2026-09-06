@@ -1,3 +1,5 @@
+// Runs agent turns, provider streaming, tools, persistence, and cancellation.
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -107,6 +109,8 @@ class AgentLoop {
     required Chat chat,
     required String userText,
     List<Attachment> attachments = const <Attachment>[],
+    AIReasoningEffort? reasoningEffort = AIReasoningEffort.medium,
+    bool includeThinking = true,
   }) async {
     if (_activeRuns.containsKey(chat.id) ||
         await _repository.hasRunningJobForChat(chat.id)) {
@@ -222,6 +226,8 @@ class AgentLoop {
           ),
           tools: tools.specs,
           maxOutputTokens: modelMetadata?.outputLimit,
+          reasoningEffort: reasoningEffort,
+          includeThinking: includeThinking,
           timeout: const Duration(seconds: 90),
         );
         final response = await _streamAssistantMessage(
@@ -383,6 +389,7 @@ class AgentLoop {
   }) async {
     final requestStartedAt = DateTime.now();
     final buffer = StringBuffer();
+    final thinkingBuffer = StringBuffer();
     var calls = const <AIToolCall>[];
     String? finishReason;
     var responseProviderMetadata = const <String, Object?>{};
@@ -399,18 +406,28 @@ class AgentLoop {
     await _repository.addMessage(assistant);
     await _onMessagesChanged?.call(chatId);
     var lastPersistedLength = 0;
+    var lastPersistedThinkingLength = 0;
     var lastPersistedAt = DateTime.now();
 
     Future<void> persist({bool force = false}) async {
       final now = DateTime.now();
       if (!force &&
           buffer.length - lastPersistedLength < 24 &&
+          thinkingBuffer.length - lastPersistedThinkingLength < 24 &&
           now.difference(lastPersistedAt) < const Duration(milliseconds: 120)) {
         return;
       }
-      assistant = assistant.copyWith(content: buffer.toString());
+      assistant = assistant.copyWith(
+        content: buffer.toString(),
+        metadataJson: thinkingBuffer.isEmpty
+            ? assistant.metadataJson
+            : jsonEncode(<String, Object?>{
+                'thinking': thinkingBuffer.toString(),
+              }),
+      );
       await _repository.updateMessage(assistant);
       lastPersistedLength = buffer.length;
+      lastPersistedThinkingLength = thinkingBuffer.length;
       lastPersistedAt = now;
       await _onMessagesChanged?.call(chatId);
       if (buffer.isNotEmpty && firstUiDeltaAt == null) {
@@ -436,8 +453,13 @@ class AgentLoop {
             finishReason = event.finishReason;
             responseProviderMetadata = event.providerMetadata;
           } else {
-            firstTextDeltaAt ??= DateTime.now();
-            buffer.write(event.textDelta);
+            if (event.thinkingDelta.isNotEmpty) {
+              thinkingBuffer.write(event.thinkingDelta);
+            }
+            if (event.textDelta.isNotEmpty) {
+              firstTextDeltaAt ??= DateTime.now();
+              buffer.write(event.textDelta);
+            }
             await persist();
           }
         }
@@ -445,6 +467,7 @@ class AgentLoop {
       } on AIProviderException catch (error) {
         if (retriedAfterRefresh ||
             buffer.isNotEmpty ||
+            thinkingBuffer.isNotEmpty ||
             calls.isNotEmpty ||
             !_isRefreshableAuthError(error)) {
           await persist(force: true);
@@ -470,6 +493,7 @@ class AgentLoop {
       content: buffer.toString(),
       metadataJson: jsonEncode({
         'finishReason': finishReason,
+        if (thinkingBuffer.isNotEmpty) 'thinking': thinkingBuffer.toString(),
         'streamDiagnostics': {
           'requestStartedAt': requestStartedAt.toIso8601String(),
           if (firstNetworkChunkAt != null)

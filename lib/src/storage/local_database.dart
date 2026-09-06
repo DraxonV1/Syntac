@@ -1,38 +1,88 @@
+// Opens and migrates SQLite metadata, keeping Android app data user-accessible.
+
+import 'dart:io';
+
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 
 class LocalDatabase {
-  LocalDatabase._(this.database, this.path);
+  LocalDatabase._(this.database, this.path, {this.legacyPath});
 
   final Database database;
   final String path;
-
+  final String? legacyPath;
   static const int schemaVersion = 3;
-
   static Future<LocalDatabase> open({
     String? path,
     DatabaseFactory? factory,
   }) async {
     final dbFactory = factory ?? databaseFactory;
-    final dbPath =
+    final legacyPath = path == null
+        ? p.join(
+            (await getApplicationDocumentsDirectory()).path,
+            'syntac.sqlite',
+          )
+        : null;
+    final preferredPath =
         path ??
-        p.join(
-          (await getApplicationDocumentsDirectory()).path,
-          'syntac.sqlite',
-        );
-    final db = await dbFactory.openDatabase(
+        (Platform.isAndroid
+            ? p.join('/storage/emulated/0', '.syntac', 'syntac.sqlite')
+            : legacyPath!);
+    var legacyAvailable = false;
+    if (path == null && Platform.isAndroid) {
+      try {
+        await Directory(p.dirname(preferredPath)).create(recursive: true);
+        final shared = File(preferredPath);
+        final legacy = File(legacyPath!);
+        legacyAvailable = await legacy.exists();
+        if (!await shared.exists() && legacyAvailable) {
+          await legacy.copy(preferredPath);
+          for (final suffix in <String>['-wal', '-shm']) {
+            final sidecar = File('${legacy.path}$suffix');
+            if (await sidecar.exists()) {
+              await sidecar.copy('$preferredPath$suffix');
+            }
+          }
+        }
+      } catch (_) {
+        // Open legacy private location when shared storage permission is absent.
+      }
+    }
+    final dbPath = preferredPath;
+    late final Database db;
+    try {
+      db = await dbFactory.openDatabase(
+        dbPath,
+        options: OpenDatabaseOptions(
+          version: schemaVersion,
+          onConfigure: (db) async {
+            await db.execute('PRAGMA foreign_keys = ON');
+          },
+          onCreate: _create,
+          onUpgrade: _upgrade,
+        ),
+      );
+    } on Object {
+      if (path != null || !Platform.isAndroid || dbPath == legacyPath) rethrow;
+      db = await dbFactory.openDatabase(
+        legacyPath!,
+        options: OpenDatabaseOptions(
+          version: schemaVersion,
+          onConfigure: (db) async {
+            await db.execute('PRAGMA foreign_keys = ON');
+          },
+          onCreate: _create,
+          onUpgrade: _upgrade,
+        ),
+      );
+      return LocalDatabase._(db, legacyPath);
+    }
+    return LocalDatabase._(
+      db,
       dbPath,
-      options: OpenDatabaseOptions(
-        version: schemaVersion,
-        onConfigure: (db) async {
-          await db.execute('PRAGMA foreign_keys = ON');
-        },
-        onCreate: _create,
-        onUpgrade: _upgrade,
-      ),
+      legacyPath: legacyAvailable ? legacyPath : null,
     );
-    return LocalDatabase._(db, dbPath);
   }
 
   static Future<void> _upgrade(

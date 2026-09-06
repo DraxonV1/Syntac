@@ -1,9 +1,12 @@
+// Android bridge for Flutter storage, runtime commands, permissions, and URLs.
+
 package com.syntac
 
 import android.content.Intent
 import android.net.Uri
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.PowerManager
 import android.provider.Settings
 import android.os.Environment
 
@@ -50,6 +53,11 @@ class MainActivity : FlutterActivity() {
                 "storageAccessStatus" -> result.success(storageAccessStatus())
                 "openStorageSettings" -> {
                     openStorageSettings()
+                    result.success(null)
+                }
+                "backgroundExecutionStatus" -> result.success(backgroundExecutionStatus())
+                "requestBackgroundExecution" -> {
+                    requestBackgroundExecution()
                     result.success(null)
                 }
                 "openUrl" -> {
@@ -134,6 +142,49 @@ class MainActivity : FlutterActivity() {
                 .setData(Uri.parse("package:$packageName"))
         }
         startActivity(intent)
+    }
+
+    private fun backgroundExecutionStatus(): Map<String, Any?> {
+        val batteryUnrestricted =
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
+                (getSystemService(PowerManager::class.java)?.isIgnoringBatteryOptimizations(packageName) == true)
+        val notificationsGranted =
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                ContextCompat.checkSelfPermission(
+                    this,
+                    android.Manifest.permission.POST_NOTIFICATIONS,
+                ) == PackageManager.PERMISSION_GRANTED
+        return mapOf(
+            "batteryUnrestricted" to batteryUnrestricted,
+            "notificationsGranted" to notificationsGranted,
+            "details" to "Battery unrestricted: ${if (batteryUnrestricted) "yes" else "no"}\nRuntime notification: ${if (notificationsGranted) "yes" else "no"}\nForeground service keeps local runtime work alive while app is backgrounded.",
+        )
+    }
+
+    private fun requestBackgroundExecution() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+            getSystemService(PowerManager::class.java)?.isIgnoringBatteryOptimizations(packageName) != true
+        ) {
+            try {
+                startActivity(
+                    Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                        .setData(Uri.parse("package:$packageName")),
+                )
+            } catch (_: Exception) {
+                startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+            }
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.POST_NOTIFICATIONS,
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(
+                arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),
+                4102,
+            )
+        }
     }
 
     private fun openExternalUrl(url: String) {

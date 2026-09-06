@@ -47,7 +47,7 @@ data class LocalRunResult(
     }
 }
 
-private const val MAX_RUNTIME_STREAM_CHARS = 64_000
+private const val MAX_RUNTIME_STREAM_CHARS = 2_000_000
 
 fun boundedRuntimeOutput(value: String): String {
     if (value.length <= MAX_RUNTIME_STREAM_CHARS) return value

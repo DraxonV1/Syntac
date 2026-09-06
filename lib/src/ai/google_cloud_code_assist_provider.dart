@@ -1,3 +1,5 @@
+// Google Cloud Code Assist transport for Gemini chat and tool calls.
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
@@ -350,6 +352,34 @@ class GoogleCloudCodeAssistProvider extends AIProvider {
     };
     if (outputTokens != null) {
       generationConfig['maxOutputTokens'] = outputTokens;
+    }
+    if (request.reasoningEffort != null) {
+      final effort = request.reasoningEffort!;
+      final thinkingConfig = <String, Object?>{
+        'includeThoughts': request.includeThinking,
+      };
+      if (wireModel.startsWith('gemini-3')) {
+        thinkingConfig['thinkingLevel'] = switch (effort) {
+          AIReasoningEffort.minimal => 'MINIMAL',
+          AIReasoningEffort.low => 'LOW',
+          AIReasoningEffort.medium => 'MEDIUM',
+          AIReasoningEffort.high ||
+          AIReasoningEffort.xhigh ||
+          AIReasoningEffort.max => 'HIGH',
+        };
+      } else {
+        thinkingConfig['thinkingBudget'] = request.includeThinking
+            ? switch (effort) {
+                AIReasoningEffort.minimal => 1024,
+                AIReasoningEffort.low => 4096,
+                AIReasoningEffort.medium => 8192,
+                AIReasoningEffort.high => 16384,
+                AIReasoningEffort.xhigh => 32768,
+                AIReasoningEffort.max => 65536,
+              }
+            : 0;
+      }
+      generationConfig['thinkingConfig'] = thinkingConfig;
     }
     final trajectoryId = Uuid().v4();
     final step = _antigravityStep(request);

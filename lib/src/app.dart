@@ -1,3 +1,5 @@
+// App controller: startup, projects, chats, providers, runtime, and settings.
+
 import 'dart:async';
 import 'dart:io';
 
@@ -119,6 +121,7 @@ class AppController extends ChangeNotifier {
         secretStore: _secretStore,
         chatStorageDirectory: _chatStorageDirectory,
       );
+      await repository.migrateSettingsToOmp();
       modelsDevCatalog = await ModelsDevCatalog.load();
       _agentLoop = AgentLoop(
         repository: repository,
@@ -324,7 +327,12 @@ class AppController extends ChangeNotifier {
     }
   }
 
-  Future<void> sendMessage(String text, List<Attachment> attachments) async {
+  Future<void> sendMessage(
+    String text,
+    List<Attachment> attachments, {
+    AIReasoningEffort? reasoningEffort = AIReasoningEffort.medium,
+    bool includeThinking = true,
+  }) async {
     final project = selectedProject;
     var chat = selectedChat;
     if (project == null) return;
@@ -365,6 +373,8 @@ class AppController extends ChangeNotifier {
             chat: chat,
             userText: prompt,
             attachments: attachments,
+            reasoningEffort: reasoningEffort,
+            includeThinking: includeThinking,
           )
           .catchError((Object error, StackTrace stackTrace) {
             logDetailedAIError(error, stackTrace, context: 'Agent run failed');
@@ -984,6 +994,11 @@ class AppController extends ChangeNotifier {
   Future<void> installLocalRuntime() async {
     final selected = ShellRuntimeId.archLinux;
     await saveShellRuntime(selected);
+    if (Platform.isAndroid) {
+      await const MethodChannel(
+        'syntac/runtime',
+      ).invokeMethod<void>('requestBackgroundExecution');
+    }
     final executor = runtime;
     if (executor is ShellRuntime) {
       runtimeStatus = await executor.install();
@@ -1025,6 +1040,13 @@ class AppController extends ChangeNotifier {
       'syntac/runtime',
     ).invokeMethod<void>('openStorageSettings');
     await refreshRuntimeStatus();
+  }
+
+  Future<void> requestAndroidBackgroundExecution() async {
+    if (!Platform.isAndroid) return;
+    await const MethodChannel(
+      'syntac/runtime',
+    ).invokeMethod<void>('requestBackgroundExecution');
   }
 
   Future<ShellExecutor> _runtimeExecutorForProject(Project project) async {

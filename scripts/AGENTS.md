@@ -26,3 +26,7 @@
 ## Verification
 
 Run runtime fixture tests and release APK build after script/runtime asset changes.
+
+## Documentation
+
+Keep `README.md` aligned with generation inputs, reproducibility rules, pinned asset updates, fixture updates, and verification commands. Update `PROJECT_STRUCTURE.md` when scripts or generated artifacts change.
