@@ -7,7 +7,7 @@
 ## Files
 
 - `agent_loop.dart`: run lifecycle, provider selection, streaming, tool execution, cancellation, job/chat state.
-- `context_builder.dart`: bounded context assembly, global/project `AGENTS.md` instruction loading, message trimming.
+- `context_builder.dart`: bounded context assembly, global `agent/SYSTEM.md`, project `.syntac/agent/SYSTEM.md` or `AGENTS.md` override, message trimming.
 - `system_prompt.dart`: base model instructions and tool-use expectations.
 
 ## Change here when

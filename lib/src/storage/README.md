@@ -1,6 +1,6 @@
 # Storage
 
-`AppRepository` is storage facade.
+`AppRepository` is storage facade. Global agent instructions live in `agent/SYSTEM.md`; project-local `.syntac/agent/SYSTEM.md` or `AGENTS.md` overrides them for that project.
 
 ## Ownership
 
@@ -15,8 +15,14 @@ Preferred shared root:
 ```text
 /storage/emulated/0/.syntac/
 ├── syntac.sqlite
+├── cache/
+├── logs/
+├── natives/
+├── run/
 └── agent/
+    ├── SYSTEM.md
     ├── config.yml
+    ├── blobs/
     └── sessions/
         ├── chats.jsonl
         ├── attachments.jsonl

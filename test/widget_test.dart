@@ -140,6 +140,45 @@ void main() {
     expect(find.textContaining(r'\frac{'), findsOneWidget);
   });
 
+  testWidgets('MarkdownContent bounds hostile 500KB response', (tester) async {
+    final content = 'x' * 500000;
+    await tester.pumpWidget(
+      _wrap(SingleChildScrollView(child: MarkdownContent(content: content))),
+    );
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    expect(
+      find.textContaining('content truncated for display'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('MarkdownContent caps pathological list and streaming trees', (
+    tester,
+  ) async {
+    final list = List.generate(1000, (index) => '- item $index').join('\n');
+    await tester.pumpWidget(
+      _wrap(
+        SingleChildScrollView(
+          child: Column(
+            children: [
+              MarkdownContent(content: list),
+              const MarkdownContent(
+                content: '```dart\nfinal value = 1;\n```',
+                streaming: true,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    expect(find.byType(MarkdownContent), findsNWidgets(2));
+  });
+
   testWidgets('ToolCallCard renders collapsed bash and expands on tap', (
     tester,
   ) async {
@@ -528,7 +567,6 @@ void main() {
       ),
     );
 
-    expect(find.text('Navigation Hub'), findsOneWidget);
     expect(find.text('New Chat'), findsOneWidget);
     expect(find.text('Projects'), findsOneWidget);
     expect(find.text('Chats'), findsOneWidget);

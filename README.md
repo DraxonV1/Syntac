@@ -53,12 +53,18 @@ On Android, user-visible Syntac data lives under `/storage/emulated/0/.syntac/` 
 
 ```text
 .syntac/syntac.sqlite
+.syntac/cache/
+.syntac/logs/
+.syntac/natives/
+.syntac/run/
+.syntac/agent/SYSTEM.md
+.syntac/agent/blobs/
 .syntac/agent/config.yml
 .syntac/agent/sessions/chats.jsonl
 .syntac/agent/sessions/attachments.jsonl
 ```
 
-Runtime rootfs, caches, temporary PRoot files, and secrets stay app-private. Existing private and legacy chat stores migrate into this layout without overwriting current files. Grant storage access from Shell Runtime settings when Android reports shared access unavailable.
+Runtime rootfs, temporary PRoot files, and secrets stay app-private. Existing private and legacy chat stores migrate into this layout without overwriting current files. Global instructions live in `.syntac/agent/SYSTEM.md`; project `.syntac/agent/SYSTEM.md` or `AGENTS.md` overrides it. Grant storage access from Shell Runtime screen when Android reports shared access unavailable.
 
 ## Android runtime
 

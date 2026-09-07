@@ -43,21 +43,10 @@ class ChatMessageView extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Align(
         alignment: Alignment.centerRight,
-        child: Container(
+        child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: MediaQuery.of(context).size.width * 0.85,
           ),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceElevated,
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(14),
-              topRight: Radius.circular(14),
-              bottomLeft: Radius.circular(14),
-              bottomRight: Radius.circular(4),
-            ),
-            border: Border.all(color: AppColors.border, width: 1),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             mainAxisSize: MainAxisSize.min,
@@ -72,13 +61,29 @@ class ChatMessageView extends StatelessWidget {
                       _buildAttachment(context, attachment),
                   ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
               ],
-              SelectableText(
-                message.content,
-                style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.textPrimary,
-                  height: 1.45,
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceElevated,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(14),
+                    topRight: Radius.circular(14),
+                    bottomLeft: Radius.circular(14),
+                    bottomRight: Radius.circular(4),
+                  ),
+                  border: Border.all(color: AppColors.border, width: 1),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                child: SelectableText(
+                  message.content,
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textPrimary,
+                    height: 1.45,
+                  ),
                 ),
               ),
             ],
@@ -187,6 +192,8 @@ class ChatMessageView extends StatelessWidget {
                           color: AppColors.textMuted,
                           height: 1.4,
                         ),
+                        monochrome: true,
+                        streaming: _isStreaming(),
                       ),
                     ),
                   ],
@@ -200,6 +207,7 @@ class ChatMessageView extends StatelessWidget {
                 color: AppColors.textPrimary,
                 height: 1.55,
               ),
+              streaming: _isStreaming(),
             ),
           if (message.content.trim().isNotEmpty)
             Padding(
@@ -248,6 +256,17 @@ class ChatMessageView extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  bool _isStreaming() {
+    final raw = message.metadataJson;
+    if (raw == null || raw.isEmpty) return false;
+    try {
+      final decoded = jsonDecode(raw);
+      return decoded is Map && decoded['streaming'] == true;
+    } catch (_) {
+      return false;
+    }
   }
 
   String _thinkingText() {

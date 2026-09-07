@@ -11,20 +11,33 @@ import 'syntax_highlighted_code.dart';
 
 /// Renders bounded agent markdown with code, image, and math support.
 class MarkdownContent extends StatelessWidget {
-  const MarkdownContent({super.key, required this.content, this.textStyle});
+  const MarkdownContent({
+    super.key,
+    required this.content,
+    this.textStyle,
+    this.monochrome = false,
+    this.streaming = false,
+  });
 
   final String content;
   final TextStyle? textStyle;
+  final bool monochrome;
+  final bool streaming;
   static final _blockCache = <String, List<_MarkdownBlock>>{};
+  static const maxRichCharacters = 100000;
+  static const maxBlocks = 400;
 
   @override
   Widget build(BuildContext context) {
     if (content.isEmpty) return const SizedBox.shrink();
-    const maxDisplayCharacters = 160000;
-    final displayContent = content.length <= maxDisplayCharacters
+    final displayContent = content.length <= maxRichCharacters
         ? content
-        : '${content.substring(0, maxDisplayCharacters)}\n\n'
+        : '${content.substring(0, maxRichCharacters)}\n\n'
               '[content truncated for display; full message remains available]';
+    final baseStyle = textStyle ?? AppTypography.bodyMedium;
+    if (streaming || content.length > maxRichCharacters) {
+      return SelectableText(displayContent, style: baseStyle);
+    }
 
     final blocks = _blockCache[displayContent] ??= _parseBlocks(displayContent);
     if (_blockCache.length > 32) {
@@ -46,6 +59,7 @@ class MarkdownContent extends StatelessWidget {
       _CodeBlock(:final language, :final code) => _CodeBlockWidget(
         language: language,
         code: code,
+        monochrome: monochrome,
       ),
       _HeadingBlock(:final level, :final text) => _renderHeading(level, text),
       _ListBlock(:final items, :final isOrdered) => _renderList(
@@ -66,7 +80,13 @@ class MarkdownContent extends StatelessWidget {
     };
     return Padding(
       padding: const EdgeInsets.only(top: 6, bottom: 2),
-      child: Text(text, style: style),
+      child: _InlineMarkdownText(
+        text: text,
+        baseStyle: style.copyWith(
+          color: monochrome ? AppColors.textMuted : AppColors.textPrimary,
+        ),
+        monochrome: monochrome,
+      ),
     );
   }
 
@@ -95,6 +115,7 @@ class MarkdownContent extends StatelessWidget {
                   child: _InlineMarkdownText(
                     text: items[i],
                     baseStyle: textStyle ?? AppTypography.bodyMedium,
+                    monochrome: monochrome,
                   ),
                 ),
               ],
@@ -110,7 +131,7 @@ class MarkdownContent extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.only(
+        borderRadius: const BorderRadius.only(
           topRight: Radius.circular(6),
           bottomRight: Radius.circular(6),
         ),
@@ -119,9 +140,10 @@ class MarkdownContent extends StatelessWidget {
       child: _InlineMarkdownText(
         text: text,
         baseStyle: (textStyle ?? AppTypography.bodyMedium).copyWith(
-          color: AppColors.textSecondary,
+          color: monochrome ? AppColors.textMuted : AppColors.textSecondary,
           fontStyle: FontStyle.italic,
         ),
+        monochrome: monochrome,
       ),
     );
   }
@@ -130,6 +152,7 @@ class MarkdownContent extends StatelessWidget {
     return _InlineMarkdownText(
       text: text,
       baseStyle: textStyle ?? AppTypography.bodyMedium,
+      monochrome: monochrome,
     );
   }
 
@@ -139,6 +162,9 @@ class MarkdownContent extends StatelessWidget {
     var i = 0;
 
     while (i < lines.length) {
+      if (blocks.length >= maxBlocks) {
+        return [_ParagraphBlock(text: input)];
+      }
       final line = lines[i];
 
       // Code Block start
@@ -170,8 +196,13 @@ class MarkdownContent extends StatelessWidget {
       // Blockquotes
       if (line.startsWith('>')) {
         final quoteLines = <String>[];
-        while (i < lines.length && lines[i].startsWith('>')) {
+        while (i < lines.length &&
+            lines[i].startsWith('>') &&
+            quoteLines.length < 100) {
           quoteLines.add(lines[i].substring(1).trim());
+          i++;
+        }
+        while (i < lines.length && lines[i].startsWith('>')) {
           i++;
         }
         blocks.add(_QuoteBlock(text: quoteLines.join('\n')));
@@ -181,9 +212,14 @@ class MarkdownContent extends StatelessWidget {
       // Unordered list items (- or * or +)
       if (RegExp(r'^\s*[-*+]\s+').hasMatch(line)) {
         final listItems = <String>[];
-        while (i < lines.length && RegExp(r'^\s*[-*+]\s+').hasMatch(lines[i])) {
+        while (i < lines.length &&
+            RegExp(r'^\s*[-*+]\s+').hasMatch(lines[i]) &&
+            listItems.length < 200) {
           final clean = lines[i].replaceFirst(RegExp(r'^\s*[-*+]\s+'), '');
           listItems.add(clean);
+          i++;
+        }
+        while (i < lines.length && RegExp(r'^\s*[-*+]\s+').hasMatch(lines[i])) {
           i++;
         }
         blocks.add(_ListBlock(items: listItems, isOrdered: false));
@@ -193,9 +229,14 @@ class MarkdownContent extends StatelessWidget {
       // Ordered list items (1. 2. etc)
       if (RegExp(r'^\s*\d+\.\s+').hasMatch(line)) {
         final listItems = <String>[];
-        while (i < lines.length && RegExp(r'^\s*\d+\.\s+').hasMatch(lines[i])) {
+        while (i < lines.length &&
+            RegExp(r'^\s*\d+\.\s+').hasMatch(lines[i]) &&
+            listItems.length < 200) {
           final clean = lines[i].replaceFirst(RegExp(r'^\s*\d+\.\s+'), '');
           listItems.add(clean);
+          i++;
+        }
+        while (i < lines.length && RegExp(r'^\s*\d+\.\s+').hasMatch(lines[i])) {
           i++;
         }
         blocks.add(_ListBlock(items: listItems, isOrdered: true));
@@ -226,12 +267,16 @@ class MarkdownContent extends StatelessWidget {
   }
 }
 
-/// Standalone code block with syntax badge and copy action.
 class _CodeBlockWidget extends StatelessWidget {
-  const _CodeBlockWidget({required this.language, required this.code});
+  const _CodeBlockWidget({
+    required this.language,
+    required this.code,
+    required this.monochrome,
+  });
 
   final String language;
   final String code;
+  final bool monochrome;
 
   @override
   Widget build(BuildContext context) {
@@ -309,7 +354,15 @@ class _CodeBlockWidget extends StatelessWidget {
           SingleChildScrollView(
             scrollDirection: Axis.vertical,
             padding: const EdgeInsets.all(12),
-            child: SyntaxHighlightedCode(text: code, language: langLabel),
+            child: monochrome
+                ? SelectableText(
+                    code,
+                    style: AppTypography.monoSmall.copyWith(
+                      color: AppColors.textMuted,
+                      height: 1.35,
+                    ),
+                  )
+                : SyntaxHighlightedCode(text: code, language: langLabel),
           ),
         ],
       ),
@@ -319,11 +372,15 @@ class _CodeBlockWidget extends StatelessWidget {
 
 /// Renders inline markdown formatting: bold, italic, inline `code`.
 class _InlineMarkdownText extends StatelessWidget {
-  const _InlineMarkdownText({required this.text, required this.baseStyle});
+  const _InlineMarkdownText({
+    required this.text,
+    required this.baseStyle,
+    required this.monochrome,
+  });
 
   final String text;
   final TextStyle baseStyle;
-
+  final bool monochrome;
   @override
   Widget build(BuildContext context) {
     final spans = _parseInlineSpans(text, baseStyle);
@@ -331,13 +388,21 @@ class _InlineMarkdownText extends StatelessWidget {
   }
 
   List<InlineSpan> _parseInlineSpans(String text, TextStyle base) {
+    if (text.length > 12000) {
+      return [TextSpan(text: text, style: base)];
+    }
     final spans = <InlineSpan>[];
     final pattern = RegExp(
       r'(!\[[^\]]*\]\([^)]+\)|(?:https?://|data:image/)[^\s]+|\$[^$\n]+\$|\\\([^)]+\)|`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*)',
     );
     var lastIndex = 0;
+    var matchCount = 0;
 
     for (final match in pattern.allMatches(text)) {
+      matchCount++;
+      if (matchCount > 200) {
+        return [TextSpan(text: text, style: base)];
+      }
       if (match.start > lastIndex) {
         spans.add(
           TextSpan(text: text.substring(lastIndex, match.start), style: base),
@@ -377,7 +442,14 @@ class _InlineMarkdownText extends StatelessWidget {
                 borderRadius: BorderRadius.circular(4),
                 border: Border.all(color: AppColors.border, width: 0.8),
               ),
-              child: Text(code, style: AppTypography.codeInline),
+              child: Text(
+                code,
+                style: AppTypography.codeInline.copyWith(
+                  color: monochrome
+                      ? (base.color ?? AppColors.textMuted)
+                      : null,
+                ),
+              ),
             ),
           ),
         );
@@ -387,7 +459,9 @@ class _InlineMarkdownText extends StatelessWidget {
             text: matchedText.substring(2, matchedText.length - 2),
             style: base.copyWith(
               fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
+              color: monochrome
+                  ? (base.color ?? AppColors.textMuted)
+                  : AppColors.textPrimary,
             ),
           ),
         );
@@ -398,8 +472,9 @@ class _InlineMarkdownText extends StatelessWidget {
             style: base.copyWith(fontStyle: FontStyle.italic),
           ),
         );
+      } else {
+        spans.add(TextSpan(text: matchedText, style: base));
       }
-
       lastIndex = match.end;
     }
 
@@ -425,6 +500,9 @@ class _InlineMarkdownText extends StatelessWidget {
   }
 
   Widget _buildInlineImage(String source) {
+    if (source.length > 4_200_000) {
+      return _imageFallback('Image too large to preview');
+    }
     try {
       final image = source.startsWith('data:image/')
           ? _decodeDataImage(source)
@@ -459,6 +537,9 @@ class _InlineMarkdownText extends StatelessWidget {
       if (!header.endsWith(';base64')) {
         return _imageFallback('Unsupported image data');
       }
+      if (payload.length > 4_200_000) {
+        return _imageFallback('Image too large to preview');
+      }
       return Image.memory(
         base64Decode(payload),
         fit: BoxFit.contain,
@@ -489,6 +570,9 @@ class _SafeMath extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (expression.length > 4096) {
+      return Text(expression, style: style);
+    }
     try {
       return Math.tex(
         expression,

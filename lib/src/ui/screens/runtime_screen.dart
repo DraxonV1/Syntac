@@ -29,12 +29,34 @@ class RuntimeScreen extends StatefulWidget {
   State<RuntimeScreen> createState() => _RuntimeScreenState();
 }
 
-class _RuntimeScreenState extends State<RuntimeScreen> {
+class _RuntimeScreenState extends State<RuntimeScreen>
+    with WidgetsBindingObserver {
   bool _isInstalling = false;
   Timer? _statusPoller;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    widget.controller.addListener(_onControllerChanged);
+    unawaited(widget.controller.refreshBackgroundExecutionStatus());
+  }
+
+  void _onControllerChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(widget.controller.refreshBackgroundExecutionStatus());
+    }
+  }
+
+  @override
   void dispose() {
+    widget.controller.removeListener(_onControllerChanged);
+    WidgetsBinding.instance.removeObserver(this);
     _statusPoller?.cancel();
     super.dispose();
   }
@@ -230,13 +252,6 @@ class _RuntimeScreenState extends State<RuntimeScreen> {
                   compact: true,
                   onPressed: _showInstallConfirmation,
                 ),
-                AppButton(
-                  label: 'Run Shell Test',
-                  icon: AppIcons.terminal,
-                  compact: true,
-                  variant: AppButtonVariant.secondary,
-                  onPressed: () => widget.controller.retryLocalRuntimeTest(),
-                ),
                 if (needsStorageAccess)
                   AppButton(
                     label: 'Grant Storage Access',
@@ -248,12 +263,17 @@ class _RuntimeScreenState extends State<RuntimeScreen> {
                   ),
                 if (Platform.isAndroid)
                   AppButton(
-                    label: 'Allow Background Work',
+                    label: widget.controller.backgroundWorkAllowed
+                        ? 'Background Work Enabled'
+                        : 'Allow Background Work',
                     icon: AppIcons.settings,
                     compact: true,
-                    variant: AppButtonVariant.secondary,
-                    onPressed: () =>
-                        widget.controller.requestAndroidBackgroundExecution(),
+                    variant: widget.controller.backgroundWorkAllowed
+                        ? AppButtonVariant.ghost
+                        : AppButtonVariant.secondary,
+                    onPressed: widget.controller.backgroundWorkAllowed
+                        ? widget.controller.refreshBackgroundExecutionStatus
+                        : widget.controller.requestAndroidBackgroundExecution,
                   ),
                 AppButton(
                   label: 'Remove Rootfs',
@@ -275,6 +295,18 @@ class _RuntimeScreenState extends State<RuntimeScreen> {
                 ),
               ],
             ),
+            if (Platform.isAndroid &&
+                widget.controller.backgroundWorkDetails != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                widget.controller.backgroundWorkDetails!,
+                style: AppTypography.caption.copyWith(
+                  color: widget.controller.backgroundWorkAllowed
+                      ? AppColors.successText
+                      : AppColors.textMuted,
+                ),
+              ),
+            ],
             const SizedBox(height: 20),
           ],
 

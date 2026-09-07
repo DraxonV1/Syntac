@@ -3,6 +3,7 @@
 import 'dart:io';
 import '../core/cancellation.dart';
 import 'bash_tool.dart';
+import 'copy_tool.dart';
 import 'delete_tool.dart';
 import 'edit_tool.dart';
 import 'list_tool.dart';
@@ -21,7 +22,8 @@ class ProjectTools extends ToolContext
         DeleteTool,
         ListTool,
         SearchTool,
-        BashTool {
+        BashTool,
+        CopyTool {
   ProjectTools({
     required super.projectRoot,
     required super.shellExecutor,
@@ -34,9 +36,9 @@ class ProjectTools extends ToolContext
   List<Map<String, Object?>> get specs => [
     _spec(
       'read',
-      'Read text, or inspect an attached image. Attached files use local://attachment-N/name. Use includeImage for bounded vision data.',
+      'Read text, or inspect an attached image. Attachments use local://attachment-N. Use includeImage for bounded vision data.',
       {
-        'path': _string('Relative file path or local://attachment-N/name'),
+        'path': _string('Relative file path or local://attachment-N'),
         'offset': {
           'type': 'integer',
           'description':
@@ -64,7 +66,7 @@ class ProjectTools extends ToolContext
     _spec(
       'display_image',
       'Inspect an image and return metadata for the chat image viewer.',
-      {'path': _string('Relative image path or local://attachment-N/name')},
+      {'path': _string('Relative image path or local://attachment-N')},
       ['path'],
     ),
     _spec(
@@ -75,6 +77,17 @@ class ProjectTools extends ToolContext
         'content': _string('File content'),
       },
       ['path', 'content'],
+    ),
+    _spec(
+      'copy',
+      'Copy an attached file or project file to a project path or Android shared-storage path. Use local://attachment-N for attachments.',
+      {
+        'source': _string('Relative file path or local://attachment-N'),
+        'target': _string(
+          'Destination path inside project or Android shared storage',
+        ),
+      },
+      ['source', 'target'],
     ),
     _spec(
       'edit',
@@ -236,6 +249,10 @@ class ProjectTools extends ToolContext
           ),
           cancellationToken: cancellationToken,
           onUpdate: onUpdate,
+        ),
+        'copy' => await copyFile(
+          source: args['source'] as String? ?? '',
+          target: args['target'] as String? ?? '',
         ),
         _ => throw ToolFailure('Unknown tool: $name'),
       };

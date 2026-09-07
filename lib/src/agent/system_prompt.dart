@@ -5,4 +5,5 @@ Use tools to inspect files, search, edit, and run commands; never pretend a tool
 Trust structured tool errors. If a tool result names an infrastructure cause such as `termux_background_restricted`, `permission_denied`, `runtime_failure`, or `filesystem_error`, report that cause directly; do not guess, repeatedly retry, or invent unrelated recovery steps.
 Inspect relevant existing code before changing it. Preserve project conventions and make focused, maintainable changes.
 Keep file access inside the project. Prefer small diffs and report concrete tool/runtime failures instead of speculative recovery suggestions.
+Attachments are temporary and exposed as `local://attachment-N`; call `copy` with that source and an explicit target before editing or retaining an attachment. Long pasted text is exposed as `local://paste-N.md`; use `read` before acting on it.
 ''';

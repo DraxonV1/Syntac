@@ -420,6 +420,40 @@ void main() {
     );
   });
 
+  test('stores long pastes in project-local agent blobs', () async {
+    final repo = await repository();
+    final projectDir = await Directory.systemTemp.createTemp(
+      'syntac_paste_test_',
+    );
+    try {
+      final uri = await repo.saveLongPaste(
+        'long pasted content',
+        projectRoot: projectDir.path,
+      );
+      expect(uri, 'local://paste-1.md');
+      expect(
+        await File(
+          '${projectDir.path}${Platform.pathSeparator}.syntac'
+          '${Platform.pathSeparator}agent${Platform.pathSeparator}blobs'
+          '${Platform.pathSeparator}paste-1.md',
+        ).readAsString(),
+        'long pasted content',
+      );
+    } finally {
+      await projectDir.delete(recursive: true);
+      await Directory(repo.chatStoragePath).delete(recursive: true);
+    }
+  });
+
+  test('persists light theme setting', () async {
+    final repo = await repository();
+    await repo.saveLightTheme(true);
+    expect(await repo.readLightTheme(), isTrue);
+    await repo.saveLightTheme(false);
+    expect(await repo.readLightTheme(), isFalse);
+    await Directory(repo.chatStoragePath).delete(recursive: true);
+  });
+
   group('tools', () {
     test('rejects symlink paths escaping the project root', () async {
       final dir = await Directory.systemTemp.createTemp('syntac_tools_test_');
@@ -515,6 +549,53 @@ void main() {
         await dir.delete(recursive: true);
       },
     );
+
+    test('copies attached file through short local URI', () async {
+      final dir = await Directory.systemTemp.createTemp(
+        'syntac_copy_tool_test_',
+      );
+      final sourceDir = await Directory.systemTemp.createTemp(
+        'syntac_copy_source_',
+      );
+      final source = File(
+        '${sourceDir.path}${Platform.pathSeparator}input.txt',
+      );
+      await source.writeAsString('copy me');
+      final attachment = Attachment.create(
+        messageId: 'pending',
+        path: source.path,
+        kind: AttachmentKind.text,
+        name: 'input.txt',
+      );
+      final tools = ProjectTools(
+        projectRoot: dir.path,
+        shellExecutor: CapturingShellExecutor(
+          const CommandResult(
+            stdout: '',
+            stderr: '',
+            exitCode: 0,
+            duration: Duration.zero,
+            timedOut: false,
+            cancelled: false,
+          ),
+        ),
+        attachments: [attachment],
+      );
+
+      final result = await tools.execute('copy', {
+        'source': 'local://attachment-1',
+        'target': 'copied/input.txt',
+      });
+      expect(result['ok'], isTrue);
+      expect(
+        await File(
+          '${dir.path}${Platform.pathSeparator}copied${Platform.pathSeparator}input.txt',
+        ).readAsString(),
+        'copy me',
+      );
+      await dir.delete(recursive: true);
+      await sourceDir.delete(recursive: true);
+    });
 
     test(
       'validates paths and supports read write edit delete list search bash',
@@ -1568,6 +1649,91 @@ void main() {
         await dir.delete(recursive: true);
       },
     );
+    test('project SYSTEM.md overrides global instructions', () async {
+      final repo = await repository();
+      final dir = await Directory.systemTemp.createTemp(
+        'syntac_agent_prompt_test_',
+      );
+      try {
+        final instructions = File(
+          '${dir.path}${Platform.pathSeparator}.syntac'
+          '${Platform.pathSeparator}agent${Platform.pathSeparator}SYSTEM.md',
+        );
+        await instructions.parent.create(recursive: true);
+        await instructions.writeAsString('project-only instructions');
+        final project = await repo.createProject(
+          name: 'Prompt project',
+          folderPath: dir.path,
+        );
+        final provider = await repo.saveProvider(
+          name: 'Fake',
+          baseUrl: 'https://fake.test',
+          apiKey: 'key',
+          models: ['fake-model'],
+        );
+        final model = (await repo.listProviderModels(provider.id)).single;
+        final chat = await repo.createChat(
+          projectId: project.id,
+          title: 'New chat',
+          providerId: provider.id,
+          modelId: model.id,
+        );
+        final fakeProvider = QueueProvider(
+          Queue<AIChatResponse>.from([
+            const AIChatResponse(
+              text: 'done',
+              toolCalls: [],
+              finishReason: 'stop',
+            ),
+          ]),
+        );
+        final loop = AgentLoop(
+          repository: repo,
+          providerFactory: (_) => fakeProvider,
+        );
+
+        await loop.send(project: project, chat: chat, userText: 'hello');
+
+        expect(
+          fakeProvider.requests.single.messages.first.content,
+          'project-only instructions',
+        );
+      } finally {
+        await dir.delete(recursive: true);
+        await Directory(repo.chatStoragePath).delete(recursive: true);
+      }
+    });
+    test('stores global prompt in agent SYSTEM.md', () async {
+      final root = await Directory.systemTemp.createTemp(
+        'syntac_prompt_storage_test_',
+      );
+      final db = await LocalDatabase.open(
+        path: '${root.path}${Platform.pathSeparator}syntac.sqlite',
+        factory: databaseFactoryFfi,
+      );
+      final chatDir = Directory(
+        '${root.path}${Platform.pathSeparator}sessions',
+      );
+      final repo = AppRepository(
+        localDatabase: db,
+        secretStore: MemorySecretStore(),
+        chatStorageDirectory: chatDir,
+      );
+      try {
+        await repo.saveGlobalSystemPrompt('custom global instructions');
+        expect(
+          await File(repo.globalSystemPromptPath).readAsString(),
+          'custom global instructions',
+        );
+        expect(
+          await repo.readGlobalSystemPrompt(),
+          'custom global instructions',
+        );
+      } finally {
+        await db.database.close();
+        await root.delete(recursive: true);
+      }
+    });
 
     test('uses first configured model when chat has no model', () async {
       final repo = await repository();
@@ -2831,6 +2997,23 @@ void main() {
       isEmpty,
     );
     expect(built.skip(1).where((message) => message.role == 'tool'), isEmpty);
+  });
+
+  test('adds short attachment URIs only to model context', () {
+    final message = ChatMessage.create(
+      chatId: 'chat',
+      role: MessageRole.user,
+      content: 'Inspect this file',
+      metadata: const [
+        {'name': 'notes.txt'},
+      ],
+    );
+    final built = ContextBuilder(
+      maxCharacters: 100000,
+    ).build(history: [message]);
+
+    expect(built.last.content, contains('local://attachment-1'));
+    expect(built.last.content, isNot(contains('notes.txt')));
   });
 
   test(

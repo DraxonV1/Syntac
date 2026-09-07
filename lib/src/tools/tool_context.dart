@@ -46,9 +46,11 @@ class ToolContext {
       return _resolveLocalAttachment(inputPath);
     }
     final raw = inputPath.substring('local://'.length).replaceAll('\\', '/');
-    final relative = raw.startsWith('.omp/')
+    final relative = raw.startsWith('.syntac/')
         ? raw
-        : p.join('.omp', 'agent', 'blobs', raw);
+        : raw.startsWith('.omp/')
+        ? raw
+        : p.join('.syntac', 'agent', 'blobs', raw);
     return resolvePath(relative);
   }
 
@@ -265,7 +267,9 @@ class ToolContext {
     required String stdout,
     required String stderr,
   }) async {
-    final directory = Directory(p.join(projectRoot, '.omp', 'agent', 'blobs'));
+    final directory = Directory(
+      p.join(projectRoot, '.syntac', 'agent', 'blobs'),
+    );
     await directory.create(recursive: true);
     final name = 'bash-run-${DateTime.now().microsecondsSinceEpoch}.log';
     final file = File(p.join(directory.path, name));

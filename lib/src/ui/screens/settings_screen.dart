@@ -16,16 +16,13 @@ import '../theme/app_typography.dart';
 import '../widgets/app_buttons.dart';
 import '../widgets/app_card.dart';
 import '../widgets/maximizable_surface.dart';
-import '../widgets/status_indicator.dart';
 import 'provider_dialog.dart';
-import 'runtime_screen.dart';
 
 enum SettingsCategory {
   general,
   appearance,
   agent,
   providers,
-  runtime,
   storage,
   developer,
   system,
@@ -220,11 +217,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   AppIcons.key,
                 ),
                 _buildCategoryItem(
-                  SettingsCategory.runtime,
-                  'Shell Runtime',
-                  AppIcons.runtime,
-                ),
-                _buildCategoryItem(
                   SettingsCategory.storage,
                   'Storage',
                   AppIcons.storage,
@@ -298,12 +290,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             'AI Providers',
             '${widget.controller.providers.length} configured endpoints',
             AppIcons.key,
-          ),
-          _buildNarrowCategoryTile(
-            SettingsCategory.runtime,
-            'Shell Runtime',
-            widget.controller.shellRuntimeSettings.selected.label,
-            AppIcons.runtime,
           ),
           _buildNarrowCategoryTile(
             SettingsCategory.storage,
@@ -441,7 +427,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       SettingsCategory.appearance => _buildAppearancePane(),
       SettingsCategory.agent => _buildAgentPane(),
       SettingsCategory.providers => _buildProvidersPane(),
-      SettingsCategory.runtime => _buildRuntimePane(),
       SettingsCategory.storage => _buildStoragePane(),
       SettingsCategory.developer => _buildDeveloperPane(),
       SettingsCategory.system => _buildSystemPane(),
@@ -595,7 +580,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'Global Instructions (AGENTS.md)',
+                    'Global Instructions — .syntac/agent/SYSTEM.md',
                     style: AppTypography.titleSmall,
                   ),
                 ],
@@ -615,6 +600,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 label: 'Save Instructions',
                 compact: true,
                 onPressed: _savePrompt,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Project .syntac/agent/SYSTEM.md or AGENTS.md overrides this file for that project.',
+                style: AppTypography.caption.copyWith(
+                  color: AppColors.textMuted,
+                ),
               ),
             ],
           ),
@@ -701,59 +693,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildRuntimePane() {
-    final status = widget.controller.runtimeStatus;
-    final selected = widget.controller.shellRuntimeSettings.selected;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Text('Shell Runtime', style: AppTypography.titleMedium),
-            const Spacer(),
-            AppButton(
-              label: 'Open Runtime Screen',
-              icon: AppIcons.externalLink,
-              compact: true,
-              variant: AppButtonVariant.ghost,
-              onPressed: () => Navigator.of(context).push(
-                AppMotion.pageRoute(
-                  builder: (_) => RuntimeScreen(controller: widget.controller),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        AppCard(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  AppIcons.runtimeLogo(selected.name, size: 22),
-                  const SizedBox(width: 10),
-                  Text(selected.label, style: AppTypography.titleSmall),
-                  const Spacer(),
-                  StatusIndicator(
-                    status: status.state == RuntimeState.ready
-                        ? ChatStatus.completed
-                        : ChatStatus.error,
-                    size: 8,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(status.message, style: AppTypography.bodySmall),
-            ],
-          ),
-        ),
-      ],
     );
   }
 

@@ -3,7 +3,6 @@
 import 'package:flutter/material.dart';
 import '../../models.dart';
 import '../theme/app_colors.dart';
-import '../theme/app_typography.dart';
 import 'chat_message_view.dart';
 import 'tool_call_card.dart';
 
@@ -161,47 +160,16 @@ class ChatMessageListState extends State<ChatMessageList> {
             child: AnimatedOpacity(
               opacity: _showJumpToBottom ? 1.0 : 0.0,
               duration: const Duration(milliseconds: 200),
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () => scrollToBottom(animate: true),
-                  borderRadius: BorderRadius.circular(20),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceElevated,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: AppColors.border, width: 1),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.35),
-                          blurRadius: 8,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.arrow_downward_rounded,
-                          size: 14,
-                          color: AppColors.accentText,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Jump to bottom',
-                          style: AppTypography.monoSmall.copyWith(
-                            color: AppColors.textPrimary,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+              child: IconButton(
+                onPressed: () => scrollToBottom(animate: true),
+                tooltip: 'Jump to bottom',
+                icon: const Icon(Icons.arrow_downward_rounded, size: 18),
+                style: IconButton.styleFrom(
+                  foregroundColor: AppColors.accentText,
+                  backgroundColor: AppColors.surfaceElevated,
+                  side: BorderSide(color: AppColors.border),
+                  shadowColor: Colors.black.withValues(alpha: 0.35),
+                  elevation: 4,
                 ),
               ),
             ),

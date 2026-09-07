@@ -12,6 +12,7 @@
 .swiftpm/
 migrate_working_dir/
 .omp-reference/
+.syntac/
 STATE.md
 release-secrets.local.txt
 android/*.jks.*

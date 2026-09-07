@@ -35,7 +35,7 @@ class CentralNavigationOverlay extends StatefulWidget {
       context: context,
       barrierDismissible: true,
       barrierLabel: 'Dismiss Navigation',
-      barrierColor: Colors.black.withAlpha(160),
+      barrierColor: Colors.transparent,
       transitionDuration: const Duration(milliseconds: 280),
       pageBuilder: (context, anim1, anim2) => CentralNavigationOverlay(
         showNewChat: showNewChat,
@@ -70,114 +70,99 @@ class _CentralNavigationOverlayState extends State<CentralNavigationOverlay> {
     final maxSize = media.size.shortestSide - 32;
     final hubSize = size < maxSize ? size : maxSize;
 
-    return BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-      child: Center(
-        child: SizedBox(
-          width: hubSize,
-          height: hubSize,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: AppColors.glassStrong.withAlpha(238),
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.primary.withAlpha(38),
-                  blurRadius: 40,
-                  spreadRadius: 4,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: Stack(
-              children: [
-                Positioned(
-                  top: 12,
-                  left: 0,
-                  right: 0,
-                  child: Center(
-                    child: Text(
-                      'Navigation Hub',
-                      style: AppTypography.label.copyWith(
-                        color: AppColors.textMuted,
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: const ColoredBox(color: Colors.transparent),
+          ),
+        ),
+        Center(
+          child: ClipOval(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+              child: SizedBox(
+                width: hubSize,
+                height: hubSize,
+                child: Stack(
+                  children: [
+                    Positioned(
+                      top: hubSize * 0.12,
+                      left: 0,
+                      right: 0,
+                      child: _buildNavTile(
+                        icon: AppIcons.folder,
+                        label: 'Projects',
+                        destination: CentralNavDestination.projects,
                       ),
                     ),
-                  ),
-                ),
-                Positioned(
-                  top: hubSize * 0.12,
-                  left: 0,
-                  right: 0,
-                  child: _buildNavTile(
-                    icon: AppIcons.folder,
-                    label: 'Projects',
-                    destination: CentralNavDestination.projects,
-                  ),
-                ),
-                Positioned(
-                  top: hubSize * 0.40,
-                  left: 12,
-                  right: 12,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildNavTile(
-                        icon: AppIcons.chat,
-                        label: 'Chats',
-                        destination: CentralNavDestination.chats,
+                    Positioned(
+                      top: hubSize * 0.40,
+                      left: 12,
+                      right: 12,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _buildNavTile(
+                            icon: AppIcons.chat,
+                            label: 'Chats',
+                            destination: CentralNavDestination.chats,
+                          ),
+                          _buildCloseButton(context),
+                          _buildNavTile(
+                            iconWidget: AppIcons.providerLogo('grok', size: 23),
+                            label: 'Providers',
+                            destination: CentralNavDestination.providers,
+                          ),
+                        ],
                       ),
-                      _buildCloseButton(context),
-                      _buildNavTile(
-                        icon: AppIcons.model,
-                        label: 'Providers',
-                        destination: CentralNavDestination.providers,
+                    ),
+                    Positioned(
+                      bottom: hubSize * 0.13,
+                      left: 0,
+                      right: 0,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _buildNavTile(
+                            iconWidget: AppIcons.runtimeLogo('arch', size: 23),
+                            label: 'Runtime',
+                            destination: CentralNavDestination.runtime,
+                          ),
+                          _buildNavTile(
+                            icon: AppIcons.settings,
+                            label: 'Settings',
+                            destination: CentralNavDestination.settings,
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
-                Positioned(
-                  bottom: hubSize * 0.13,
-                  left: 0,
-                  right: 0,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildNavTile(
-                        icon: AppIcons.runtime,
-                        label: 'Runtime',
-                        destination: CentralNavDestination.runtime,
-                      ),
-                      _buildNavTile(
-                        icon: AppIcons.settings,
-                        label: 'Settings',
-                        destination: CentralNavDestination.settings,
-                      ),
-                    ],
-                  ),
-                ),
-                if (widget.showNewChat)
-                  Positioned(
-                    bottom: 8,
-                    left: 0,
-                    right: 0,
-                    child: Center(
-                      child: TextButton.icon(
-                        onPressed: () =>
-                            widget.onSelect(CentralNavDestination.newChat),
-                        icon: const Icon(AppIcons.add, size: 14),
-                        label: const Text('New Chat'),
-                        style: TextButton.styleFrom(
-                          foregroundColor: AppColors.textMuted,
-                          textStyle: AppTypography.caption,
+                    ),
+                    if (widget.showNewChat)
+                      Positioned(
+                        bottom: 8,
+                        left: 0,
+                        right: 0,
+                        child: Center(
+                          child: TextButton.icon(
+                            onPressed: () =>
+                                widget.onSelect(CentralNavDestination.newChat),
+                            icon: const Icon(AppIcons.add, size: 14),
+                            label: const Text('New Chat'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: AppColors.textMuted,
+                              textStyle: AppTypography.caption,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-              ],
+                  ],
+                ),
+              ),
             ),
           ),
         ),
-      ),
+      ],
     );
   }
 
@@ -201,7 +186,8 @@ class _CentralNavigationOverlayState extends State<CentralNavigationOverlay> {
   }
 
   Widget _buildNavTile({
-    required IconData icon,
+    IconData? icon,
+    Widget? iconWidget,
     required String label,
     required CentralNavDestination destination,
   }) {
@@ -219,7 +205,12 @@ class _CentralNavigationOverlayState extends State<CentralNavigationOverlay> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, size: 23, color: AppColors.textPrimary),
+                iconWidget ??
+                    Icon(
+                      icon ?? AppIcons.info,
+                      size: 23,
+                      color: AppColors.textPrimary,
+                    ),
                 const SizedBox(height: 5),
                 Text(
                   label,

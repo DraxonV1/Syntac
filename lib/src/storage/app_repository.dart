@@ -81,24 +81,96 @@ class AppRepository implements CredentialStore {
   String get settingsConfigPath =>
       File(p.join(_ompAgentDirectory.path, 'config.yml')).path;
 
-  Future<void> migrateSettingsToOmp() async {
-    await _ompAgentDirectory.create(recursive: true);
-    final configFile = File(settingsConfigPath);
-    if (await configFile.exists()) return;
+  String get globalSystemPromptPath =>
+      File(p.join(_ompAgentDirectory.path, 'SYSTEM.md')).path;
 
-    final legacyFiles = <File>[
-      File(p.join(File(_localDatabasePath).parent.path, 'settings.json')),
-      File(p.join('/storage/emulated/0', '.syntac', 'settings.json')),
-      File(p.join('/storage/emulated/0', '.omp', 'agent', 'config.yml')),
-    ];
-    for (final legacyFile in legacyFiles) {
-      if (await legacyFile.exists()) {
-        await legacyFile.copy(configFile.path);
-        return;
-      }
+  String get agentBlobsDirectoryPath =>
+      Directory(p.join(_ompAgentDirectory.path, 'blobs')).path;
+
+  Future<String> saveLongPaste(
+    String content, {
+    required String projectRoot,
+  }) async {
+    final directory = Directory(
+      p.join(projectRoot, '.syntac', 'agent', 'blobs'),
+    );
+    await directory.create(recursive: true);
+    for (var index = 1; index < 100000; index++) {
+      final file = File(p.join(directory.path, 'paste-$index.md'));
+      if (await file.exists()) continue;
+      await file.writeAsString(content, flush: true);
+      return 'local://paste-$index.md';
+    }
+    throw StateError('Could not allocate temporary paste storage');
+  }
+
+  Future<void> migrateSettingsToOmp() async {
+    final root = Directory(_ompAgentDirectory.parent.path);
+    for (final directory in [
+      _ompAgentDirectory,
+      Directory(p.join(root.path, 'cache')),
+      Directory(p.join(root.path, 'logs')),
+      Directory(p.join(root.path, 'natives')),
+      Directory(p.join(root.path, 'run')),
+      Directory(p.join(_ompAgentDirectory.path, 'sessions')),
+      Directory(agentBlobsDirectoryPath),
+    ]) {
+      await directory.create(recursive: true);
     }
 
-    await _mirrorSettingsToOmp();
+    final configFile = File(settingsConfigPath);
+    if (!await configFile.exists()) {
+      final legacyFiles = <File>[
+        File(p.join(File(_localDatabasePath).parent.path, 'settings.json')),
+        File(p.join('/storage/emulated/0', '.syntac', 'settings.json')),
+        File(p.join('/storage/emulated/0', '.omp', 'agent', 'config.yml')),
+      ];
+      var copied = false;
+      for (final legacyFile in legacyFiles) {
+        if (await legacyFile.exists()) {
+          await legacyFile.copy(configFile.path);
+          copied = true;
+          break;
+        }
+      }
+      if (!copied) await _mirrorSettingsToOmp();
+    }
+    await _migrateGlobalSystemPromptToFile();
+  }
+
+  Future<void> _migrateGlobalSystemPromptToFile() async {
+    final file = File(globalSystemPromptPath);
+    if (await file.exists()) {
+      await _deleteLegacyGlobalSystemPrompt();
+      return;
+    }
+    final rows = await _db.query(
+      'settings',
+      where: 'key = ?',
+      whereArgs: ['global_system_prompt'],
+      limit: 1,
+    );
+    if (rows.isEmpty) return;
+    try {
+      final decoded = jsonDecode(rows.first['value_json']! as String);
+      final prompt = decoded is Map
+          ? decoded['prompt']?.toString()
+          : decoded?.toString();
+      if (prompt != null && prompt.trim().isNotEmpty) {
+        await file.writeAsString(prompt, flush: true);
+        await _deleteLegacyGlobalSystemPrompt();
+      }
+    } catch (_) {
+      // Leave malformed legacy settings untouched for diagnostics.
+    }
+  }
+
+  Future<void> _deleteLegacyGlobalSystemPrompt() async {
+    await _db.delete(
+      'settings',
+      where: 'key = ?',
+      whereArgs: ['global_system_prompt'],
+    );
   }
 
   Future<void> _mirrorSettingsToOmp() async {
@@ -111,7 +183,9 @@ class AppRepository implements CredentialStore {
     for (final row in rows) {
       final key = row['key']?.toString();
       final raw = row['value_json']?.toString();
-      if (key == null || raw == null) continue;
+      if (key == null || raw == null || key == 'global_system_prompt') {
+        continue;
+      }
       try {
         values[key] = jsonDecode(raw);
       } catch (_) {
@@ -559,6 +633,12 @@ class AppRepository implements CredentialStore {
   }
 
   Future<String?> readGlobalSystemPrompt() async {
+    final file = File(globalSystemPromptPath);
+    if (await file.exists()) {
+      final prompt = await file.readAsString();
+      return truncatePersistedText(prompt, maxLength: 120000);
+    }
+
     final rows = await _db.query(
       'settings',
       where: 'key = ?',
@@ -566,15 +646,26 @@ class AppRepository implements CredentialStore {
       limit: 1,
     );
     if (rows.isEmpty) return null;
-    final decoded = jsonDecode(rows.first['value_json']! as String);
-    return decoded is Map ? decoded['prompt'] as String? : decoded?.toString();
+    try {
+      final decoded = jsonDecode(rows.first['value_json']! as String);
+      return decoded is Map
+          ? truncatePersistedText(
+              decoded['prompt']?.toString() ?? '',
+              maxLength: 120000,
+            )
+          : truncatePersistedText(decoded?.toString() ?? '', maxLength: 120000);
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> saveGlobalSystemPrompt(String prompt) async {
-    await _db.insert('settings', {
-      'key': 'global_system_prompt',
-      'value_json': jsonEncode({'prompt': prompt}),
-    }, conflictAlgorithm: ConflictAlgorithm.replace);
+    await _ompAgentDirectory.create(recursive: true);
+    await File(globalSystemPromptPath).writeAsString(
+      truncatePersistedText(prompt, maxLength: 120000),
+      flush: true,
+    );
+    await _deleteLegacyGlobalSystemPrompt();
   }
 
   Future<Map<String, String>?> readDefaultModelSelection() async {

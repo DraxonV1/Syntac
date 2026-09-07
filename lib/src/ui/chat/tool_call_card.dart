@@ -98,6 +98,7 @@ class _ToolCallCardState extends State<ToolCallCard>
       'list' => 'List',
       'search' => 'Search',
       'bash' => 'Bash',
+      'copy' => 'Copy',
       _ => name,
     };
   }
@@ -112,6 +113,7 @@ class _ToolCallCardState extends State<ToolCallCard>
       'list' => Icons.folder_open_outlined,
       'search' => Icons.search,
       'bash' => Icons.terminal,
+      'copy' => Icons.content_copy_outlined,
       _ => Icons.build_outlined,
     };
   }
@@ -260,6 +262,8 @@ class _ToolCallCardState extends State<ToolCallCard>
       'edit' ||
       'delete' ||
       'list' => args['path']?.toString() ?? '',
+      'copy' =>
+        '${args['source']?.toString() ?? ''} → ${args['target']?.toString() ?? ''}',
       'search' => '"${args['query']?.toString() ?? ''}"',
       'bash' => args['command']?.toString() ?? '',
       _ => args.entries.map((e) => '${e.key}: ${e.value}').take(2).join(', '),

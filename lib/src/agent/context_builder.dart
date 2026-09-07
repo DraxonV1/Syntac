@@ -99,7 +99,7 @@ class ContextBuilder {
     };
     return AIChatMessage(
       role: role,
-      content: message.content,
+      content: _contentForModel(message),
       images: images,
       toolCallId: message.toolCallId,
       toolCalls: message.role == MessageRole.assistant
@@ -188,6 +188,26 @@ class ContextBuilder {
           : const <String, Object?>{};
     } catch (_) {
       return const <String, Object?>{};
+    }
+  }
+
+  String _contentForModel(ChatMessage message) {
+    if (message.role != MessageRole.user || message.metadataJson == null) {
+      return message.content;
+    }
+    try {
+      final decoded = jsonDecode(message.metadataJson!);
+      if (decoded is! List || decoded.isEmpty) return message.content;
+      final uris = <String>[];
+      for (var index = 0; index < decoded.length; index++) {
+        if (decoded[index] is Map) {
+          uris.add('local://attachment-${index + 1}');
+        }
+      }
+      if (uris.isEmpty) return message.content;
+      return '${message.content}\n\nAttached files available: ${uris.join(', ')}';
+    } catch (_) {
+      return message.content;
     }
   }
 }

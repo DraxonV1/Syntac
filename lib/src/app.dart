@@ -1,6 +1,7 @@
 // App controller: startup, projects, chats, providers, runtime, and settings.
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -104,6 +105,8 @@ class AppController extends ChangeNotifier {
     state: RuntimeState.notInstalled,
     message: 'Runtime status not checked yet.',
   );
+  bool backgroundWorkAllowed = !Platform.isAndroid;
+  String? backgroundWorkDetails;
   bool loading = true;
   String? lastError;
   List<ProjectSummary> projects = <ProjectSummary>[];
@@ -215,12 +218,14 @@ class AppController extends ChangeNotifier {
     defaultModelName = defaultSelection?['model'];
     limits = await repository.readAgentLimits();
     lightThemeEnabled = await repository.readLightTheme();
+    shellRuntimeSettings = await repository.readShellRuntimeSettings();
     runtime = _executorForRuntime(shellRuntimeSettings.selected);
     runtimeStatus = RuntimeStatus(
       state: RuntimeState.notInstalled,
       message: '${shellRuntimeSettings.selected.label} status not checked yet.',
     );
     unawaited(refreshRuntimeStatus());
+    unawaited(refreshBackgroundExecutionStatus());
     if (selectedProject != null) {
       selectedProject = await repository.getProject(selectedProject!.id);
       if (selectedProject != null) {
@@ -379,6 +384,7 @@ class AppController extends ChangeNotifier {
     final project = selectedProject;
     var chat = selectedChat;
     if (project == null) return;
+    final prompt = await _prepareUserText(text, project.folderPath);
     if (chat == null) {
       final provider = _defaultProvider();
       final model = _firstModelForProvider(provider);
@@ -408,7 +414,6 @@ class AppController extends ChangeNotifier {
       }
     }
     lastError = null;
-    final prompt = await _promptWithTextAttachments(text, attachments);
     unawaited(
       agentLoop
           .send(
@@ -1092,11 +1097,40 @@ class AppController extends ChangeNotifier {
     await refreshRuntimeStatus();
   }
 
+  Future<void> refreshBackgroundExecutionStatus() async {
+    if (!Platform.isAndroid) {
+      backgroundWorkAllowed = true;
+      backgroundWorkDetails = 'Background work is available on this platform.';
+      notifyListeners();
+      return;
+    }
+    try {
+      final status = await const MethodChannel(
+        'syntac/runtime',
+      ).invokeMethod<Map<Object?, Object?>>('backgroundExecutionStatus');
+      final battery = status?['batteryUnrestricted'] == true;
+      final notifications = status?['notificationsGranted'] == true;
+      backgroundWorkAllowed = battery && notifications;
+      backgroundWorkDetails =
+          status?['details']?.toString() ??
+          'Battery unrestricted: ${battery ? 'yes' : 'no'}\n'
+              'Runtime notification: ${notifications ? 'yes' : 'no'}';
+    } catch (error) {
+      backgroundWorkAllowed = false;
+      backgroundWorkDetails = 'Background work status unavailable: $error';
+    }
+    notifyListeners();
+  }
+
   Future<void> requestAndroidBackgroundExecution() async {
     if (!Platform.isAndroid) return;
-    await const MethodChannel(
-      'syntac/runtime',
-    ).invokeMethod<void>('requestBackgroundExecution');
+    try {
+      await const MethodChannel(
+        'syntac/runtime',
+      ).invokeMethod<void>('requestBackgroundExecution');
+    } finally {
+      await refreshBackgroundExecutionStatus();
+    }
   }
 
   Future<ShellExecutor> _runtimeExecutorForProject(Project project) async {
@@ -1119,22 +1153,9 @@ class AppController extends ChangeNotifier {
     ShellRuntimeId.archLinux => ArchLinuxRuntime(),
   };
 
-  Future<String> _promptWithTextAttachments(
-    String text,
-    List<Attachment> attachments,
-  ) async {
-    final buffer = StringBuffer(text.trim());
-    for (var index = 0; index < attachments.length; index++) {
-      final attachment = attachments[index];
-      final uri =
-          'local://attachment-${index + 1}/${Uri.encodeComponent(attachment.name)}';
-      final instruction = attachment.kind == AttachmentKind.image
-          ? 'Use read with includeImage when vision input is supported.'
-          : 'Use read to inspect its bounded contents before editing.';
-      buffer.write(
-        '\n\nAttached ${attachment.kind.name} file `${attachment.name}` at `$uri`. $instruction',
-      );
-    }
-    return buffer.toString();
+  Future<String> _prepareUserText(String text, String projectRoot) async {
+    final trimmed = text.trim();
+    if (utf8.encode(text).length <= 2048) return trimmed;
+    return repository.saveLongPaste(text, projectRoot: projectRoot);
   }
 }

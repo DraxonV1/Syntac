@@ -198,8 +198,8 @@ class AgentLoop {
       final globalPrompt = await _repository.readGlobalSystemPrompt();
       final projectInstructions = await _readProjectInstructions(project);
       final effectivePrompt =
-          projectInstructions != null && projectInstructions.isNotEmpty
-          ? '${globalPrompt ?? codingAgentSystemPrompt}\n\n# Project Instructions\n$projectInstructions'
+          projectInstructions != null && projectInstructions.trim().isNotEmpty
+          ? projectInstructions
           : (globalPrompt ?? codingAgentSystemPrompt);
       final modelMetadata = _modelsDevCatalog.lookup(
         providerKey: provider.providerKey,
@@ -460,6 +460,7 @@ class AgentLoop {
       chatId: chatId,
       role: MessageRole.assistant,
       content: '',
+      metadata: const {'streaming': true},
     );
     await _repository.addMessage(assistant);
     await _onMessagesChanged?.call(chatId);
@@ -477,11 +478,10 @@ class AgentLoop {
       }
       assistant = assistant.copyWith(
         content: buffer.toString(),
-        metadataJson: thinkingBuffer.isEmpty
-            ? assistant.metadataJson
-            : jsonEncode(<String, Object?>{
-                'thinking': thinkingBuffer.toString(),
-              }),
+        metadataJson: jsonEncode(<String, Object?>{
+          'streaming': true,
+          if (thinkingBuffer.isNotEmpty) 'thinking': thinkingBuffer.toString(),
+        }),
       );
       await _repository.updateMessage(assistant);
       lastPersistedLength = buffer.length;
@@ -550,6 +550,7 @@ class AgentLoop {
     assistant = assistant.copyWith(
       content: buffer.toString(),
       metadataJson: jsonEncode({
+        'streaming': false,
         'finishReason': finishReason,
         if (thinkingBuffer.isNotEmpty) 'thinking': thinkingBuffer.toString(),
         'streamDiagnostics': {
@@ -743,17 +744,26 @@ class AgentLoop {
 
   Future<String?> _readProjectInstructions(Project project) async {
     final candidatePaths = [
-      '${project.folderPath}${Platform.pathSeparator}.syntac${Platform.pathSeparator}agent${Platform.pathSeparator}AGENTS.md',
+      '${project.folderPath}${Platform.pathSeparator}.syntac${Platform.pathSeparator}agent${Platform.pathSeparator}SYSTEM.md',
       '${project.folderPath}${Platform.pathSeparator}AGENTS.md',
     ];
     for (final path in candidatePaths) {
       try {
         final file = File(path);
-        if (await file.exists()) {
-          final content = await file.readAsString();
-          if (content.trim().isNotEmpty) return content.trim();
+        if (!await file.exists()) continue;
+        final bytes = <int>[];
+        await for (final chunk in file.openRead(0, 480000)) {
+          final remaining = 480000 - bytes.length;
+          bytes.addAll(
+            chunk.length <= remaining ? chunk : chunk.sublist(0, remaining),
+          );
+          if (bytes.length >= 480000) break;
         }
-      } catch (_) {}
+        final content = utf8.decode(bytes, allowMalformed: true).trim();
+        if (content.isNotEmpty) return content;
+      } catch (_) {
+        // Missing or unreadable instructions do not block agent startup.
+      }
     }
     return null;
   }

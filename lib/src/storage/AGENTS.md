@@ -23,7 +23,7 @@
 - Do not store API keys, OAuth tokens, refresh tokens, or other secrets in SQLite/JSONL.
 - Preserve existing installs through migrations and enum fallback parsing.
 - Chat-owned runtime data belongs in JSONL, not new SQLite chat tables.
-- Android shared root is `/storage/emulated/0/.syntac/`; use `syntac.sqlite`, `agent/config.yml`, and `agent/sessions/` there.
+- Android shared root is `/storage/emulated/0/.syntac/`; use `syntac.sqlite`, `agent/config.yml`, `agent/SYSTEM.md`, `agent/blobs/`, and `agent/sessions/` there.
 - Keep OMP's internal `agent/sessions` layout, but do not create a parallel top-level `.omp` store for new Syntac data.
 - Android shared-storage initialization must be permission-gated; runtime rootfs remains private.
 - JSONL writes must remain per-file serialized and atomically replaced through unique temp files.

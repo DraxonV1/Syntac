@@ -2,11 +2,10 @@ import 'package:flutter/material.dart';
 
 import 'app_colors.dart';
 
-/// Typography scale for the mobile coding environment.
-/// Uses bundled Flutter/platform fonts only; no network font fetch at runtime.
+/// Shared Jost typography scale for every Syntac surface.
 abstract class AppTypography {
-  static const _sansFamily = 'Roboto';
-  static const _monoFamily = 'monospace';
+  static const _sansFamily = 'Jost';
+  static const _monoFamily = 'Jost';
 
   static TextStyle _sans({
     required double fontSize,

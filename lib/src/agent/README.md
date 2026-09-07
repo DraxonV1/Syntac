@@ -4,7 +4,7 @@
 
 `agent_loop.dart` owns one chat turn: persist user input, build bounded context, call selected provider, execute grouped tool calls, stream updates, persist assistant/tool messages, and finish job/chat state.
 
-`context_builder.dart` assembles project instructions, global instructions, chat history, attachments, and context limits. `system_prompt.dart` owns base model instructions.
+`context_builder.dart` assembles global `agent/SYSTEM.md`, project `.syntac/agent/SYSTEM.md` or `AGENTS.md` overrides, chat history, temporary attachment handles, and context limits. `system_prompt.dart` owns base model instructions.
 
 ## Rules
 

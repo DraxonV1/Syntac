@@ -132,7 +132,9 @@ Generated/ignored folders such as `build/`, `.dart_tool/`, `.gradle/`, and local
 │       ├── tools/
 │       │   ├── AGENTS.md
 │       │   ├── README.md
-│       │   └── agent_tools.dart
+│       │   ├── agent_tools.dart
+│       │   ├── copy_tool.dart
+│       │   └── tool_context.dart
 │       └── ui/
 │           ├── AGENTS.md
 │           ├── README.md
@@ -242,9 +244,10 @@ Generated/ignored folders such as `build/`, `.dart_tool/`, `.gradle/`, and local
 
 ### Agent
 
-- `lib/src/agent/agent_loop.dart`: chat run lifecycle, streaming, tool calls, cancellation, provider retries, job state.
-- `lib/src/agent/context_builder.dart`: bounded model context and global/project `AGENTS.md` loading.
-- `lib/src/agent/system_prompt.dart`: base system instructions sent to models.
+
+- `lib/src/agent/agent_loop.dart`: chat run lifecycle, streaming, tool calls, cancellation, provider retries, job/chat state.
+- `lib/src/agent/context_builder.dart`: bounded model context, global `agent/SYSTEM.md`, project `.syntac/agent/SYSTEM.md` or `AGENTS.md` override, attachments, and message trimming.
+- `lib/src/agent/system_prompt.dart`: base model instructions and tool-use expectations.
 
 ### AI providers
 
@@ -263,14 +266,14 @@ Generated/ignored folders such as `build/`, `.dart_tool/`, `.gradle/`, and local
 ### Storage
 
 - `lib/src/storage/local_database.dart`: SQLite metadata schema and migrations. Android prefers `/storage/emulated/0/.syntac/syntac.sqlite`, then falls back to app-private storage when shared access is unavailable.
-- `lib/src/storage/app_repository.dart`: storage facade used by app, agent, and UI; initializes shared `.syntac/agent/config.yml` and `.syntac/agent/sessions/` paths.
+- `lib/src/storage/app_repository.dart`: storage facade used by app, agent, and UI; initializes shared `.syntac/agent/config.yml`, `.syntac/agent/SYSTEM.md`, `.syntac/agent/blobs/`, and `.syntac/agent/sessions/` paths.
 - `lib/src/storage/chat_jsonl_store.dart`: JSONL chat index, messages, tool executions, jobs, attachments, migration, recovery. Android stores this under `/storage/emulated/0/.syntac/agent/sessions/`, matching OMP's `agent/sessions` layout under Syntac's shared root.
 - `lib/src/storage/storage_stats.dart`: storage breakdown shown in settings.
 - `lib/src/security/secret_store.dart`: secure storage boundary for secrets; credentials never move to shared storage.
 
 ### Tools
 
-- `lib/src/tools/agent_tools.dart`: model-callable `read`, `write`, `edit`, `delete`, `list`, `search`, and `bash` tools. Owns path sandboxing, output caps, persisted truncation notices, and tool result shape.
+- `lib/src/tools/agent_tools.dart`: model-callable `read`, `write`, `edit`, `delete`, `list`, `search`, `bash`, and `copy` tools. Owns path sandboxing, output caps, persisted truncation notices, and tool result shape.
 
 ### Runtime
 

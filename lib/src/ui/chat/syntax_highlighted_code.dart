@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_highlight/flutter_highlight.dart';
 import 'package:flutter_highlight/themes/atom-one-dark.dart';
+import 'package:highlight/languages/all.dart' show allLanguages;
 
 import '../theme/app_typography.dart';
 
@@ -54,13 +55,40 @@ class SyntaxHighlightedCode extends StatelessWidget {
 
   String _languageName(String? rawLanguage) {
     final value = (rawLanguage ?? '').trim().toLowerCase();
-    return switch (value) {
-      'js' => 'javascript',
-      'ts' => 'typescript',
-      'py' => 'python',
-      'sh' || 'shell' => 'bash',
-      'yml' => 'yaml',
-      _ => value.isEmpty ? 'plaintext' : value,
+    final aliases = <String, String>{
+      'c++': 'cpp',
+      'cc': 'cpp',
+      'cxx': 'cpp',
+      'c#': 'cs',
+      'csx': 'cs',
+      'f#': 'fsharp',
+      'golang': 'go',
+      'golangci': 'go',
+      'js': 'javascript',
+      'jsx': 'javascript',
+      'mjs': 'javascript',
+      'ts': 'typescript',
+      'tsx': 'typescript',
+      'py': 'python',
+      'rb': 'ruby',
+      'rs': 'rust',
+      'kt': 'kotlin',
+      'kts': 'kotlin',
+      'md': 'markdown',
+      'mkdown': 'markdown',
+      'sh': 'bash',
+      'shell': 'bash',
+      'zsh': 'bash',
+      'yml': 'yaml',
+      'html': 'xml',
+      'xhtml': 'xml',
+      'svg': 'xml',
+      'text': 'plaintext',
+      'txt': 'plaintext',
     };
+    final resolved = aliases[value] ?? value;
+    return resolved.isEmpty || !allLanguages.containsKey(resolved)
+        ? 'plaintext'
+        : resolved;
   }
 }

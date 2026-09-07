@@ -6,7 +6,7 @@
 
 ## Main file
 
-- `agent_tools.dart`: tool specs, path validation, read/write/edit/delete/list/search/bash handlers, output bounds, live command update plumbing.
+- `agent_tools.dart`: tool specs, path validation, read/write/edit/delete/list/search/bash/copy handlers, output bounds, live command update plumbing.
 
 ## Change here when
 
