@@ -33,12 +33,16 @@ class ChatMessageList extends StatefulWidget {
     required this.messages,
     required this.toolExecutions,
     this.attachments = const <Attachment>[],
+    this.onAttachmentTap,
+    this.autoExpandThinking = true,
     this.padding = const EdgeInsets.fromLTRB(16, 12, 16, 12),
   });
 
   final List<ChatMessage> messages;
   final List<ToolExecution> toolExecutions;
   final List<Attachment> attachments;
+  final ValueChanged<Attachment>? onAttachmentTap;
+  final bool autoExpandThinking;
   final EdgeInsetsGeometry padding;
 
   @override
@@ -137,6 +141,8 @@ class ChatMessageListState extends State<ChatMessageList> {
                   attachments: widget.attachments
                       .where((a) => a.messageId == message.id)
                       .toList(),
+                  onAttachmentTap: widget.onAttachmentTap,
+                  autoExpandThinking: widget.autoExpandThinking,
                 ),
               ),
               ToolTimelineItem(:final execution) => RepaintBoundary(

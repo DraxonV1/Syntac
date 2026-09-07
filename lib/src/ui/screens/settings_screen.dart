@@ -15,7 +15,6 @@ import '../theme/app_motion.dart';
 import '../theme/app_typography.dart';
 import '../widgets/app_buttons.dart';
 import '../widgets/app_card.dart';
-import '../widgets/badge_chip.dart';
 import '../widgets/maximizable_surface.dart';
 import '../widgets/status_indicator.dart';
 import 'provider_dialog.dart';
@@ -191,7 +190,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           // Left Sidebar Navigation
           Container(
             width: 240,
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: AppColors.surface,
               border: Border(
                 right: BorderSide(color: AppColors.borderSoft, width: 1),
@@ -230,7 +229,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   'Storage',
                   AppIcons.storage,
                 ),
-                const Divider(height: 20, color: AppColors.borderSoft),
+                Divider(height: 20, color: AppColors.borderSoft),
                 Padding(
                   padding: const EdgeInsets.only(left: 8, bottom: 4),
                   child: Text(
@@ -425,7 +424,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
             ),
-            const Icon(
+            Icon(
               AppIcons.chevronRight,
               size: 16,
               color: AppColors.textSecondary,
@@ -492,29 +491,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
-              const Icon(
-                AppIcons.model,
-                size: 20,
-                color: AppColors.primaryBright,
-              ),
+              Icon(AppIcons.model, size: 20, color: AppColors.primaryBright),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Dark Blue System Theme',
+                      widget.controller.lightThemeEnabled
+                          ? 'Light Theme'
+                          : 'Dark Blue Theme',
                       style: AppTypography.titleSmall,
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Optimized for mobile OLED and developer coding environments',
+                      'Switch between bright and OLED-friendly surfaces',
                       style: AppTypography.bodySmall,
                     ),
                   ],
                 ),
               ),
-              const BadgeChip(label: 'Active', variant: BadgeVariant.primary),
+              Switch(
+                value: widget.controller.lightThemeEnabled,
+                onChanged: (value) {
+                  setState(() {});
+                  unawaited(widget.controller.setLightTheme(value));
+                },
+              ),
             ],
           ),
         ),

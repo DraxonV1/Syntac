@@ -1,6 +1,7 @@
 // Renders one chat message, including collapsible reasoning and rich markdown.
 
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -17,11 +18,14 @@ class ChatMessageView extends StatelessWidget {
     super.key,
     required this.message,
     this.attachments = const <Attachment>[],
+    this.onAttachmentTap,
+    this.autoExpandThinking = true,
   });
 
   final ChatMessage message;
   final List<Attachment> attachments;
-
+  final ValueChanged<Attachment>? onAttachmentTap;
+  final bool autoExpandThinking;
   @override
   Widget build(BuildContext context) {
     return switch (message.role) {
@@ -61,16 +65,11 @@ class ChatMessageView extends StatelessWidget {
               if (attachments.isNotEmpty) ...[
                 Wrap(
                   spacing: 6,
-                  runSpacing: 4,
+                  runSpacing: 6,
                   alignment: WrapAlignment.end,
                   children: [
                     for (final attachment in attachments)
-                      BadgeChip.neutral(
-                        label: attachment.name,
-                        icon: attachment.kind == AttachmentKind.image
-                            ? Icons.image_outlined
-                            : Icons.insert_drive_file_outlined,
-                      ),
+                      _buildAttachment(context, attachment),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -85,6 +84,56 @@ class ChatMessageView extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildAttachment(BuildContext context, Attachment attachment) {
+    if (attachment.kind != AttachmentKind.image) {
+      return BadgeChip.neutral(
+        label: attachment.name,
+        icon: Icons.insert_drive_file_outlined,
+        onTap: onAttachmentTap == null
+            ? null
+            : () => onAttachmentTap!(attachment),
+      );
+    }
+    final image = ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Image.file(
+        File(attachment.path),
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) =>
+            _unreadableAttachment(attachment.name),
+      ),
+    );
+    final preview = ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 260, maxHeight: 220),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.borderSubtle),
+        ),
+        child: image,
+      ),
+    );
+    return GestureDetector(
+      onTap: onAttachmentTap == null
+          ? null
+          : () => onAttachmentTap!(attachment),
+      child: preview,
+    );
+  }
+
+  Widget _unreadableAttachment(String name) {
+    return Padding(
+      padding: const EdgeInsets.all(10),
+      child: Text(
+        'Not Readable\n$name',
+        maxLines: 3,
+        overflow: TextOverflow.ellipsis,
+        style: AppTypography.caption.copyWith(color: AppColors.textMuted),
       ),
     );
   }
@@ -117,6 +166,7 @@ class ChatMessageView extends StatelessWidget {
                   ),
                 ),
                 child: ExpansionTile(
+                  initiallyExpanded: autoExpandThinking,
                   tilePadding: const EdgeInsets.symmetric(horizontal: 10),
                   childrenPadding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
                   title: Text(
@@ -131,9 +181,9 @@ class ChatMessageView extends StatelessWidget {
                   children: [
                     Align(
                       alignment: Alignment.centerLeft,
-                      child: SelectableText(
-                        thinking,
-                        style: AppTypography.monoSmall.copyWith(
+                      child: MarkdownContent(
+                        content: thinking,
+                        textStyle: AppTypography.monoSmall.copyWith(
                           color: AppColors.textMuted,
                           height: 1.4,
                         ),
@@ -176,7 +226,7 @@ class ChatMessageView extends StatelessWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(
+                          Icon(
                             AppIcons.copy,
                             size: 13,
                             color: AppColors.textMuted,

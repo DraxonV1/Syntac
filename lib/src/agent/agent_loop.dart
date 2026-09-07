@@ -192,6 +192,7 @@ class AgentLoop {
       final tools = ProjectTools(
         projectRoot: project.folderPath,
         shellExecutor: await _runtimeExecutorForProject(project),
+        attachments: attachments,
       );
       final ai = _providerFactory(provider);
       final globalPrompt = await _repository.readGlobalSystemPrompt();
@@ -212,17 +213,26 @@ class AgentLoop {
               0) *
           4;
       final contextBuilder = ContextBuilder(maxCharacters: contextCharacters);
-
+      final imagePartsByMessageId = <String, List<AIImagePart>>{};
       for (var iteration = 0; iteration < limits.maxIterations; iteration++) {
         token.throwIfCancelled();
         job = job.update(currentAction: 'Thinking');
         await _repository.updateAgentJob(job);
         final history = await _repository.listMessages(chat.id);
+        if (modelMetadata?.supportsImages == true) {
+          await _loadImageParts(
+            history,
+            firstMessage: firstMessage,
+            currentAttachments: attachments,
+            cache: imagePartsByMessageId,
+          );
+        }
         final request = AIChatRequest(
           model: model.model,
           messages: contextBuilder.build(
             history: history,
             customSystemPrompt: effectivePrompt,
+            imagePartsByMessageId: imagePartsByMessageId,
           ),
           tools: tools.specs,
           maxOutputTokens: modelMetadata?.outputLimit,
@@ -377,6 +387,54 @@ class AgentLoop {
     } finally {
       _activeRuns.remove(chat.id);
     }
+  }
+
+  Future<void> _loadImageParts(
+    List<ChatMessage> history, {
+    required ChatMessage firstMessage,
+    required List<Attachment> currentAttachments,
+    required Map<String, List<AIImagePart>> cache,
+  }) async {
+    for (final message in history) {
+      if (message.role != MessageRole.user || cache.containsKey(message.id)) {
+        continue;
+      }
+      final messageAttachments = message.id == firstMessage.id
+          ? currentAttachments
+          : await _repository.listAttachments(message.id);
+      final images = <AIImagePart>[];
+      for (final attachment in messageAttachments) {
+        if (attachment.kind != AttachmentKind.image) continue;
+        final file = File(attachment.path);
+        try {
+          final length = await file.length();
+          if (length <= 0 || length > 3 * 1024 * 1024) continue;
+          final mimeType =
+              attachment.mimeType ?? _imageMimeType(attachment.path);
+          if (mimeType == null) continue;
+          images.add(
+            AIImagePart(
+              mimeType: mimeType,
+              base64Data: base64Encode(await file.readAsBytes()),
+            ),
+          );
+        } catch (_) {
+          // Missing or unreadable attachment remains visible as a fallback.
+        }
+      }
+      cache[message.id] = images;
+    }
+  }
+
+  String? _imageMimeType(String path) {
+    final lower = path.toLowerCase();
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+    if (lower.endsWith('.gif')) return 'image/gif';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    if (lower.endsWith('.bmp')) return 'image/bmp';
+    if (lower.endsWith('.tif') || lower.endsWith('.tiff')) return 'image/tiff';
+    return null;
   }
 
   Future<AIChatResponse> _streamAssistantMessage(

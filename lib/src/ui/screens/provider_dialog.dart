@@ -65,7 +65,7 @@ Future<void> showProviderConfigDialog(
           backgroundColor: AppColors.surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
-            side: const BorderSide(color: AppColors.border, width: 1),
+            side: BorderSide(color: AppColors.border, width: 1),
           ),
           title: Text('Configure Provider', style: AppTypography.titleLarge),
           content: SingleChildScrollView(

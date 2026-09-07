@@ -8,8 +8,8 @@ import 'package:path/path.dart' as p;
 import '../../ai/ai_provider.dart';
 import '../../app.dart';
 import '../../core/app_identity.dart';
-import '../chat/agent_running_indicator.dart';
 import '../../models.dart';
+import '../chat/attachment_viewer.dart';
 import '../chat/chat_message_list.dart';
 import '../chat/composer_view.dart';
 import '../chat/empty_chat_view.dart';
@@ -45,6 +45,7 @@ class _MainChatScreenState extends State<MainChatScreen> {
   final List<Attachment> _pendingAttachments = <Attachment>[];
   AIReasoningEffort _reasoningEffort = AIReasoningEffort.medium;
   bool _thinkingEnabled = true;
+  bool _showThinkingAutomatically = true;
 
   @override
   Widget build(BuildContext context) {
@@ -205,13 +206,6 @@ class _MainChatScreenState extends State<MainChatScreen> {
         // Compact Chat Header
         _buildAppBar(context, project: project, chat: chat, isWide: isWide),
 
-        // Running indicator banner
-        if (isRunning)
-          AgentRunningIndicator(
-            action: 'Working on code...',
-            onStop: () => widget.controller.stopCurrentChat(),
-          ),
-
         // Error banner if any
         if (widget.controller.lastError != null)
           Container(
@@ -239,6 +233,10 @@ class _MainChatScreenState extends State<MainChatScreen> {
               ? ChatMessageList(
                   messages: widget.controller.messages,
                   toolExecutions: widget.controller.toolExecutions,
+                  attachments: widget.controller.attachments,
+                  onAttachmentTap: (attachment) =>
+                      showAttachmentViewer(context, attachment),
+                  autoExpandThinking: _showThinkingAutomatically,
                 )
               : EmptyChatView(
                   project: project,
@@ -282,7 +280,7 @@ class _MainChatScreenState extends State<MainChatScreen> {
         left: 10,
         right: 12,
       ),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.background,
         border: Border(
           bottom: BorderSide(color: AppColors.borderSoft, width: 1),
@@ -327,55 +325,91 @@ class _MainChatScreenState extends State<MainChatScreen> {
           ),
           const SizedBox(width: 8),
 
-          // Model Selector Pill
-          GestureDetector(
-            onTap: () => _showModelSelector(context, chat),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceElevated,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    AppIcons.model,
-                    size: 14,
-                    color: AppColors.primaryBright,
-                  ),
-                  const SizedBox(width: 6),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 100),
-                    child: Text(
-                      _resolveSelectedModelName(chat) ?? 'Model',
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.codeSmall.copyWith(
-                        color: AppColors.textPrimary,
-                        fontSize: 11.5,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 6),
-
-          // New Chat Button
           AppIconButton(
-            icon: AppIcons.add,
-            tooltip: 'New Chat',
-            size: 32,
+            icon: AppIcons.settings,
+            tooltip: 'Chat settings',
+            size: 36,
             iconSize: 18,
-            backgroundColor: AppColors.surfaceElevated,
-            borderColor: AppColors.border,
-            onPressed: () => widget.controller.newChat(),
+            onPressed: () => _showChatSettings(context, chat),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _showChatSettings(BuildContext context, Chat? chat) async {
+    var effort = _reasoningEffort;
+    var thinkingEnabled = _thinkingEnabled;
+    var showThinking = _showThinkingAutomatically;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Chat settings'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(AppIcons.model),
+                  title: const Text('Model'),
+                  subtitle: Text(
+                    _resolveSelectedModelName(chat) ?? 'Select model',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.of(dialogContext).pop();
+                    _showModelSelector(context, chat);
+                  },
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<AIReasoningEffort>(
+                  initialValue: effort,
+                  decoration: const InputDecoration(labelText: 'Effort'),
+                  items: [
+                    for (final item in AIReasoningEffort.values)
+                      DropdownMenuItem(value: item, child: Text(item.label)),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) setDialogState(() => effort = value);
+                  },
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Thinking'),
+                  subtitle: const Text('Allow model reasoning output'),
+                  value: thinkingEnabled,
+                  onChanged: (value) =>
+                      setDialogState(() => thinkingEnabled = value),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Show thinking'),
+                  subtitle: const Text('Open reasoning automatically'),
+                  value: showThinking,
+                  onChanged: (value) =>
+                      setDialogState(() => showThinking = value),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Done'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted) return;
+    setState(() {
+      _reasoningEffort = effort;
+      _thinkingEnabled = thinkingEnabled;
+      _showThinkingAutomatically = showThinking;
+    });
   }
 
   String? _resolveSelectedModelName(Chat? chat) {
@@ -439,28 +473,74 @@ class _MainChatScreenState extends State<MainChatScreen> {
   }
 
   Future<void> _pickAttachment() async {
-    final result = await FilePicker.pickFiles(allowMultiple: true);
-    if (result == null || result.files.isEmpty) return;
+    try {
+      final result = await FilePicker.pickFiles(allowMultiple: true);
+      if (result == null || result.files.isEmpty || !mounted) return;
 
-    setState(() {
-      for (final file in result.files) {
-        final path = file.path;
-        if (path == null) continue;
-        final ext = p.extension(path).toLowerCase();
-        final kind = ['.png', '.jpg', '.jpeg', '.gif', '.webp'].contains(ext)
-            ? AttachmentKind.image
-            : AttachmentKind.text;
-
-        _pendingAttachments.add(
-          Attachment.create(
-            messageId: 'pending',
-            path: path,
-            kind: kind,
-            name: file.name,
-          ),
+      setState(() {
+        for (final file in result.files) {
+          final path = file.path;
+          if (path == null) continue;
+          final ext = p.extension(path).toLowerCase();
+          final kind = _imageExtensions.contains(ext)
+              ? AttachmentKind.image
+              : _binaryExtensions.contains(ext)
+              ? AttachmentKind.binary
+              : AttachmentKind.text;
+          _pendingAttachments.add(
+            Attachment.create(
+              messageId: 'pending',
+              path: path,
+              kind: kind,
+              name: file.name,
+              mimeType: _attachmentMimeType(ext),
+            ),
+          );
+        }
+      });
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open file picker')),
         );
       }
-    });
+    }
+  }
+
+  static const _imageExtensions = {
+    '.png',
+    '.jpg',
+    '.jpeg',
+    '.gif',
+    '.webp',
+    '.bmp',
+    '.tif',
+    '.tiff',
+  };
+
+  static const _binaryExtensions = {
+    '.apk',
+    '.aab',
+    '.class',
+    '.dll',
+    '.exe',
+    '.so',
+    '.zip',
+    '.7z',
+    '.rar',
+    '.pdf',
+  };
+
+  String? _attachmentMimeType(String extension) {
+    return switch (extension) {
+      '.png' => 'image/png',
+      '.jpg' || '.jpeg' => 'image/jpeg',
+      '.gif' => 'image/gif',
+      '.webp' => 'image/webp',
+      '.bmp' => 'image/bmp',
+      '.tif' || '.tiff' => 'image/tiff',
+      _ => null,
+    };
   }
 
   void _handleSendMessage(String text) {

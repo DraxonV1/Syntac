@@ -291,6 +291,11 @@ class AppRepository implements CredentialStore {
     return _chatStore.addAttachment(attachment);
   }
 
+  Future<List<Attachment>> listAllAttachments() async {
+    await _ensureChatsMigrated();
+    return _chatStore.listAllAttachments();
+  }
+
   Future<ToolExecution> addToolExecution(ToolExecution execution) async {
     await _ensureChatsMigrated();
     return _chatStore.addToolExecution(execution);
@@ -507,6 +512,29 @@ class AppRepository implements CredentialStore {
     await _db.insert('settings', {
       'key': 'shell_runtime',
       'value_json': jsonEncode(settings.toMap()),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<bool> readLightTheme() async {
+    final rows = await _db.query(
+      'settings',
+      where: 'key = ?',
+      whereArgs: ['light_theme'],
+      limit: 1,
+    );
+    if (rows.isEmpty) return false;
+    try {
+      final value = jsonDecode(rows.first['value_json']! as String);
+      return value is Map && value['enabled'] == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> saveLightTheme(bool enabled) async {
+    await _db.insert('settings', {
+      'key': 'light_theme',
+      'value_json': jsonEncode({'enabled': enabled}),
     }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 

@@ -13,6 +13,7 @@ import 'providers_screen.dart';
 import 'runtime_screen.dart';
 import 'settings_screen.dart';
 import '../onboarding/onboarding_screen.dart';
+import 'syntac_splash.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_icons.dart';
 import '../theme/app_motion.dart';
@@ -218,15 +219,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
 
     if (widget.controller.loading || !_checkedOnboarding) {
-      return const Scaffold(
-        backgroundColor: AppColors.background,
-        body: Center(
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
-          ),
-        ),
-      );
+      return const SyntacSplash();
     }
 
     if (_isOnboarding) {
@@ -302,7 +295,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               style: AppTypography.bodySmall,
               decoration: InputDecoration(
                 hintText: 'Search projects...',
-                prefixIcon: const Icon(
+                prefixIcon: Icon(
                   AppIcons.search,
                   size: 16,
                   color: AppColors.textMuted,

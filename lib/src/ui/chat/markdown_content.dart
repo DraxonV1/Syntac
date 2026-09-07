@@ -108,7 +108,7 @@ class MarkdownContent extends StatelessWidget {
   Widget _renderQuote(String text) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.only(
           topRight: Radius.circular(6),
@@ -250,7 +250,7 @@ class _CodeBlockWidget extends StatelessWidget {
           // Code Header Bar
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: AppColors.codeHeader,
               borderRadius: BorderRadius.vertical(top: Radius.circular(7)),
               border: Border(
@@ -286,7 +286,7 @@ class _CodeBlockWidget extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.copy_rounded,
                           size: 12,
                           color: AppColors.textMuted,
@@ -361,12 +361,7 @@ class _InlineMarkdownText extends StatelessWidget {
         spans.add(
           WidgetSpan(
             alignment: PlaceholderAlignment.middle,
-            child: Math.tex(
-              math,
-              mathStyle: MathStyle.text,
-              textStyle: base,
-              onErrorFallback: (_) => Text(math, style: base),
-            ),
+            child: _SafeMath(expression: math, style: base),
           ),
         );
       } else if (matchedText.startsWith('`') && matchedText.endsWith('`')) {
@@ -430,25 +425,29 @@ class _InlineMarkdownText extends StatelessWidget {
   }
 
   Widget _buildInlineImage(String source) {
-    final image = source.startsWith('data:image/')
-        ? _decodeDataImage(source)
-        : Image.network(
-            source,
-            fit: BoxFit.contain,
-            errorBuilder: (context, error, stackTrace) =>
-                _imageFallback(source),
-          );
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 260, maxHeight: 200),
-      margin: const EdgeInsets.symmetric(horizontal: 3, vertical: 4),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: AppColors.border),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: image,
-    );
+    try {
+      final image = source.startsWith('data:image/')
+          ? _decodeDataImage(source)
+          : Image.network(
+              source,
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) =>
+                  _imageFallback(source),
+            );
+      return Container(
+        constraints: const BoxConstraints(maxWidth: 260, maxHeight: 200),
+        margin: const EdgeInsets.symmetric(horizontal: 3, vertical: 4),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: AppColors.border),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: image,
+      );
+    } catch (_) {
+      return _imageFallback('Invalid image');
+    }
   }
 
   Widget _decodeDataImage(String source) {
@@ -480,6 +479,27 @@ class _InlineMarkdownText extends StatelessWidget {
       style: AppTypography.caption.copyWith(color: AppColors.textMuted),
     ),
   );
+}
+
+class _SafeMath extends StatelessWidget {
+  const _SafeMath({required this.expression, required this.style});
+
+  final String expression;
+  final TextStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    try {
+      return Math.tex(
+        expression,
+        mathStyle: MathStyle.text,
+        textStyle: style,
+        onErrorFallback: (_) => Text(expression, style: style),
+      );
+    } catch (_) {
+      return Text(expression, style: style);
+    }
+  }
 }
 
 // Data classes for markdown blocks

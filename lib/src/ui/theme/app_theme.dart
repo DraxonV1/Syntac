@@ -1,34 +1,40 @@
+// Material themes backed by shared Syntac dark and light palettes.
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'app_colors.dart';
 import 'app_typography.dart';
 
-/// Centralized Dark Blue theme for the mobile coding environment.
 abstract class AppTheme {
-  static ThemeData get darkTheme {
+  static ThemeData get darkTheme => _build(Brightness.dark);
+  static ThemeData get lightTheme => _build(Brightness.light);
+
+  static ThemeData _build(Brightness brightness) {
+    final isDark = brightness == Brightness.dark;
     final textTheme = AppTypography.textTheme();
+    final scheme = ColorScheme(
+      brightness: brightness,
+      primary: AppColors.primary,
+      onPrimary: Colors.white,
+      secondary: AppColors.primaryBright,
+      onSecondary: isDark ? Colors.white : AppColors.textPrimary,
+      surface: AppColors.surface,
+      onSurface: AppColors.textPrimary,
+      error: AppColors.error,
+      onError: Colors.white,
+    );
 
     return ThemeData(
       useMaterial3: true,
-      brightness: Brightness.dark,
+      brightness: brightness,
       scaffoldBackgroundColor: AppColors.background,
       primaryColor: AppColors.primary,
       canvasColor: AppColors.surface,
       cardColor: AppColors.surfaceElevated,
       dividerColor: AppColors.border,
       textTheme: textTheme,
-      colorScheme: const ColorScheme(
-        brightness: Brightness.dark,
-        primary: AppColors.primary,
-        onPrimary: Colors.white,
-        secondary: AppColors.primaryBright,
-        onSecondary: Colors.white,
-        surface: AppColors.surface,
-        onSurface: AppColors.textPrimary,
-        error: AppColors.error,
-        onError: Colors.white,
-      ),
+      colorScheme: scheme,
       appBarTheme: AppBarTheme(
         backgroundColor: AppColors.background,
         foregroundColor: AppColors.textPrimary,
@@ -36,15 +42,14 @@ abstract class AppTheme {
         scrolledUnderElevation: 0,
         centerTitle: false,
         titleTextStyle: AppTypography.titleMedium,
-        iconTheme: const IconThemeData(
-          color: AppColors.textSecondary,
-          size: 20,
-        ),
-        systemOverlayStyle: const SystemUiOverlayStyle(
+        iconTheme: IconThemeData(color: AppColors.textSecondary, size: 20),
+        systemOverlayStyle: SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,
-          statusBarIconBrightness: Brightness.light,
+          statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
           systemNavigationBarColor: AppColors.background,
-          systemNavigationBarIconBrightness: Brightness.light,
+          systemNavigationBarIconBrightness: isDark
+              ? Brightness.light
+              : Brightness.dark,
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -59,29 +64,26 @@ abstract class AppTheme {
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.border),
+          borderSide: BorderSide(color: AppColors.border),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.border),
+          borderSide: BorderSide(color: AppColors.border),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(
-            color: AppColors.borderFocus,
-            width: 1.5,
-          ),
+          borderSide: BorderSide(color: AppColors.borderFocus, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.error),
+          borderSide: BorderSide(color: AppColors.error),
         ),
       ),
-      bottomSheetTheme: const BottomSheetThemeData(
+      bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: AppColors.surface,
         modalBackgroundColor: AppColors.surface,
         surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
+        shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
         ),
       ),
@@ -90,7 +92,7 @@ abstract class AppTheme {
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
-          side: const BorderSide(color: AppColors.border),
+          side: BorderSide(color: AppColors.border),
         ),
       ),
       snackBarTheme: SnackBarThemeData(
@@ -98,7 +100,7 @@ abstract class AppTheme {
         contentTextStyle: AppTypography.bodyMedium,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
-          side: const BorderSide(color: AppColors.border),
+          side: BorderSide(color: AppColors.border),
         ),
         behavior: SnackBarBehavior.floating,
       ),

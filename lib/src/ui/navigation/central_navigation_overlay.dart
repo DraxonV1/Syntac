@@ -1,9 +1,12 @@
+// Borderless glass navigation hub arranged around one central close control.
+
 import 'dart:ui';
+
 import 'package:flutter/material.dart';
+
 import '../theme/app_colors.dart';
 import '../theme/app_icons.dart';
 import '../theme/app_typography.dart';
-import '../widgets/app_buttons.dart';
 
 enum CentralNavDestination {
   projects,
@@ -14,8 +17,6 @@ enum CentralNavDestination {
   newChat,
 }
 
-/// Floating central navigation hub triggered by hamburger taps.
-/// Blurs background, scales content, and displays adaptive glass navigation controls.
 class CentralNavigationOverlay extends StatefulWidget {
   const CentralNavigationOverlay({
     super.key,
@@ -38,7 +39,7 @@ class CentralNavigationOverlay extends StatefulWidget {
       transitionDuration: const Duration(milliseconds: 280),
       pageBuilder: (context, anim1, anim2) => CentralNavigationOverlay(
         showNewChat: showNewChat,
-        onSelect: (dest) => Navigator.of(context).pop(dest),
+        onSelect: (destination) => Navigator.of(context).pop(destination),
       ),
       transitionBuilder: (context, animation, secondaryAnimation, child) {
         final curved = CurvedAnimation(
@@ -48,7 +49,7 @@ class CentralNavigationOverlay extends StatefulWidget {
         return FadeTransition(
           opacity: curved,
           child: ScaleTransition(
-            scale: Tween<double>(begin: 0.92, end: 1.0).animate(curved),
+            scale: Tween<double>(begin: 0.86, end: 1.0).animate(curved),
             child: child,
           ),
         );
@@ -65,110 +66,134 @@ class _CentralNavigationOverlayState extends State<CentralNavigationOverlay> {
   @override
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
-    final isLandscape = media.orientation == Orientation.landscape;
+    final size = media.orientation == Orientation.landscape ? 380.0 : 336.0;
+    final maxSize = media.size.shortestSide - 32;
+    final hubSize = size < maxSize ? size : maxSize;
 
     return BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
       child: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: isLandscape ? 560 : 360),
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.glassStrong,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: AppColors.borderActive, width: 1.5),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withAlpha(30),
-                    blurRadius: 32,
-                    offset: const Offset(0, 8),
+        child: SizedBox(
+          width: hubSize,
+          height: hubSize,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: AppColors.glassStrong.withAlpha(238),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withAlpha(38),
+                  blurRadius: 40,
+                  spreadRadius: 4,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Stack(
+              children: [
+                Positioned(
+                  top: 12,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: Text(
+                      'Navigation Hub',
+                      style: AppTypography.label.copyWith(
+                        color: AppColors.textMuted,
+                      ),
+                    ),
                   ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Hub Title Bar
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceElevated,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(
-                          AppIcons.prompt,
-                          size: 16,
-                          color: AppColors.primaryBright,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Text('Navigation Hub', style: AppTypography.titleSmall),
-                      const Spacer(),
-                      AppIconButton(
-                        icon: AppIcons.close,
-                        tooltip: 'Close',
-                        size: 32,
-                        iconSize: 16,
-                        onPressed: () => Navigator.of(context).pop(),
-                      ),
-                    ],
+                ),
+                Positioned(
+                  top: hubSize * 0.12,
+                  left: 0,
+                  right: 0,
+                  child: _buildNavTile(
+                    icon: AppIcons.folder,
+                    label: 'Projects',
+                    destination: CentralNavDestination.projects,
                   ),
-                  const SizedBox(height: 20),
-
-                  // Navigation Grid Items
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    alignment: WrapAlignment.center,
+                ),
+                Positioned(
+                  top: hubSize * 0.40,
+                  left: 12,
+                  right: 12,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      if (widget.showNewChat)
-                        _buildNavTile(
-                          icon: AppIcons.add,
-                          label: 'New Chat',
-                          destination: CentralNavDestination.newChat,
-                          highlight: true,
-                          width: isLandscape ? 160 : 140,
-                        ),
-                      _buildNavTile(
-                        icon: AppIcons.folder,
-                        label: 'Projects',
-                        destination: CentralNavDestination.projects,
-                        width: isLandscape ? 160 : 140,
-                      ),
                       _buildNavTile(
                         icon: AppIcons.chat,
                         label: 'Chats',
                         destination: CentralNavDestination.chats,
-                        width: isLandscape ? 160 : 140,
                       ),
+                      _buildCloseButton(context),
                       _buildNavTile(
                         icon: AppIcons.model,
                         label: 'Providers',
                         destination: CentralNavDestination.providers,
-                        width: isLandscape ? 160 : 140,
                       ),
+                    ],
+                  ),
+                ),
+                Positioned(
+                  bottom: hubSize * 0.13,
+                  left: 0,
+                  right: 0,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
                       _buildNavTile(
                         icon: AppIcons.runtime,
                         label: 'Runtime',
                         destination: CentralNavDestination.runtime,
-                        width: isLandscape ? 160 : 140,
                       ),
                       _buildNavTile(
                         icon: AppIcons.settings,
                         label: 'Settings',
                         destination: CentralNavDestination.settings,
-                        width: isLandscape ? 160 : 140,
                       ),
                     ],
                   ),
-                ],
-              ),
+                ),
+                if (widget.showNewChat)
+                  Positioned(
+                    bottom: 8,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: TextButton.icon(
+                        onPressed: () =>
+                            widget.onSelect(CentralNavDestination.newChat),
+                        icon: const Icon(AppIcons.add, size: 14),
+                        label: const Text('New Chat'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.textMuted,
+                          textStyle: AppTypography.caption,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCloseButton(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Close navigation',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => Navigator.of(context).pop(),
+          customBorder: const CircleBorder(),
+          child: const SizedBox(
+            width: 56,
+            height: 56,
+            child: Icon(AppIcons.close, size: 22),
           ),
         ),
       ),
@@ -179,48 +204,32 @@ class _CentralNavigationOverlayState extends State<CentralNavigationOverlay> {
     required IconData icon,
     required String label,
     required CentralNavDestination destination,
-    required double width,
-    bool highlight = false,
   }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => widget.onSelect(destination),
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          width: width,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-          decoration: BoxDecoration(
-            color: highlight
-                ? AppColors.primary.withAlpha(40)
-                : AppColors.surfaceElevated,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: highlight ? AppColors.primary : AppColors.border,
-              width: 1.0,
-            ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                size: 24,
-                color: highlight
-                    ? AppColors.primaryBright
-                    : AppColors.textPrimary,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                label,
-                style: AppTypography.button.copyWith(
-                  color: highlight
-                      ? AppColors.primaryBright
-                      : AppColors.textPrimary,
+    return Semantics(
+      button: true,
+      label: label,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => widget.onSelect(destination),
+          customBorder: const CircleBorder(),
+          child: SizedBox(
+            width: 92,
+            height: 68,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 23, color: AppColors.textPrimary),
+                const SizedBox(height: 5),
+                Text(
+                  label,
+                  style: AppTypography.caption.copyWith(
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-                textAlign: TextAlign.center,
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

@@ -20,17 +20,20 @@ class EmptyChatView extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Subtle folder / terminal icon
+            // Syntac brand mark anchors empty chat state.
             Container(
               width: 44,
               height: 44,
+              padding: const EdgeInsets.all(7),
               decoration: BoxDecoration(
                 color: AppColors.surfaceElevated,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: AppColors.border, width: 1),
               ),
-              child: const Center(
-                child: Icon(
+              child: Image.asset(
+                'assets/branding/syntac-logo.png',
+                fit: BoxFit.contain,
+                errorBuilder: (_, error, stackTrace) => const Icon(
                   AppIcons.terminal,
                   size: 22,
                   color: AppColors.primaryBright,

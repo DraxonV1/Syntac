@@ -1,67 +1,98 @@
+// Dynamic semantic palette shared by dark and light Material themes.
+
 import 'package:flutter/material.dart';
 
-/// Semantic design tokens and palette for the premium mobile coding environment.
-/// Almost-black background with layered glass surfaces and luminous blue accents.
 abstract class AppColors {
-  // Base Backgrounds & Surfaces
-  static const Color background = Color(0xFF05070C);
-  static const Color surface = Color(0xFF080C14);
-  static const Color surfaceStrong = Color(0xFF0D1420);
-  static const Color surfaceElevated = Color(0xFF0F1726);
-  static const Color surfaceFloating = Color(0xFF141F33);
-  static const Color surfaceHighlight = Color(0xFF1B2842);
-  static const Color surfaceHigh = Color(0xFF18243C);
+  static bool lightMode = false;
 
-  // Glass Surfaces
-  static const Color glass = Color(0x940E1524); // rgba(14, 21, 36, 0.58)
-  static const Color glassStrong = Color(0xD10E1524); // rgba(14, 21, 36, 0.82)
-  static const Color glassCard = Color(0x700E172A);
+  static Color get background => lightMode ? _lightBackground : _darkBackground;
+  static Color get surface => lightMode ? _lightSurface : _darkSurface;
+  static Color get surfaceStrong =>
+      lightMode ? _lightSurfaceStrong : _darkSurfaceStrong;
+  static Color get surfaceElevated =>
+      lightMode ? _lightSurfaceElevated : _darkSurfaceElevated;
+  static Color get surfaceFloating =>
+      lightMode ? _lightSurfaceFloating : _darkSurfaceFloating;
+  static Color get surfaceHighlight =>
+      lightMode ? _lightSurfaceHighlight : _darkSurfaceHighlight;
+  static Color get surfaceHigh =>
+      lightMode ? _lightSurfaceHigh : _darkSurfaceHigh;
 
-  // Primary & Accent Family
-  static const Color primary = Color(0xFF6684FF);
-  static const Color primaryBright = Color(0xFF91A7FF);
-  static const Color primarySoft = Color(0xFFB8C5FF);
-  static const Color accent = Color(0xFF6684FF);
-  static const Color accentHover = Color(0xFF91A7FF);
-  static const Color accentSubtle = Color(0x286684FF);
-  static const Color accentText = Color(0xFFB8C5FF);
+  static Color get glass => lightMode ? _lightGlass : _darkGlass;
+  static Color get glassStrong =>
+      lightMode ? _lightGlassStrong : _darkGlassStrong;
+  static Color get glassCard => lightMode ? _lightGlassCard : _darkGlassCard;
 
-  static const Color borderSubtle = Color(0x128296DC);
-  // Typography
-  static const Color textPrimary = Color(0xFFF8FAFF);
-  static const Color textSecondary = Color(0xFF9EA8B8);
-  static const Color textMuted = Color(0xFF667085);
-  static const Color textDisabled = Color(0xFF3B4455);
+  static const primary = Color(0xFF536DDA);
+  static const primaryBright = Color(0xFF405CC8);
+  static const primarySoft = Color(0xFF334AA5);
+  static const accent = Color(0xFF536DDA);
+  static const accentHover = Color(0xFF405CC8);
+  static const accentSubtle = Color(0x28536DDA);
+  static const accentText = Color(0xFF334AA5);
 
-  // Borders & Dividers
-  static const Color border = Color(0x1F8296DC); // rgba(130, 150, 220, 0.12)
-  static const Color borderSoft = Color(0x128296DC);
-  static const Color borderActive = Color(
-    0x736E8CFF,
-  ); // rgba(110, 140, 255, 0.45)
-  static const Color borderFocus = Color(0xFF6684FF);
+  static Color get borderSubtle =>
+      lightMode ? const Color(0x24808CA8) : const Color(0x128296DC);
+  static Color get textPrimary =>
+      lightMode ? const Color(0xFF172033) : const Color(0xFFF8FAFF);
+  static Color get textSecondary =>
+      lightMode ? const Color(0xFF45546D) : const Color(0xFF9EA8B8);
+  static Color get textMuted =>
+      lightMode ? const Color(0xFF6D7890) : const Color(0xFF667085);
+  static Color get textDisabled =>
+      lightMode ? const Color(0xFFA3ACBC) : const Color(0xFF3B4455);
 
-  // Status & Feedback Tokens (Restrained & Accessible)
-  static const Color success = Color(0xFF10B981);
-  static const Color successSubtle = Color(0x2410B981);
-  static const Color successText = Color(0xFF6EE7B7);
+  static Color get border =>
+      lightMode ? const Color(0x338296B2) : const Color(0x1F8296DC);
+  static Color get borderSoft =>
+      lightMode ? const Color(0x248296B2) : const Color(0x128296DC);
+  static Color get borderActive =>
+      lightMode ? const Color(0x99536DDA) : const Color(0x736E8CFF);
+  static const borderFocus = Color(0xFF536DDA);
 
-  static const Color warning = Color(0xFFF59E0B);
-  static const Color warningSubtle = Color(0x24F59E0B);
-  static const Color warningText = Color(0xFFFCD34D);
+  static const success = Color(0xFF059669);
+  static const successSubtle = Color(0x24059669);
+  static const successText = Color(0xFF047857);
+  static const warning = Color(0xFFD97706);
+  static const warningSubtle = Color(0x24D97706);
+  static const warningText = Color(0xFFB45309);
+  static const error = Color(0xFFDC2626);
+  static const errorSubtle = Color(0x24DC2626);
+  static const errorText = Color(0xFFB91C1C);
 
-  static const Color error = Color(0xFFEF4444);
-  static const Color errorSubtle = Color(0x24EF4444);
-  static const Color errorText = Color(0xFFFCA5A5);
+  static Color get codeBackground =>
+      lightMode ? const Color(0xFFF2F4F8) : const Color(0xFF030509);
+  static Color get codeSurface =>
+      lightMode ? const Color(0xFFFFFFFF) : const Color(0xFF080C14);
+  static Color get codeBorder =>
+      lightMode ? const Color(0x338296B2) : const Color(0x1F8296DC);
+  static Color get codeHeader =>
+      lightMode ? const Color(0xFFE8ECF3) : const Color(0xFF0B101A);
+  static const codeKeyword = Color(0xFFF472B6);
+  static const codeString = Color(0xFF059669);
+  static const codeNumber = Color(0xFFD97706);
+  static const codeComment = Color(0xFF667085);
+  static const codeVariable = Color(0xFF405CC8);
 
-  // Code & Terminal
-  static const Color codeBackground = Color(0xFF030509);
-  static const Color codeSurface = Color(0xFF080C14);
-  static const Color codeBorder = Color(0x1F8296DC);
-  static const Color codeHeader = Color(0xFF0B101A);
-  static const Color codeKeyword = Color(0xFFF472B6);
-  static const Color codeString = Color(0xFF34D399);
-  static const Color codeNumber = Color(0xFFFBBF24);
-  static const Color codeComment = Color(0xFF667085);
-  static const Color codeVariable = Color(0xFF91A7FF);
+  static const _darkBackground = Color(0xFF05070C);
+  static const _darkSurface = Color(0xFF080C14);
+  static const _darkSurfaceStrong = Color(0xFF0D1420);
+  static const _darkSurfaceElevated = Color(0xFF0F1726);
+  static const _darkSurfaceFloating = Color(0xFF141F33);
+  static const _darkSurfaceHighlight = Color(0xFF1B2842);
+  static const _darkSurfaceHigh = Color(0xFF18243C);
+  static const _darkGlass = Color(0x940E1524);
+  static const _darkGlassStrong = Color(0xD10E1524);
+  static const _darkGlassCard = Color(0x700E172A);
+
+  static const _lightBackground = Color(0xFFF7F9FC);
+  static const _lightSurface = Color(0xFFFFFFFF);
+  static const _lightSurfaceStrong = Color(0xFFF0F3F8);
+  static const _lightSurfaceElevated = Color(0xFFFFFFFF);
+  static const _lightSurfaceFloating = Color(0xFFE7ECF7);
+  static const _lightSurfaceHighlight = Color(0xFFDCE5FA);
+  static const _lightSurfaceHigh = Color(0xFFE9EEF7);
+  static const _lightGlass = Color(0xD9FFFFFF);
+  static const _lightGlassStrong = Color(0xF2FFFFFF);
+  static const _lightGlassCard = Color(0xCFFFFFFF);
 }

@@ -174,7 +174,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
                     style: AppTypography.bodySmall,
                     decoration: InputDecoration(
                       hintText: 'Search chats...',
-                      prefixIcon: const Icon(
+                      prefixIcon: Icon(
                         AppIcons.search,
                         size: 16,
                         color: AppColors.textMuted,

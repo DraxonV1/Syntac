@@ -1,8 +1,11 @@
 // Compact tool timeline card with direct output, previews, copy, and details.
 
 import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
 import '../../models.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_typography.dart';
@@ -73,6 +76,12 @@ class _ToolCallCardState extends State<ToolCallCard>
     }
   }
 
+  int? _intValue(Object? value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '');
+  }
+
   Map<String, Object?> _toolResult(Map<String, Object?> canonicalResult) {
     final nested = canonicalResult['result'];
     if (nested is Map) return nested.cast<String, Object?>();
@@ -82,6 +91,7 @@ class _ToolCallCardState extends State<ToolCallCard>
   String _formatToolName(String name) {
     return switch (name.toLowerCase()) {
       'read' => 'Read',
+      'display_image' => 'Display image',
       'write' => 'Write',
       'edit' => 'Edit',
       'delete' => 'Delete',
@@ -95,6 +105,7 @@ class _ToolCallCardState extends State<ToolCallCard>
   IconData _iconForTool(String name) {
     return switch (name.toLowerCase()) {
       'read' => Icons.description_outlined,
+      'display_image' => Icons.image_outlined,
       'write' => Icons.note_add_outlined,
       'edit' => Icons.edit_note_outlined,
       'delete' => Icons.delete_outline,
@@ -176,7 +187,7 @@ class _ToolCallCardState extends State<ToolCallCard>
                   AnimatedRotation(
                     turns: _expanded ? 0.25 : 0.0,
                     duration: const Duration(milliseconds: 200),
-                    child: const Icon(
+                    child: Icon(
                       Icons.chevron_right,
                       size: 14,
                       color: AppColors.textMuted,
@@ -194,7 +205,7 @@ class _ToolCallCardState extends State<ToolCallCard>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Divider(color: AppColors.borderSubtle, height: 12),
+                  Divider(color: AppColors.borderSubtle, height: 12),
                   if (widget.execution.name.toLowerCase() == 'bash')
                     _buildBashDetails(args, result)
                   else if (widget.execution.name.toLowerCase() == 'search')
@@ -283,10 +294,10 @@ class _ToolCallCardState extends State<ToolCallCard>
     return switch (toolName.toLowerCase()) {
       'edit' => () {
         final removed =
-            result['replacedLines'] as int? ??
+            _intValue(result['replacedLines']) ??
             _lineCount(args['target']?.toString() ?? '');
         final added =
-            result['newLines'] as int? ??
+            _intValue(result['newLines']) ??
             _lineCount(args['replacement']?.toString() ?? '');
         return BadgeChip.diff(added: added, removed: removed);
       }(),
@@ -298,8 +309,8 @@ class _ToolCallCardState extends State<ToolCallCard>
         return null;
       }(),
       'bash' => () {
-        final durationMs = result['durationMs'] as int?;
-        final exitCode = result['exitCode'] as int?;
+        final durationMs = _intValue(result['durationMs']);
+        final exitCode = _intValue(result['exitCode']);
         final durationStr = durationMs != null
             ? '${(durationMs / 1000).toStringAsFixed(1)}s'
             : '';
@@ -312,14 +323,14 @@ class _ToolCallCardState extends State<ToolCallCard>
         return BadgeChip.success(label: 'Done');
       }(),
       'read' => () {
-        final totalLines = result['totalLines'] as int?;
+        final totalLines = _intValue(result['totalLines']);
         if (totalLines != null) {
           return BadgeChip.neutral(label: '$totalLines lines');
         }
         return null;
       }(),
       'write' => () {
-        final bytes = result['bytes'] as int?;
+        final bytes = _intValue(result['bytes']);
         if (bytes != null) {
           return BadgeChip.neutral(label: _formatBytes(bytes));
         }
@@ -346,8 +357,8 @@ class _ToolCallCardState extends State<ToolCallCard>
     final workingDirectory = result['workingDirectory']?.toString() ?? '';
     final stdout = result['stdout']?.toString() ?? '';
     final stderr = result['stderr']?.toString() ?? '';
+    final durationMs = _intValue(result['durationMs']);
     final exitCode = result['exitCode'];
-    final durationMs = result['durationMs'] as int?;
     final category = result['category']?.toString();
     final failureKind = result['failureKind']?.toString();
     final message = result['message']?.toString();
@@ -464,7 +475,7 @@ class _ToolCallCardState extends State<ToolCallCard>
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             itemCount: results.length,
             separatorBuilder: (context, index) =>
-                const Divider(color: AppColors.borderSubtle, height: 6),
+                Divider(color: AppColors.borderSubtle, height: 6),
             itemBuilder: (context, index) {
               final item = results[index];
               if (item is! Map) return const SizedBox.shrink();
@@ -507,7 +518,7 @@ class _ToolCallCardState extends State<ToolCallCard>
     Map<String, Object?> result,
   ) {
     return switch (widget.execution.name.toLowerCase()) {
-      'read' => _buildReadDetails(args, result),
+      'read' || 'display_image' => _buildImageOrReadDetails(args, result),
       'write' => _buildWriteDetails(args, result),
       'edit' => _buildEditDetails(args, result),
       'delete' => _buildDeleteDetails(args, result),
@@ -516,11 +527,38 @@ class _ToolCallCardState extends State<ToolCallCard>
     };
   }
 
-  Widget _buildReadDetails(
+  Widget _buildImageOrReadDetails(
     Map<String, Object?> args,
     Map<String, Object?> result,
   ) {
     final path = result['path']?.toString() ?? args['path']?.toString() ?? '';
+    if (result['kind'] == 'image') {
+      final filePath = result['filePath']?.toString() ?? '';
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildKeyValueDetails([
+            ('Path', path),
+            ('Type', result['mimeType']?.toString() ?? 'image'),
+            ('Size', _formatBytes(_intValue(result['bytes']) ?? 0)),
+            if (result['width'] != null && result['height'] != null)
+              ('Dimensions', '${result['width']} × ${result['height']}'),
+          ], copyValue: path),
+          if (filePath.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 240, maxWidth: 320),
+              child: Image.file(
+                File(filePath),
+                fit: BoxFit.contain,
+                errorBuilder: (_, error, stackTrace) =>
+                    _buildNotReadableImage(),
+              ),
+            ),
+          ],
+        ],
+      );
+    }
     final content = result['content']?.toString() ?? '';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -543,6 +581,11 @@ class _ToolCallCardState extends State<ToolCallCard>
       ],
     );
   }
+
+  Widget _buildNotReadableImage() => Text(
+    'Not Readable',
+    style: AppTypography.bodySmall.copyWith(color: AppColors.textMuted),
+  );
 
   Widget _buildWriteDetails(
     Map<String, Object?> args,
@@ -578,8 +621,9 @@ class _ToolCallCardState extends State<ToolCallCard>
     final path = result['path']?.toString() ?? args['path']?.toString() ?? '';
     final target = args['target']?.toString() ?? '';
     final replacement = args['replacement']?.toString() ?? '';
-    final removedLines = result['replacedLines'] as int? ?? _lineCount(target);
-    final addedLines = result['newLines'] as int? ?? _lineCount(replacement);
+    final removedLines =
+        _intValue(result['replacedLines']) ?? _lineCount(target);
+    final addedLines = _intValue(result['newLines']) ?? _lineCount(replacement);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -600,7 +644,7 @@ class _ToolCallCardState extends State<ToolCallCard>
     final badge = delta == 0 ? null : '[${delta > 0 ? '+' : ''}$delta]';
     return Row(
       children: [
-        const Icon(Icons.build_outlined, size: 14, color: AppColors.textMuted),
+        Icon(Icons.build_outlined, size: 14, color: AppColors.textMuted),
         const SizedBox(width: 6),
         Text(
           'Edit:',
@@ -922,7 +966,7 @@ class _ToolCallCardState extends State<ToolCallCard>
                 GestureDetector(
                   onTap: () =>
                       _openMaximizedViewer(title, copyContent ?? content),
-                  child: const Icon(
+                  child: Icon(
                     AppIcons.maximize,
                     size: 13,
                     color: AppColors.textMuted,

@@ -29,7 +29,7 @@ Future<void> showCreateProjectModal(
           backgroundColor: AppColors.surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
-            side: const BorderSide(color: AppColors.border, width: 1),
+            side: BorderSide(color: AppColors.border, width: 1),
           ),
           title: Text('Create Project', style: AppTypography.titleLarge),
           content: SingleChildScrollView(
@@ -112,7 +112,7 @@ Future<void> showCreateProjectModal(
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.info_outline,
                         size: 14,
                         color: AppColors.textMuted,

@@ -207,6 +207,13 @@ void main() {
       });
     });
 
+    test('persists light theme preference', () async {
+      final repo = await repository();
+      expect(await repo.readLightTheme(), isFalse);
+      await repo.saveLightTheme(true);
+      expect(await repo.readLightTheme(), isTrue);
+    });
+
     test('reconciles stale running jobs into interrupted state', () async {
       final repo = await repository();
       final dir = await Directory.systemTemp.createTemp('syntac_repo_test_');
@@ -461,6 +468,53 @@ void main() {
       await dir.delete(recursive: true);
       await outside.delete(recursive: true);
     });
+
+    test(
+      'reads attached images through local URI with bounded metadata',
+      () async {
+        final dir = await Directory.systemTemp.createTemp(
+          'syntac_image_tool_test_',
+        );
+        final image = File('${dir.path}${Platform.pathSeparator}pixel.png');
+        await image.writeAsBytes(
+          base64Decode(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+          ),
+        );
+        final attachment = Attachment.create(
+          messageId: 'pending',
+          path: image.path,
+          kind: AttachmentKind.image,
+          name: 'pixel.png',
+          mimeType: 'image/png',
+        );
+        final tools = ProjectTools(
+          projectRoot: dir.path,
+          shellExecutor: CapturingShellExecutor(
+            const CommandResult(
+              stdout: '',
+              stderr: '',
+              exitCode: 0,
+              duration: Duration.zero,
+              timedOut: false,
+              cancelled: false,
+            ),
+          ),
+          attachments: [attachment],
+        );
+
+        final result = await tools.readFile(
+          'local://attachment-1/pixel.png',
+          includeImage: true,
+        );
+        expect(result['kind'], 'image');
+        expect(result['mimeType'], 'image/png');
+        expect(result['width'], 1);
+        expect(result['height'], 1);
+        expect(result['imageDataUri'], startsWith('data:image/png;base64,'));
+        await dir.delete(recursive: true);
+      },
+    );
 
     test(
       'validates paths and supports read write edit delete list search bash',

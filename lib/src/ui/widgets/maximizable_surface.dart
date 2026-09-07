@@ -171,7 +171,7 @@ class _MaximizableSurfaceState extends State<MaximizableSurface> {
           ),
           // Body content when expanded
           if (_expanded) ...[
-            const Divider(height: 1, color: AppColors.borderSoft),
+            Divider(height: 1, color: AppColors.borderSoft),
             Padding(padding: const EdgeInsets.all(12), child: widget.child),
           ],
         ],

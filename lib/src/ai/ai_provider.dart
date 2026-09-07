@@ -3,6 +3,15 @@
 import '../core/cancellation.dart';
 import 'provider_diagnostics.dart';
 
+class AIImagePart {
+  const AIImagePart({required this.mimeType, required this.base64Data});
+
+  final String mimeType;
+  final String base64Data;
+
+  String get dataUri => 'data:$mimeType;base64,$base64Data';
+}
+
 class AIChatMessage {
   const AIChatMessage({
     required this.role,
@@ -10,6 +19,7 @@ class AIChatMessage {
     this.name,
     this.toolCallId,
     this.toolCalls,
+    this.images = const <AIImagePart>[],
     this.providerMetadata = const <String, Object?>{},
   });
 
@@ -18,10 +28,23 @@ class AIChatMessage {
   final String? name;
   final String? toolCallId;
   final List<AIToolCall>? toolCalls;
+  final List<AIImagePart> images;
   final Map<String, Object?> providerMetadata;
 
   Map<String, Object?> toJson() {
-    final map = <String, Object?>{'role': role, 'content': content};
+    final map = <String, Object?>{
+      'role': role,
+      'content': images.isEmpty
+          ? content
+          : [
+              {'type': 'text', 'text': content},
+              for (final image in images)
+                {
+                  'type': 'image_url',
+                  'image_url': {'url': image.dataUri},
+                },
+            ],
+    };
     if (name != null) map['name'] = name;
     if (toolCallId != null) map['tool_call_id'] = toolCallId;
     if (toolCalls != null && toolCalls!.isNotEmpty) {

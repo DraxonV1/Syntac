@@ -337,7 +337,9 @@ class OpenAICodexProvider extends AIProvider {
           });
         }
       }
-      if (message.role != 'assistant' || message.content.isNotEmpty) {
+      if (message.role != 'assistant' ||
+          message.content.isNotEmpty ||
+          message.images.isNotEmpty) {
         input.add({
           'type': 'message',
           'role': message.role == 'assistant' ? 'assistant' : 'user',
@@ -348,6 +350,8 @@ class OpenAICodexProvider extends AIProvider {
                   : 'input_text',
               'text': message.content,
             },
+            for (final image in message.images)
+              {'type': 'input_image', 'image_url': image.dataUri},
           ],
           if (message.role == 'assistant') 'status': 'completed',
         });

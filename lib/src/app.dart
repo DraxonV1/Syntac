@@ -27,6 +27,7 @@ import 'security/secret_store.dart';
 import 'storage/app_repository.dart';
 import 'storage/local_database.dart';
 import 'ui/screens/home_screen.dart';
+import 'ui/theme/app_colors.dart';
 import 'ui/theme/app_theme.dart';
 
 class SyntacApp extends StatefulWidget {
@@ -42,22 +43,37 @@ class _SyntacAppState extends State<SyntacApp> {
   @override
   void initState() {
     super.initState();
+    ErrorWidget.builder = (details) => const ColoredBox(
+      color: Color(0xFF05070C),
+      child: Center(
+        child: Text(
+          'Unable to render content',
+          style: TextStyle(color: Colors.white70),
+        ),
+      ),
+    );
     controller = AppController();
     unawaited(controller.initialize());
   }
 
   @override
   Widget build(BuildContext context) {
+    AppColors.lightMode = controller.lightThemeEnabled;
     return AnimatedBuilder(
       animation: controller,
-      builder: (context, _) => MaterialApp(
-        title: AppIdentity.instance.appDisplayName,
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.darkTheme,
-        darkTheme: AppTheme.darkTheme,
-        themeMode: ThemeMode.dark,
-        home: HomeScreen(controller: controller),
-      ),
+      builder: (context, _) {
+        AppColors.lightMode = controller.lightThemeEnabled;
+        return MaterialApp(
+          title: AppIdentity.instance.appDisplayName,
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.lightTheme,
+          darkTheme: AppTheme.darkTheme,
+          themeMode: controller.lightThemeEnabled
+              ? ThemeMode.light
+              : ThemeMode.dark,
+          home: HomeScreen(controller: controller),
+        );
+      },
     );
   }
 }
@@ -84,28 +100,30 @@ class AppController extends ChangeNotifier {
   ModelsDevCatalog modelsDevCatalog = ModelsDevCatalog.empty();
   ShellRuntimeSettings shellRuntimeSettings = const ShellRuntimeSettings();
   ShellExecutor runtime;
+  RuntimeStatus runtimeStatus = const RuntimeStatus(
+    state: RuntimeState.notInstalled,
+    message: 'Runtime status not checked yet.',
+  );
   bool loading = true;
   String? lastError;
   List<ProjectSummary> projects = <ProjectSummary>[];
   List<Chat> chats = <Chat>[];
   List<ChatMessage> messages = <ChatMessage>[];
+  List<Attachment> attachments = <Attachment>[];
   List<ToolExecution> toolExecutions = <ToolExecution>[];
   List<ProviderConfig> providers = <ProviderConfig>[];
   Map<String, List<ProviderModel>> providerModels =
       <String, List<ProviderModel>>{};
   String? defaultProviderId;
   String? defaultModelName;
-  RuntimeStatus runtimeStatus = const RuntimeStatus(
-    state: RuntimeState.unavailable,
-    message: 'Not checked yet',
-  );
+  bool diagnosticsRunning = false;
+  String? diagnosticsText;
+  bool lightThemeEnabled = false;
+  bool updateChecking = false;
+  UpdateManifest? availableUpdate;
   Project? selectedProject;
   Chat? selectedChat;
   AgentLimits limits = const AgentLimits();
-  bool diagnosticsRunning = false;
-  String? diagnosticsText;
-  bool updateChecking = false;
-  UpdateManifest? availableUpdate;
   String? updateMessage;
 
   AppRepository get repository => _repository!;
@@ -164,8 +182,19 @@ class AppController extends ChangeNotifier {
     if (selectedChat?.id != chatId) return;
     selectedChat = await repository.getChat(chatId);
     messages = await repository.listMessages(chatId);
+    attachments = await _attachmentsForMessages(messages);
     toolExecutions = await repository.listToolExecutions(chatId);
     notifyListeners();
+  }
+
+  Future<List<Attachment>> _attachmentsForMessages(
+    List<ChatMessage> chatMessages,
+  ) async {
+    final messageIds = chatMessages.map((message) => message.id).toSet();
+    if (messageIds.isEmpty) return <Attachment>[];
+    return (await repository.listAllAttachments())
+        .where((attachment) => messageIds.contains(attachment.messageId))
+        .toList(growable: false);
   }
 
   Future<void> refreshAll() async {
@@ -185,7 +214,7 @@ class AppController extends ChangeNotifier {
     defaultProviderId = defaultSelection?['providerId'];
     defaultModelName = defaultSelection?['model'];
     limits = await repository.readAgentLimits();
-    shellRuntimeSettings = await repository.readShellRuntimeSettings();
+    lightThemeEnabled = await repository.readLightTheme();
     runtime = _executorForRuntime(shellRuntimeSettings.selected);
     runtimeStatus = RuntimeStatus(
       state: RuntimeState.notInstalled,
@@ -202,8 +231,17 @@ class AppController extends ChangeNotifier {
       selectedChat = await repository.getChat(selectedChat!.id);
       if (selectedChat != null) {
         messages = await repository.listMessages(selectedChat!.id);
+        attachments = await _attachmentsForMessages(messages);
         toolExecutions = await repository.listToolExecutions(selectedChat!.id);
+      } else {
+        messages = <ChatMessage>[];
+        attachments = <Attachment>[];
+        toolExecutions = <ToolExecution>[];
       }
+    } else {
+      messages = <ChatMessage>[];
+      attachments = <Attachment>[];
+      toolExecutions = <ToolExecution>[];
     }
     notifyListeners();
   }
@@ -261,8 +299,8 @@ class AppController extends ChangeNotifier {
     } catch (error, stackTrace) {
       logDetailedAIError(error, stackTrace, context: 'Project creation failed');
       lastError = Platform.isAndroid
-          ? 'Could not create the project folder. Choose any folder under /storage/emulated/0 and try again.'
-          : 'Could not create the project folder. Check folder permissions and try again.';
+          ? 'Could not create project. Check selected folder permissions.'
+          : error.toString();
       notifyListeners();
     }
   }
@@ -275,6 +313,8 @@ class AppController extends ChangeNotifier {
     selectedChat = null;
     chats = <Chat>[];
     messages = <ChatMessage>[];
+    attachments = <Attachment>[];
+    toolExecutions = <ToolExecution>[];
     await refreshAll();
   }
 
@@ -282,6 +322,7 @@ class AppController extends ChangeNotifier {
     selectedProject = project;
     selectedChat = null;
     messages = <ChatMessage>[];
+    attachments = <Attachment>[];
     toolExecutions = <ToolExecution>[];
     chats = await repository.listChats(project.id);
     notifyListeners();
@@ -290,6 +331,7 @@ class AppController extends ChangeNotifier {
   Future<void> openChat(Chat chat) async {
     selectedChat = chat;
     messages = await repository.listMessages(chat.id);
+    attachments = await _attachmentsForMessages(messages);
     toolExecutions = await repository.listToolExecutions(chat.id);
     notifyListeners();
   }
@@ -314,6 +356,7 @@ class AppController extends ChangeNotifier {
     if (selectedChat?.id == chatId) {
       selectedChat = null;
       messages = <ChatMessage>[];
+      attachments = <Attachment>[];
       toolExecutions = <ToolExecution>[];
     }
     await refreshAll();
@@ -983,6 +1026,13 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> setLightTheme(bool enabled) async {
+    lightThemeEnabled = enabled;
+    AppColors.lightMode = enabled;
+    await repository.saveLightTheme(enabled);
+    notifyListeners();
+  }
+
   Future<void> saveShellRuntime(ShellRuntimeId selected) async {
     shellRuntimeSettings = ShellRuntimeSettings(selected: selected);
     await repository.saveShellRuntimeSettings(shellRuntimeSettings);
@@ -1074,31 +1124,15 @@ class AppController extends ChangeNotifier {
     List<Attachment> attachments,
   ) async {
     final buffer = StringBuffer(text.trim());
-    for (final attachment in attachments.where(
-      (item) => item.kind == AttachmentKind.text,
-    )) {
-      try {
-        final file = File(attachment.path);
-        if (await file.length() > 120000) {
-          buffer.write(
-            '\n\nAttached text file skipped because it is too large: ${attachment.name}',
-          );
-          continue;
-        }
-        buffer.write(
-          '\n\nAttached file: ${attachment.name}\n```\n${await file.readAsString()}\n```',
-        );
-      } catch (error) {
-        buffer.write(
-          '\n\nAttached file unavailable: ${attachment.name}: $error',
-        );
-      }
-    }
-    for (final attachment in attachments.where(
-      (item) => item.kind != AttachmentKind.text,
-    )) {
+    for (var index = 0; index < attachments.length; index++) {
+      final attachment = attachments[index];
+      final uri =
+          'local://attachment-${index + 1}/${Uri.encodeComponent(attachment.name)}';
+      final instruction = attachment.kind == AttachmentKind.image
+          ? 'Use read with includeImage when vision input is supported.'
+          : 'Use read to inspect its bounded contents before editing.';
       buffer.write(
-        '\n\nAttached ${attachment.kind.name} file: ${attachment.name}. Use a multimodal-capable provider when supported.',
+        '\n\nAttached ${attachment.kind.name} file `${attachment.name}` at `$uri`. $instruction',
       );
     }
     return buffer.toString();

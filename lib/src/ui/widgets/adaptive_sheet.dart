@@ -60,7 +60,7 @@ class AdaptiveSheet extends StatelessWidget {
 
     return Container(
       constraints: BoxConstraints(maxHeight: maxH),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
         border: Border(
@@ -113,7 +113,7 @@ class AdaptiveSheet extends StatelessWidget {
               ],
             ),
           ),
-          const Divider(height: 1, color: AppColors.borderSoft),
+          Divider(height: 1, color: AppColors.borderSoft),
           // Scrollable Content
           Flexible(
             child: SingleChildScrollView(padding: padding, child: child),

@@ -321,11 +321,16 @@ class GoogleCloudCodeAssistProvider extends AIProvider {
         });
         continue;
       }
+      final parts = <Map<String, Object?>>[];
       if (message.content.trim().isNotEmpty) {
-        appendContent('user', [
-          {'text': message.content},
-        ]);
+        parts.add({'text': message.content});
       }
+      for (final image in message.images) {
+        parts.add({
+          'inlineData': {'mimeType': image.mimeType, 'data': image.base64Data},
+        });
+      }
+      if (parts.isNotEmpty) appendContent('user', parts);
     }
     flushFunctionResponses();
     final trace = _geminiStructuralTrace({

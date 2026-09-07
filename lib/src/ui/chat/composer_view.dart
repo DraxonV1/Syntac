@@ -152,7 +152,7 @@ class ComposerViewState extends State<ComposerView> {
             ),
             child: Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.memory_outlined,
                   size: 14,
                   color: AppColors.textMuted,
@@ -170,7 +170,7 @@ class ComposerViewState extends State<ComposerView> {
                   ),
                 ),
                 const SizedBox(width: 4),
-                const Icon(
+                Icon(
                   Icons.keyboard_arrow_down,
                   size: 14,
                   color: AppColors.textMuted,
@@ -324,7 +324,7 @@ class ComposerViewState extends State<ComposerView> {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.background,
-        border: const Border(
+        border: Border(
           top: BorderSide(color: AppColors.borderSubtle, width: 1),
         ),
       ),
@@ -376,6 +376,18 @@ class ComposerViewState extends State<ComposerView> {
                 ),
               ],
 
+              // Thinking and effort stay above message input on every screen size.
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
+                child: Row(
+                  children: [
+                    _buildThinkingButton(),
+                    const Spacer(),
+                    _buildEffortButton(),
+                  ],
+                ),
+              ),
+
               // Multiline Text Input
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
@@ -391,7 +403,7 @@ class ComposerViewState extends State<ComposerView> {
                     height: 1.45,
                   ),
                   decoration: InputDecoration(
-                    hintText: 'Send a message or instruction...',
+                    hintText: 'Send a message',
                     hintStyle: AppTypography.bodyMedium.copyWith(
                       color: AppColors.textMuted,
                     ),
@@ -405,47 +417,17 @@ class ComposerViewState extends State<ComposerView> {
                 ),
               ),
 
-              // Primary controls stay on one row; advanced controls move below
-              // them on phone-width windows instead of overflowing horizontally.
+              // Attachment, model, and send controls stay on lower action row.
               Padding(
                 padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final compact = constraints.maxWidth < 440;
-                    final advancedControls = Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [_buildEffortButton(), _buildThinkingButton()],
-                    );
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Row(
-                          children: [
-                            _buildAttachmentButton(),
-                            const SizedBox(width: 8),
-                            Expanded(child: _buildModelButton(modelLabel)),
-                            if (!compact) ...[
-                              const SizedBox(width: 6),
-                              _buildEffortButton(),
-                              const SizedBox(width: 6),
-                              _buildThinkingButton(),
-                            ],
-                            const SizedBox(width: 8),
-                            _buildSendButton(canSend),
-                          ],
-                        ),
-                        if (compact)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 6),
-                            child: Align(
-                              alignment: Alignment.centerLeft,
-                              child: advancedControls,
-                            ),
-                          ),
-                      ],
-                    );
-                  },
+                child: Row(
+                  children: [
+                    _buildAttachmentButton(),
+                    const SizedBox(width: 8),
+                    Expanded(child: _buildModelButton(modelLabel)),
+                    const SizedBox(width: 8),
+                    _buildSendButton(canSend),
+                  ],
                 ),
               ),
             ],

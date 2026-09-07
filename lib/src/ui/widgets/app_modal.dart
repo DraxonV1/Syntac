@@ -16,7 +16,7 @@ Future<T?> showAppBottomSheet<T>({
     enableDrag: enableDrag,
     backgroundColor: AppColors.surface,
     elevation: 16,
-    shape: const RoundedRectangleBorder(
+    shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       side: BorderSide(color: AppColors.border, width: 1),
     ),
@@ -48,7 +48,7 @@ Future<bool> showConfirmDialog(
       backgroundColor: AppColors.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
-        side: const BorderSide(color: AppColors.border, width: 1),
+        side: BorderSide(color: AppColors.border, width: 1),
       ),
       title: Text(title, style: AppTypography.titleLarge),
       content: Text(

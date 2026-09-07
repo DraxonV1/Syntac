@@ -126,6 +126,20 @@ void main() {
     expect(find.byType(Image), findsOneWidget);
   });
 
+  testWidgets('MarkdownContent survives malformed TeX', (tester) async {
+    await tester.pumpWidget(
+      _wrap(
+        const SingleChildScrollView(
+          child: MarkdownContent(content: r'Broken math: $\frac{'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    expect(find.textContaining(r'\frac{'), findsOneWidget);
+  });
+
   testWidgets('ToolCallCard renders collapsed bash and expands on tap', (
     tester,
   ) async {

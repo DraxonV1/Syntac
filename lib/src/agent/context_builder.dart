@@ -12,6 +12,8 @@ class ContextBuilder {
   List<AIChatMessage> build({
     required List<ChatMessage> history,
     String? customSystemPrompt,
+    Map<String, List<AIImagePart>> imagePartsByMessageId =
+        const <String, List<AIImagePart>>{},
   }) {
     final effectiveSystemPrompt =
         customSystemPrompt != null && customSystemPrompt.trim().isNotEmpty
@@ -22,9 +24,20 @@ class ContextBuilder {
     ];
     var used = effectiveSystemPrompt.length;
     for (final message in history.reversed) {
-      final converted = _convert(message);
+      final converted = _convert(
+        message,
+        images:
+            imagePartsByMessageId[message.id] ?? _imagesFromContent(message),
+      );
+      final imageCost = converted.images.fold<int>(
+        0,
+        (total, image) => total + image.base64Data.length,
+      );
       final cost =
-          converted.content.length + (message.metadataJson?.length ?? 0) + 32;
+          converted.content.length +
+          imageCost +
+          (message.metadataJson?.length ?? 0) +
+          32;
       if (maxCharacters > 0 &&
           used + cost > maxCharacters &&
           messages.length > 1) {
@@ -73,7 +86,10 @@ class ContextBuilder {
     }
   }
 
-  AIChatMessage _convert(ChatMessage message) {
+  AIChatMessage _convert(
+    ChatMessage message, {
+    List<AIImagePart> images = const <AIImagePart>[],
+  }) {
     final role = switch (message.role) {
       MessageRole.system => 'system',
       MessageRole.user => 'user',
@@ -84,6 +100,7 @@ class ContextBuilder {
     return AIChatMessage(
       role: role,
       content: message.content,
+      images: images,
       toolCallId: message.toolCallId,
       toolCalls: message.role == MessageRole.assistant
           ? _toolCallsFromMetadata(message.metadataJson)
@@ -92,6 +109,28 @@ class ContextBuilder {
           ? _providerMetadataFromMessage(message.metadataJson)
           : const <String, Object?>{},
     );
+  }
+
+  List<AIImagePart> _imagesFromContent(ChatMessage message) {
+    if (message.role != MessageRole.tool) return const <AIImagePart>[];
+    try {
+      final decoded = jsonDecode(message.content);
+      final result = decoded is Map ? decoded['result'] : null;
+      final uri = result is Map ? result['imageDataUri']?.toString() : null;
+      if (uri == null || !uri.startsWith('data:image/')) {
+        return const <AIImagePart>[];
+      }
+      final separator = uri.indexOf(';base64,');
+      if (separator < 0) return const <AIImagePart>[];
+      final mimeType = uri.substring(5, separator);
+      final base64Data = uri.substring(separator + 8);
+      if (base64Data.isEmpty || base64Data.length > 4_200_000) {
+        return const <AIImagePart>[];
+      }
+      return [AIImagePart(mimeType: mimeType, base64Data: base64Data)];
+    } catch (_) {
+      return const <AIImagePart>[];
+    }
   }
 
   List<AIToolCall>? _toolCallsFromMetadata(String? metadataJson) {

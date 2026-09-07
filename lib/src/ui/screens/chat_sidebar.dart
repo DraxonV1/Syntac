@@ -1,5 +1,7 @@
+// Sidebar navigation with collapsible chats and provider sections.
 import 'package:flutter/material.dart';
 
+import '../../ai/registry/provider_registry.dart';
 import '../../app.dart';
 import '../../models.dart';
 import '../theme/app_colors.dart';
@@ -70,7 +72,12 @@ class _ChatSidebarState extends State<ChatSidebar> {
 
     final activeChat = widget.controller.selectedChat;
     final providers = widget.controller.providers;
-    final activeProvider = providers.firstOrNull;
+    final googleProvider = providers
+        .where(
+          (provider) =>
+              provider.providerKey == ProviderRegistry.googleAntigravity.id,
+        )
+        .firstOrNull;
 
     return Container(
       width: 290,
@@ -103,7 +110,7 @@ class _ChatSidebarState extends State<ChatSidebar> {
                 ],
               ),
             ),
-            const Divider(height: 1, color: AppColors.borderSoft),
+            Divider(height: 1, color: AppColors.borderSoft),
 
             // Project Info Banner
             if (project != null) ...[
@@ -154,7 +161,7 @@ class _ChatSidebarState extends State<ChatSidebar> {
                 style: AppTypography.bodySmall,
                 decoration: InputDecoration(
                   hintText: 'Search chats...',
-                  prefixIcon: const Icon(
+                  prefixIcon: Icon(
                     AppIcons.search,
                     size: 16,
                     color: AppColors.textMuted,
@@ -229,59 +236,47 @@ class _ChatSidebarState extends State<ChatSidebar> {
                       () => _providersExpanded = !_providersExpanded,
                     ),
                   ),
-                  if (_providersExpanded) ...[
-                    if (activeProvider != null)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        child: AppCard(
-                          padding: const EdgeInsets.all(10),
-                          backgroundColor: AppColors.surfaceElevated,
-                          child: Row(
-                            children: [
-                              AppIcons.providerLogo(
-                                activeProvider.providerKey,
-                                size: 16,
+                  if (_providersExpanded)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      child: AppCard(
+                        padding: const EdgeInsets.all(10),
+                        backgroundColor: AppColors.surfaceElevated,
+                        child: Row(
+                          children: [
+                            AppIcons.providerLogo('google', size: 16),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                googleProvider?.name ?? 'Google Antigravity',
+                                style: AppTypography.bodySmall,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  activeProvider.name,
-                                  style: AppTypography.bodySmall,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
+                            ),
+                            Text(
+                              googleProvider == null
+                                  ? 'Not configured'
+                                  : 'Connected',
+                              style: AppTypography.bodySmall.copyWith(
+                                color: googleProvider == null
+                                    ? AppColors.textMuted
+                                    : AppColors.success,
                               ),
-                              const StatusIndicator(
-                                status: ChatStatus.completed,
-                                size: 6,
-                              ),
-                            ],
-                          ),
-                        ),
-                      )
-                    else
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        child: Text(
-                          'No providers configured',
-                          style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.textMuted,
-                          ),
+                            ),
+                          ],
                         ),
                       ),
-                  ],
+                    ),
                 ],
               ),
             ),
 
             // Bottom Navigation: Settings
-            const Divider(height: 1, color: AppColors.borderSoft),
+            Divider(height: 1, color: AppColors.borderSoft),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               child: ListTile(
@@ -290,7 +285,7 @@ class _ChatSidebarState extends State<ChatSidebar> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
-                leading: const Icon(
+                leading: Icon(
                   AppIcons.settings,
                   size: 18,
                   color: AppColors.textSecondary,

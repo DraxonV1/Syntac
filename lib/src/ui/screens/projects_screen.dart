@@ -96,7 +96,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                 style: AppTypography.bodySmall,
                 decoration: InputDecoration(
                   hintText: 'Filter projects...',
-                  prefixIcon: const Icon(
+                  prefixIcon: Icon(
                     Icons.search,
                     size: 16,
                     color: AppColors.textMuted,
@@ -151,7 +151,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: AppColors.border, width: 1),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.folder_open_outlined,
                 size: 24,
                 color: AppColors.textSecondary,
@@ -204,7 +204,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             StatusIndicator(status: status, size: 8),
             const SizedBox(width: 10),
           ] else ...[
-            const Icon(
+            Icon(
               Icons.folder_outlined,
               size: 18,
               color: AppColors.textSecondary,
@@ -269,11 +269,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
           // Options Menu Button
           PopupMenuButton<String>(
-            icon: const Icon(
-              Icons.more_vert,
-              size: 16,
-              color: AppColors.textMuted,
-            ),
+            icon: Icon(Icons.more_vert, size: 16, color: AppColors.textMuted),
             padding: EdgeInsets.zero,
             onSelected: (value) async {
               if (value == 'remove') {

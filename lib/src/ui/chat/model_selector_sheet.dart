@@ -128,7 +128,7 @@ class _ModelSelectorSheetState extends State<ModelSelectorSheet> {
           style: AppTypography.bodySmall,
           decoration: InputDecoration(
             hintText: 'Search models...',
-            prefixIcon: const Icon(
+            prefixIcon: Icon(
               AppIcons.search,
               size: 16,
               color: AppColors.textMuted,
