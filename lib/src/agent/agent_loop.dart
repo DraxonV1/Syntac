@@ -37,6 +37,7 @@ class AgentLoop {
     xaiOAuthRefresh,
     Future<ShellExecutor> Function(Project project)? shellExecutorFactory,
     Future<void> Function(String chatId)? onMessagesChanged,
+    FutureOr<void> Function(ChatMessage message)? onStreamingMessageChanged,
   }) : _modelsDevCatalog = modelsDevCatalog ?? ModelsDevCatalog.empty(),
        _googleOAuthRefresh =
            googleOAuthRefresh ??
@@ -50,6 +51,7 @@ class AgentLoop {
            ((credential) => XAIOAuthFlow().refreshToken(credential)),
        _repository = repository,
        _onMessagesChanged = onMessagesChanged,
+       _onStreamingMessageChanged = onStreamingMessageChanged,
        _shellExecutorFactory =
            shellExecutorFactory ??
            ((project) async => ProjectToolsShellExecutor()),
@@ -82,6 +84,8 @@ class AgentLoop {
   final AIProvider Function(ProviderConfig provider) _providerFactory;
   final Future<ShellExecutor> Function(Project project) _shellExecutorFactory;
   final Future<void> Function(String chatId)? _onMessagesChanged;
+  final FutureOr<void> Function(ChatMessage message)?
+  _onStreamingMessageChanged;
   final Future<OAuthCredential> Function(OAuthCredential credential)
   _googleOAuthRefresh;
   final Future<OAuthCredential> Function(OAuthCredential credential)
@@ -470,12 +474,11 @@ class AgentLoop {
 
     Future<void> persist({bool force = false}) async {
       final now = DateTime.now();
-      if (!force &&
-          buffer.length - lastPersistedLength < 24 &&
-          thinkingBuffer.length - lastPersistedThinkingLength < 24 &&
-          now.difference(lastPersistedAt) < const Duration(milliseconds: 120)) {
-        return;
-      }
+      final shouldPersist =
+          force ||
+          buffer.length - lastPersistedLength >= 24 ||
+          thinkingBuffer.length - lastPersistedThinkingLength >= 24 ||
+          now.difference(lastPersistedAt) >= const Duration(milliseconds: 120);
       assistant = assistant.copyWith(
         content: buffer.toString(),
         metadataJson: jsonEncode(<String, Object?>{
@@ -483,13 +486,23 @@ class AgentLoop {
           if (thinkingBuffer.isNotEmpty) 'thinking': thinkingBuffer.toString(),
         }),
       );
+      final streamingCallback = _onStreamingMessageChanged;
+      if (streamingCallback != null) {
+        await streamingCallback(assistant);
+        if (buffer.isNotEmpty && firstUiDeltaAt == null) {
+          firstUiDeltaAt = DateTime.now();
+        }
+      }
+      if (!shouldPersist) return;
       await _repository.updateMessage(assistant);
       lastPersistedLength = buffer.length;
       lastPersistedThinkingLength = thinkingBuffer.length;
       lastPersistedAt = now;
-      await _onMessagesChanged?.call(chatId);
-      if (buffer.isNotEmpty && firstUiDeltaAt == null) {
-        firstUiDeltaAt = DateTime.now();
+      if (_onStreamingMessageChanged == null) {
+        await _onMessagesChanged?.call(chatId);
+        if (buffer.isNotEmpty && firstUiDeltaAt == null) {
+          firstUiDeltaAt = DateTime.now();
+        }
       }
     }
 

@@ -2221,6 +2221,7 @@ void main() {
       modelId: model.id,
     );
     final snapshots = <String>[];
+    final directSnapshots = <String>[];
     final loop = AgentLoop(
       repository: repo,
       providerFactory: (_) => SlowStreamingProvider(),
@@ -2232,11 +2233,15 @@ void main() {
           snapshots.add(assistantMessages.last.content);
         }
       },
+      onStreamingMessageChanged: (message) {
+        directSnapshots.add(message.content);
+      },
     );
 
     await loop.send(project: project, chat: chat, userText: 'hello');
 
-    expect(snapshots, contains('He'));
+    expect(directSnapshots, containsAll(<String>['H', 'He', 'Hello']));
+    expect(snapshots, contains('Hello'));
     expect(snapshots.last, 'Hello');
     final assistant = (await repo.listMessages(
       chat.id,

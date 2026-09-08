@@ -149,6 +149,7 @@ class AppController extends ChangeNotifier {
         modelsDevCatalog: modelsDevCatalog,
         shellExecutorFactory: _runtimeExecutorForProject,
         onMessagesChanged: _refreshChatMessages,
+        onStreamingMessageChanged: _updateStreamingMessage,
       );
       await repository.reconcileStaleRunningJobs();
       await refreshAll();
@@ -187,6 +188,16 @@ class AppController extends ChangeNotifier {
     messages = await repository.listMessages(chatId);
     attachments = await _attachmentsForMessages(messages);
     toolExecutions = await repository.listToolExecutions(chatId);
+    notifyListeners();
+  }
+
+  void _updateStreamingMessage(ChatMessage message) {
+    if (selectedChat?.id != message.chatId) return;
+    final index = messages.indexWhere((item) => item.id == message.id);
+    if (index < 0) return;
+    final updated = List<ChatMessage>.of(messages);
+    updated[index] = message;
+    messages = updated;
     notifyListeners();
   }
 
