@@ -19,10 +19,89 @@ class ToolFailure implements Exception {
 
 typedef ToolUpdateCallback = FutureOr<void> Function(Map<String, Object?>);
 
+enum CommandRisk {
+  readOnly,
+  workspaceWrite,
+  destructive,
+  network,
+  packageInstall,
+  persistentService,
+}
+
+class CommandApprovalRequest {
+  const CommandApprovalRequest({
+    required this.command,
+    required this.workingDirectory,
+    required this.runtime,
+    required this.risk,
+    required this.reason,
+    required this.timeout,
+    required this.background,
+  });
+
+  final String command;
+  final String workingDirectory;
+  final String runtime;
+  final CommandRisk risk;
+  final String reason;
+  final Duration timeout;
+  final bool background;
+}
+
+typedef CommandApprovalHandler =
+    Future<bool> Function(CommandApprovalRequest request);
+
+CommandRisk assessCommandRisk(String command, {bool background = false}) {
+  final normalized = command.trim();
+  if (RegExp(
+    r'\brm\s+-[^\n]*r|'
+    r'\bmkfs(?:\.|[ \t])|\bdd\s+if=|\bgit\s+reset\s+--hard|'
+    r'\bshutdown\b|\breboot\b',
+    caseSensitive: false,
+  ).hasMatch(normalized)) {
+    return CommandRisk.destructive;
+  }
+  if (RegExp(
+    r'\b(?:pacman\s+-[^\n]*S|apt(?:-get)?\s+install|apk\s+add|'
+    r'(?:pip|pip3|npm|pnpm|yarn|cargo)\s+(?:install|add))\b',
+    caseSensitive: false,
+  ).hasMatch(normalized)) {
+    return CommandRisk.packageInstall;
+  }
+  final network = RegExp(
+    r'\b(curl|wget|cloudflared|nc|ncat|netcat|uvicorn|gunicorn)\b|python(?:3)?\s+-m\s+http\.server',
+    caseSensitive: false,
+  ).hasMatch(normalized);
+  if (background && network) return CommandRisk.persistentService;
+  if (network) return CommandRisk.network;
+  if (RegExp(
+    r'(?:^|[;&|])[ \t]*(?:tee|mv|cp|touch|mkdir)\b|>>?|2>>?|sed\s+-i\b',
+    caseSensitive: false,
+  ).hasMatch(normalized)) {
+    return CommandRisk.workspaceWrite;
+  }
+  return CommandRisk.readOnly;
+}
+
+bool commandRequiresApproval(CommandRisk risk) =>
+    risk == CommandRisk.destructive ||
+    risk == CommandRisk.packageInstall ||
+    risk == CommandRisk.persistentService;
+
+String commandRiskLabel(CommandRisk risk) => switch (risk) {
+  CommandRisk.readOnly => 'read-only',
+  CommandRisk.workspaceWrite => 'workspace write',
+  CommandRisk.destructive => 'destructive',
+  CommandRisk.network => 'network',
+  CommandRisk.packageInstall => 'package install',
+  CommandRisk.persistentService => 'persistent service',
+};
+
 class ToolContext {
   ToolContext({
     required this.projectRoot,
     required this.shellExecutor,
+    this.commandApproval,
     this.attachments = const <Attachment>[],
     this.maxReadBytes = 200000,
     this.maxSearchResults = 80,
@@ -31,6 +110,7 @@ class ToolContext {
 
   final String projectRoot;
   final ShellExecutor shellExecutor;
+  final CommandApprovalHandler? commandApproval;
   final List<Attachment> attachments;
   final int maxReadBytes;
   final int maxSearchResults;

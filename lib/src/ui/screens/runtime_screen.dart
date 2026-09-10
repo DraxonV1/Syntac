@@ -209,10 +209,16 @@ class _RuntimeScreenState extends State<RuntimeScreen>
             ),
           ),
           const SizedBox(height: 16),
-
           // Environment Details
           _buildEnvironmentCard(isLandscape),
           const SizedBox(height: 16),
+
+          // Persistent jobs
+          if (selectedRuntime == ShellRuntimeId.archLinux &&
+              status.jobs.isNotEmpty) ...[
+            _buildJobsCard(status.jobs),
+            const SizedBox(height: 16),
+          ],
 
           // Runtime Selection
           Text('SELECT ACTIVE RUNTIME', style: AppTypography.label),
@@ -367,6 +373,66 @@ class _RuntimeScreenState extends State<RuntimeScreen>
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildJobsCard(List<Map<String, Object?>> jobs) {
+    return AppCard(
+      padding: const EdgeInsets.all(14),
+      backgroundColor: AppColors.surfaceElevated,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('PERSISTENT JOBS', style: AppTypography.label),
+          const SizedBox(height: 8),
+          for (final job in jobs) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${job['state'] ?? 'unknown'}  ${job['jobId'] ?? ''}',
+                    style: AppTypography.bodySmall,
+                  ),
+                ),
+                if (job['state'] == 'running')
+                  AppButton(
+                    label: 'Stop',
+                    variant: AppButtonVariant.danger,
+                    compact: true,
+                    onPressed: () => widget.controller.stopLocalRuntimeJob(
+                      job['jobId']?.toString() ?? '',
+                    ),
+                  )
+                else
+                  AppButton(
+                    label: 'Restart',
+                    variant: AppButtonVariant.ghost,
+                    compact: true,
+                    onPressed: () => widget.controller.restartLocalRuntimeJob(
+                      job['jobId']?.toString() ?? '',
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              job['command']?.toString() ?? '',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+            if (job['stdoutPreview']?.toString().isNotEmpty == true)
+              SelectableText(
+                job['stdoutPreview']!.toString(),
+                maxLines: 3,
+                style: AppTypography.bodySmall,
+              ),
+            if (job != jobs.last) const Divider(height: 16),
+          ],
         ],
       ),
     );

@@ -9,10 +9,50 @@ mixin BashTool on ToolContext {
   Future<Map<String, Object?>> runBash(
     String command, {
     required Duration timeout,
+    bool background = false,
     CancellationToken? cancellationToken,
     ToolUpdateCallback? onUpdate,
   }) async {
     if (command.trim().isEmpty) throw ToolFailure('Command is required');
+    final risk = assessCommandRisk(command, background: background);
+    if (commandRequiresApproval(risk)) {
+      final approval = commandApproval;
+      if (approval == null) {
+        return {
+          'command': command,
+          'workingDirectory': projectRoot,
+          'success': false,
+          'runtime': shellExecutor.runtimeId,
+          'category': 'command_approval_required',
+          'failureKind': 'command_approval_required',
+          'risk': commandRiskLabel(risk),
+          'message': 'Command requires explicit user approval.',
+        };
+      }
+      final approved = await approval(
+        CommandApprovalRequest(
+          command: command,
+          workingDirectory: projectRoot,
+          runtime: shellExecutor.runtimeId,
+          risk: risk,
+          reason: 'Shell command classified as ${commandRiskLabel(risk)}.',
+          timeout: timeout,
+          background: background,
+        ),
+      );
+      if (!approved) {
+        return {
+          'command': command,
+          'workingDirectory': projectRoot,
+          'success': false,
+          'runtime': shellExecutor.runtimeId,
+          'category': 'command_denied',
+          'failureKind': 'command_denied',
+          'risk': commandRiskLabel(risk),
+          'message': 'User denied command execution.',
+        };
+      }
+    }
     var liveStdout = '';
     var liveStderr = '';
     var liveStdoutTruncated = false;
@@ -23,6 +63,7 @@ mixin BashTool on ToolContext {
       command: command,
       workingDirectory: projectRoot,
       timeout: timeout,
+      background: background,
       cancellationToken: cancellationToken,
       onOutput: onUpdate == null
           ? null
@@ -94,7 +135,9 @@ mixin BashTool on ToolContext {
       json.putIfAbsent('stderrOriginalLength', () => result.stderr.length);
     }
     final failureKind = result.failureKind;
-    final category = result.cancelled
+    final category = result.background
+        ? 'background_started'
+        : result.cancelled
         ? 'cancelled'
         : failureKind == 'TermuxBackgroundRestricted'
         ? 'termux_background_restricted'
@@ -111,6 +154,7 @@ mixin BashTool on ToolContext {
       'success': result.success,
       'runtime': shellExecutor.runtimeId,
       'category': category,
+      'risk': commandRiskLabel(risk),
       ...?failureKind == null ? null : {'failureKind': failureKind},
       if (result.timedOut)
         'message': 'Command exceeded ${timeout.inSeconds} seconds.',

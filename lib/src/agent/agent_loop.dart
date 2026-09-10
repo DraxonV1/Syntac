@@ -22,6 +22,7 @@ import '../models.dart';
 import '../runtime/shell_executor.dart';
 import '../storage/app_repository.dart';
 import '../tools/agent_tools.dart';
+import '../tools/tool_context.dart';
 import 'context_builder.dart';
 
 class AgentLoop {
@@ -36,6 +37,7 @@ class AgentLoop {
     Future<OAuthCredential> Function(OAuthCredential credential)?
     xaiOAuthRefresh,
     Future<ShellExecutor> Function(Project project)? shellExecutorFactory,
+    CommandApprovalHandler? commandApproval,
     Future<void> Function(String chatId)? onMessagesChanged,
     FutureOr<void> Function(ChatMessage message)? onStreamingMessageChanged,
   }) : _modelsDevCatalog = modelsDevCatalog ?? ModelsDevCatalog.empty(),
@@ -55,6 +57,7 @@ class AgentLoop {
        _shellExecutorFactory =
            shellExecutorFactory ??
            ((project) async => ProjectToolsShellExecutor()),
+       _commandApproval = commandApproval,
        _providerFactory =
            providerFactory ??
            ((provider) =>
@@ -82,6 +85,7 @@ class AgentLoop {
   final AppRepository _repository;
   final ModelsDevCatalog _modelsDevCatalog;
   final AIProvider Function(ProviderConfig provider) _providerFactory;
+  CommandApprovalHandler? _commandApproval;
   final Future<ShellExecutor> Function(Project project) _shellExecutorFactory;
   final Future<void> Function(String chatId)? _onMessagesChanged;
   final FutureOr<void> Function(ChatMessage message)?
@@ -96,6 +100,9 @@ class AgentLoop {
       <String, CancellationToken>{};
 
   bool isChatRunning(String chatId) => _activeRuns.containsKey(chatId);
+  void setCommandApprovalHandler(CommandApprovalHandler? handler) {
+    _commandApproval = handler;
+  }
 
   Future<void> stop(String chatId) async {
     final token = _activeRuns[chatId];
@@ -196,6 +203,7 @@ class AgentLoop {
       final tools = ProjectTools(
         projectRoot: project.folderPath,
         shellExecutor: await _runtimeExecutorForProject(project),
+        commandApproval: _commandApproval,
         attachments: attachments,
       );
       final ai = _providerFactory(provider);

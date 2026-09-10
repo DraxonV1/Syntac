@@ -47,6 +47,27 @@ class MainActivity : FlutterActivity() {
                     result.success(null)
                 }
                 "localRuntimeStatus" -> result.success(localRuntime.status())
+                "localRuntimeJobs" -> result.success(localRuntime.jobs())
+                "localRuntimeJobStatus" -> {
+                    val id = (call.arguments as? Map<*, *>)?.get("id")?.toString().orEmpty()
+                    result.success(localRuntime.jobStatus(id))
+                }
+                "localRuntimeJobLogs" -> {
+                    val args = call.arguments as? Map<*, *>
+                    val id = args?.get("id")?.toString().orEmpty()
+                    val maxCharacters = (args?.get("maxCharacters") as? Number)?.toInt() ?: 200_000
+                    result.success(localRuntime.jobLogs(id, maxCharacters))
+                }
+                "stopLocalRuntimeJob" -> {
+                    val id = (call.arguments as? Map<*, *>)?.get("id")?.toString().orEmpty()
+                    result.success(localRuntime.stopJob(id))
+                }
+                "restartLocalRuntimeJob" -> {
+                    val id = (call.arguments as? Map<*, *>)?.get("id")?.toString().orEmpty()
+                    result.success(localRuntime.restartJob(id))
+                }
+                "stopAllLocalRuntimeJobs" -> result.success(localRuntime.stopAllJobs())
+                "localRuntimeNetworkDiagnostics" -> localRuntime.networkDiagnostics(result)
                 "installLocalRuntime" -> localRuntime.install(result)
                 "retryLocalRuntimeTest" -> localRuntime.retrySelfTest(result)
                 "removeLocalRuntime" -> runLocalRuntimeRemove(result)

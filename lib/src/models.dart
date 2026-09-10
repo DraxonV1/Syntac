@@ -767,6 +767,7 @@ class RuntimeStatus {
     required this.state,
     required this.message,
     this.details,
+    this.jobs = const <Map<String, Object?>>[],
   });
 
   factory RuntimeStatus.fromMap(Map<Object?, Object?> map) => RuntimeStatus(
@@ -777,16 +778,22 @@ class RuntimeStatus {
     ),
     message: map['message']?.toString() ?? '',
     details: map['details']?.toString(),
+    jobs: (map['jobs'] as List<Object?>? ?? const <Object?>[])
+        .whereType<Map<Object?, Object?>>()
+        .map((job) => job.map((key, value) => MapEntry(key.toString(), value)))
+        .toList(growable: false),
   );
 
   final RuntimeState state;
   final String message;
   final String? details;
+  final List<Map<String, Object?>> jobs;
 
   Map<String, Object?> toMap() => {
     'state': state.name,
     'message': message,
     'details': details,
+    'jobs': jobs,
   };
 }
 

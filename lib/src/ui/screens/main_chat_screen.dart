@@ -22,9 +22,11 @@ import '../theme/app_motion.dart';
 import '../theme/app_typography.dart';
 import '../widgets/app_buttons.dart';
 import 'chat_sidebar.dart';
+import '../widgets/app_modal.dart';
 import 'chats_screen.dart';
 import 'providers_screen.dart';
 import 'runtime_screen.dart';
+import '../../tools/tool_context.dart';
 import 'settings_screen.dart';
 
 /// Comprehensive Project Workspace & Chat Screen supporting both center hamburger
@@ -44,6 +46,38 @@ class _MainChatScreenState extends State<MainChatScreen> {
       GlobalKey<ComposerViewState>();
   final List<Attachment> _pendingAttachments = <Attachment>[];
   AIReasoningEffort _reasoningEffort = AIReasoningEffort.medium;
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.setCommandApprovalHandler(_requestCommandApproval);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.setCommandApprovalHandler(null);
+    super.dispose();
+  }
+
+  Future<bool> _requestCommandApproval(CommandApprovalRequest request) async {
+    if (!mounted) return false;
+    return showConfirmDialog(
+      context,
+      title: 'Approve shell command',
+      message: [
+        'Risk: ${commandRiskLabel(request.risk)}',
+        'Runtime: ${request.runtime}',
+        'Working directory: ${request.workingDirectory}',
+        'Timeout: ${request.timeout == Duration.zero ? 'none' : '${request.timeout.inSeconds}s'}',
+        if (request.background) 'Mode: persistent background job',
+        '',
+        request.command,
+      ].join('\n'),
+      confirmLabel: 'Run command',
+      cancelLabel: 'Deny',
+      isDestructive: request.risk == CommandRisk.destructive,
+    );
+  }
+
   bool _thinkingEnabled = true;
   bool _showThinkingAutomatically = true;
 

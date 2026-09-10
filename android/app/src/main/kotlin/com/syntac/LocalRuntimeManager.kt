@@ -25,16 +25,21 @@ class LocalRuntimeManager(
 ) {
     private val active = ConcurrentHashMap<String, Process>()
     private val cancelled = ConcurrentHashMap.newKeySet<String>()
+    private val supervisor = RuntimeJobSupervisor.get(activity.applicationContext)
     private var last = LocalRunResult()
     @Volatile private var installRunning = false
     private val nativeDir = File(activity.applicationInfo.nativeLibraryDir)
     private val launcher = File(nativeDir, "libsyntac_proot.so")
 
+    init {
+        supervisor.bindOutput(emitCommandOutput)
+    }
+
     private fun startBackgroundWork() {
         try {
             ContextCompat.startForegroundService(
-                activity,
-                Intent(activity, RuntimeForegroundService::class.java)
+                activity.applicationContext,
+                Intent(activity.applicationContext, RuntimeForegroundService::class.java)
                     .setAction(RuntimeForegroundService.actionStart),
             )
         } catch (_: Exception) {
@@ -43,8 +48,10 @@ class LocalRuntimeManager(
     }
 
     private fun stopBackgroundWorkIfIdle() {
-        if (!installRunning && active.isEmpty()) {
-            activity.stopService(Intent(activity, RuntimeForegroundService::class.java))
+        if (!installRunning && active.isEmpty() && !supervisor.hasActiveJobs()) {
+            activity.applicationContext.stopService(
+                Intent(activity.applicationContext, RuntimeForegroundService::class.java),
+            )
         }
     }
     private val runtimeDir = File(activity.filesDir, "runtime")
@@ -78,7 +85,12 @@ class LocalRuntimeManager(
             "error" -> current?.optString("message", "ARCH Linux Runtime needs reinstall or reset.") ?: "ARCH Linux Runtime needs reinstall or reset."
             else -> "ARCH Linux Runtime is not installed."
         }
-        return mapOf("state" to state, "message" to message, "details" to lightweightDetails(state, current))
+        return mapOf(
+            "state" to state,
+            "message" to message,
+            "details" to lightweightDetails(state, current),
+            "jobs" to supervisor.list(),
+        )
     }
 
     fun install(result: MethodChannel.Result) {
@@ -118,8 +130,9 @@ class LocalRuntimeManager(
     fun remove(): Map<String, Any?> {
         active.forEach { (id, process) ->
             cancelled.add(id)
-            process.destroyForcibly()
+            killProcessTree(process)
         }
+        supervisor.stopAll()
         active.clear()
         runtimeDir.deleteRecursively()
         last = LocalRunResult()
@@ -131,7 +144,8 @@ class LocalRuntimeManager(
         val id = args?.get("id")?.toString().orEmpty()
         val command = args?.get("command")?.toString().orEmpty()
         val workDir = args?.get("workingDirectory")?.toString().orEmpty()
-        val timeout = (args?.get("timeoutSeconds") as? Number)?.toLong()?.takeIf { it > 0 } ?: 120L
+        val timeout = (args?.get("timeoutSeconds") as? Number)?.toLong() ?: 120L
+        val background = args?.get("background") == true || args?.get("async") == true
         val activeProject = parseProject(args?.get("activeProject") as? Map<*, *>) ?: BoundProject(File(workDir.ifBlank { runtimeDir.absolutePath }), mountNameForPath(workDir.ifBlank { "project" }))
         val projects = parseProjects(args?.get("availableProjects")).ifEmpty { listOf(activeProject) }
         startBackgroundWork()
@@ -141,6 +155,7 @@ class LocalRuntimeManager(
                 when {
                     id.isBlank() || command.isBlank() -> runFailure("runtime_exec_failed", "id and command are required")
                     !runtimeMetadataMatches(metadata()) || !validation.ready -> runFailure("local_runtime_not_installed", "ARCH Linux Runtime is not installed. Arch rootfs validation: ${validation.summary}")
+                    background -> startPersistentCommand(id, command, activeProject, projects)
                     else -> execute(id, command, activeProject, projects, timeout)
                 }
             } catch (error: Throwable) {
@@ -154,7 +169,47 @@ class LocalRuntimeManager(
 
     fun cancel(id: String) {
         cancelled.add(id)
-        active.remove(id)?.destroyForcibly()
+        active.remove(id)?.let(::killProcessTree)
+        supervisor.stop(id)
+    }
+
+    fun jobs(): List<Map<String, Any?>> = supervisor.list()
+
+    fun jobStatus(id: String): Map<String, Any?> =
+        supervisor.status(id) ?: mapOf("success" to false, "failureKind" to "runtime_job_not_found", "stderr" to "Runtime job not found")
+
+    fun jobLogs(id: String, maxCharacters: Int = 200_000): Map<String, Any?> =
+        supervisor.logs(id, maxCharacters)
+
+    fun stopJob(id: String): Map<String, Any?> {
+        val output = supervisor.stop(id)
+        stopBackgroundWorkIfIdle()
+        return output
+    }
+
+    fun restartJob(id: String): Map<String, Any?> {
+        startBackgroundWork()
+        return supervisor.restart(id)
+    }
+
+    fun stopAllJobs(): List<Map<String, Any?>> {
+        val output = supervisor.stopAll()
+        stopBackgroundWorkIfIdle()
+        return output
+    }
+
+    fun networkDiagnostics(result: MethodChannel.Result) {
+        startBackgroundWork()
+        Thread {
+            val output = try {
+                runNetworkDiagnostics()
+            } catch (error: Throwable) {
+                mapOf("success" to false, "category" to "runtime_network_failure", "error" to safe(error))
+            } finally {
+                stopBackgroundWorkIfIdle()
+            }
+            activity.runOnUiThread { result.success(output) }
+        }.start()
     }
 
     private fun runFailure(kind: String, message: String): Map<String, Any?> = LocalRunResult(
@@ -297,6 +352,64 @@ class LocalRuntimeManager(
         last = result
         return result.toMap()
     }
+    private fun startPersistentCommand(id: String, command: String, activeProject: BoundProject?, projects: List<BoundProject>): Map<String, Any?> {
+        storagePreflightForPackageCommand(command)?.let { return it }
+        val commandSpec = runtimeCommand(command, activeProject, projects)
+        val output = supervisor.start(
+            RuntimeJobSupervisor.StartRequest(
+                id = id,
+                command = safeArgv(commandSpec.args),
+                argv = commandSpec.args,
+                workingDirectory = activeProject?.host ?: runtimeDir,
+                environment = runtimeEnvironment(),
+                ports = portsFromCommand(command),
+            ),
+        ).toMutableMap()
+        output["runtime"] = "archLinux"
+        output["command"] = safeArgv(commandSpec.args)
+        output["workingDirectory"] = "<project>"
+        return output
+    }
+
+    private fun runNetworkDiagnostics(): Map<String, Any?> {
+        val checks = linkedMapOf(
+            "resolvConf" to runNetworkProbe("test -s /etc/resolv.conf", "resolv_conf"),
+            "caCertificates" to runNetworkProbe("test -s /etc/ssl/certs/ca-certificates.crt", "ca_certificates"),
+            "dns" to runNetworkProbe("getent hosts example.com >/dev/null 2>&1", "dns"),
+            "https" to runNetworkProbe("curl -fsS --max-time 8 -o /dev/null https://example.com", "https"),
+        )
+        val failed = checks.filterValues { it["success"] != true }.keys
+        return mapOf(
+            "success" to failed.isEmpty(),
+            "category" to if (failed.isEmpty()) "runtime_network_ready" else "runtime_network_failure",
+            "checks" to checks.mapValues { (_, value) ->
+                mapOf(
+                    "success" to (value["success"] == true),
+                    "exitCode" to value["exitCode"],
+                    "failureKind" to value["failureKind"],
+                )
+            },
+            "failedChecks" to failed.toList(),
+        )
+    }
+
+    private fun runNetworkProbe(command: String, id: String): Map<String, Any?> {
+        val result = runProot(
+            "network-$id-${System.currentTimeMillis()}",
+            minimalRuntimeCommand(command),
+            runtimeDir,
+            15L,
+            safeArgv(minimalRuntimeCommand(command)),
+        )
+        return result.toMap()
+    }
+
+    private fun portsFromCommand(command: String): List<Int> =
+        Regex("""(?:--port|-p|127\.0\.0\.1:|0\.0\.0\.0:)(\d{2,5})""")
+            .findAll(command)
+            .mapNotNull { it.groupValues.getOrNull(1)?.toIntOrNull() }
+            .distinct()
+            .toList()
 
     private fun minimalRuntimeCommand(command: String, shell: String = "/bin/sh", shellFlag: String = "-c"): List<String> = buildList {
         add(launcher.absolutePath)
@@ -434,8 +547,13 @@ class LocalRuntimeManager(
         val stderr = readAsync(process.errorStream) { text, snapshot, truncated, originalLength ->
             outputCommandId?.let { emitRuntimeOutput(it, "stderr", text, snapshot, truncated, originalLength) }
         }
-        val finished = process.waitFor(timeout, TimeUnit.SECONDS)
-        if (!finished) process.destroyForcibly()
+        val finished = if (timeout > 0L) {
+            process.waitFor(timeout, TimeUnit.SECONDS)
+        } else {
+            process.waitFor()
+            true
+        }
+        if (!finished) killProcessTree(process)
         val code = if (finished) process.exitValue() else -1
         active.remove(id)
         val wasCancelled = cancelled.remove(id)
@@ -457,10 +575,63 @@ class LocalRuntimeManager(
     }
 
     private fun configureProotEnvironment(builder: ProcessBuilder) {
-        val env = builder.environment()
-        env.clear()
-        env["PROOT_TMP_DIR"] = prepareProotTmpDir().absolutePath
-        env["PROOT_LOADER"] = File(nativeDir, "libsyntac_proot_loader.so").absolutePath
+        builder.environment().apply {
+            clear()
+            putAll(runtimeEnvironment())
+        }
+    }
+
+    private fun runtimeEnvironment(): Map<String, String> {
+        val environment = mutableMapOf(
+            "HOME" to "/root",
+            "PATH" to "/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/sbin:/bin",
+            "TMPDIR" to "/tmp",
+            "TMP" to "/tmp",
+            "TEMP" to "/tmp",
+            "TERM" to "xterm-256color",
+            "LANG" to "C.UTF-8",
+            "LC_ALL" to "C.UTF-8",
+            "SSL_CERT_FILE" to "/etc/ssl/certs/ca-certificates.crt",
+            "SSL_CERT_DIR" to "/etc/ssl/certs",
+            "PROOT_TMP_DIR" to prepareProotTmpDir().absolutePath,
+            "PROOT_LOADER" to File(nativeDir, "libsyntac_proot_loader.so").absolutePath,
+        )
+        listOf(
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "ALL_PROXY",
+            "NO_PROXY",
+            "http_proxy",
+            "https_proxy",
+            "all_proxy",
+            "no_proxy",
+        ).forEach { key ->
+            System.getenv(key)?.takeIf { it.isNotBlank() }?.let { value ->
+                environment[key] = value
+            }
+        }
+        return environment
+    }
+
+    private fun processPid(process: Process): Long = try {
+        val field = process.javaClass.getDeclaredField("pid")
+        field.isAccessible = true
+        field.getLong(process)
+    } catch (_: Throwable) {
+        -1L
+    }
+
+    private fun killProcessTree(process: Process) {
+        val pid = processPid(process)
+        if (pid > 0L) {
+            try { Runtime.getRuntime().exec(arrayOf("/system/bin/kill", "-TERM", "-$pid")) } catch (_: Throwable) {}
+        }
+        try { process.destroy() } catch (_: Throwable) {}
+        try {
+            if (!process.waitFor(2, TimeUnit.SECONDS)) process.destroyForcibly()
+        } catch (_: Throwable) {
+            try { process.destroyForcibly() } catch (_: Throwable) {}
+        }
     }
 
     private fun initializeRootfs(rootfs: File) {
@@ -741,6 +912,7 @@ class LocalRuntimeManager(
         "Expected installed size: ${ArchRuntimeManifest.rootfsBundle.installedSizeBytes}",
         "Free app storage: ${activity.filesDir.usableSpace}",
         "Last error: ${current?.optString("lastInstallException", "none") ?: "none"}",
+        supervisor.summary(),
     ).joinToString("\n")
 
     private fun diagnostics(installed: Boolean): String {
@@ -830,6 +1002,10 @@ class LocalRuntimeManager(
             "Last stdout preview: ${last.stdout.take(400)}",
             "Last stderr preview: ${last.stderr.take(400)}",
             "Last runtime error: ${last.errorCategory}",
+            "Environment PATH: /usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/sbin:/bin",
+            "Environment HOME: /root",
+            "Environment CA bundle: /etc/ssl/certs/ca-certificates.crt",
+            supervisor.summary(),
         )
         return lines.joinToString("\n")
     }

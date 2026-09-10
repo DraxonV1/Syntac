@@ -27,6 +27,7 @@ class ProjectTools extends ToolContext
   ProjectTools({
     required super.projectRoot,
     required super.shellExecutor,
+    super.commandApproval,
     super.attachments,
     super.maxReadBytes,
     super.maxSearchResults,
@@ -152,7 +153,13 @@ class ProjectTools extends ToolContext
         'command': _string('Command'),
         'timeout_seconds': {
           'type': 'integer',
-          'description': 'Optional timeout in seconds, 1-1800',
+          'description':
+              'Optional timeout in seconds, 0 disables deadline, 1-1800 otherwise',
+        },
+        'background': {
+          'type': 'boolean',
+          'description':
+              'Start durable ARCH Linux Runtime job and return jobId.',
         },
       },
       ['command'],
@@ -181,10 +188,9 @@ class ProjectTools extends ToolContext
       },
     },
   };
-
   static int _timeoutSeconds(Object? raw, Duration? fallback) {
     final parsed = raw is int ? raw : int.tryParse(raw?.toString() ?? '');
-    return (parsed ?? fallback?.inSeconds ?? 120).clamp(1, 1800).toInt();
+    return (parsed ?? fallback?.inSeconds ?? 120).clamp(0, 1800).toInt();
   }
 
   Future<Map<String, Object?>> execute(
@@ -247,6 +253,7 @@ class ProjectTools extends ToolContext
               commandTimeout,
             ),
           ),
+          background: args['background'] == true || args['async'] == true,
           cancellationToken: cancellationToken,
           onUpdate: onUpdate,
         ),

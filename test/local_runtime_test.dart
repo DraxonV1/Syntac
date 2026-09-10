@@ -5,6 +5,7 @@ import 'package:syntac/src/core/cancellation.dart';
 import 'package:syntac/src/models.dart';
 import 'package:syntac/src/runtime/shell_executor.dart';
 import 'package:syntac/src/tools/agent_tools.dart';
+import 'package:syntac/src/tools/tool_context.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -322,6 +323,73 @@ Rootfs installed: true
     expect(_validRootfsPath('/rootfs', '/bin/bash', fs), isTrue);
     expect(fs, isNot(contains('/bin/bash')));
   });
+  test('background command results preserve durable job identity', () {
+    final result = CommandResult.fromMap({
+      'stdout': '',
+      'stderr': '',
+      'exitCode': 0,
+      'background': true,
+      'jobId': 'job-123',
+      'timedOut': false,
+      'cancelled': false,
+    }, Duration.zero);
+
+    expect(result.success, isTrue);
+    expect(result.background, isTrue);
+    expect(result.jobId, 'job-123');
+    expect(result.toJson()['jobId'], 'job-123');
+  });
+
+  test('bash requires approval for package installation', () async {
+    final tools = ProjectTools(
+      projectRoot: '.',
+      shellExecutor: _StaticShellExecutor(
+        const CommandResult(
+          stdout: '',
+          stderr: '',
+          exitCode: 0,
+          duration: Duration.zero,
+          timedOut: false,
+          cancelled: false,
+        ),
+      ),
+      commandApproval: (request) async =>
+          request.risk == CommandRisk.packageInstall,
+    );
+
+    final result = await tools.runBash(
+      'pacman -S curl',
+      timeout: const Duration(seconds: 5),
+    );
+
+    expect(result['success'], isTrue);
+    expect(result['risk'], 'package install');
+  });
+
+  test('bash denies destructive command without approval handler', () async {
+    final tools = ProjectTools(
+      projectRoot: '.',
+      shellExecutor: _StaticShellExecutor(
+        const CommandResult(
+          stdout: '',
+          stderr: '',
+          exitCode: 0,
+          duration: Duration.zero,
+          timedOut: false,
+          cancelled: false,
+        ),
+      ),
+    );
+
+    final result = await tools.runBash(
+      'rm -rf build',
+      timeout: const Duration(seconds: 5),
+    );
+
+    expect(result['success'], isFalse);
+    expect(result['category'], 'command_approval_required');
+    expect(result['risk'], 'destructive');
+  });
 }
 
 class _StaticShellExecutor implements ShellExecutor {
@@ -340,6 +408,7 @@ class _StaticShellExecutor implements ShellExecutor {
     required String command,
     required String workingDirectory,
     required Duration timeout,
+    bool background = false,
     CancellationToken? cancellationToken,
     CommandOutputCallback? onOutput,
   }) async => result;

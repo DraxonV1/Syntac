@@ -10,8 +10,8 @@ class AppIdentity {
     this.tagline = 'Autonomous mobile coding environment',
     this.developerName = 'DraxonV1',
     this.repositoryUrl = 'https://github.com/DraxonV1/Syntac',
-    this.version = '0.1.1-beta.2',
-    this.versionCode = 12,
+    this.version = '0.1.1-beta.3',
+    this.versionCode = 13,
     this.updateChannel = 'beta',
   });
 

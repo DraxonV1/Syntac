@@ -21,7 +21,7 @@ Open a project folder on your phone, connect an AI provider, chat about code, in
 - Developer: **DraxonV1**
 - Repository: <https://github.com/DraxonV1/Syntac>
 - Android package: `com.syntac`
-- Current version: `0.1.1-beta.2` (`versionCode` 12)
+- Current version: `0.1.1-beta.3` (`versionCode` 13)
 - Default update channel: **beta**
 
 ## Overview
@@ -97,7 +97,7 @@ Channels:
 Current beta APK target:
 
 ```text
-https://github.com/DraxonV1/Syntac/releases/download/v0.1.1-beta.2/syntac-arm64.apk
+https://github.com/DraxonV1/Syntac/releases/download/v0.1.1-beta.3/syntac-arm64.apk
 ```
 
 Current manifest files:
@@ -168,19 +168,19 @@ Contribution flow:
 - CI runs formatting, analysis, and tests.
 - After merge to `master`, GitHub Actions builds signed `syntac-arm64.apk`.
 - Release workflow publishes APK and update manifests to GitHub Releases.
-- Version tags like `v0.1.1-beta.2` also build APKs and publish releases.
+- Version tags like `v0.1.1-beta.3` also build APKs and publish releases.
 - GitHub Release notes come from `CHANGELOG.md`.
 
 Latest beta release:
 
-<https://github.com/DraxonV1/Syntac/releases/tag/v0.1.1-beta.2>
+<https://github.com/DraxonV1/Syntac/releases/tag/v0.1.1-beta.3>
 
 PR builds never receive release signing credentials or provider OAuth secrets.
 
 Release artifacts:
 
 ```text
-https://github.com/DraxonV1/Syntac/releases/download/v0.1.1-beta.2/syntac-arm64.apk
+https://github.com/DraxonV1/Syntac/releases/download/v0.1.1-beta.3/syntac-arm64.apk
 update/stable.json
 update/beta.json
 update/nightly.json

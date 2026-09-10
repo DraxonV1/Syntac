@@ -23,6 +23,7 @@ import 'core/app_identity.dart';
 import 'core/update_service.dart';
 import 'models.dart';
 import 'tools/agent_tools.dart';
+import 'tools/tool_context.dart';
 import 'runtime/shell_executor.dart';
 import 'security/secret_store.dart';
 import 'storage/app_repository.dart';
@@ -100,6 +101,7 @@ class AppController extends ChangeNotifier {
   AgentLoop? _agentLoop;
   ModelsDevCatalog modelsDevCatalog = ModelsDevCatalog.empty();
   ShellRuntimeSettings shellRuntimeSettings = const ShellRuntimeSettings();
+  CommandApprovalHandler? _commandApprovalHandler;
   ShellExecutor runtime;
   RuntimeStatus runtimeStatus = const RuntimeStatus(
     state: RuntimeState.notInstalled,
@@ -129,6 +131,11 @@ class AppController extends ChangeNotifier {
   AgentLimits limits = const AgentLimits();
   String? updateMessage;
 
+  void setCommandApprovalHandler(CommandApprovalHandler? handler) {
+    _commandApprovalHandler = handler;
+    _agentLoop?.setCommandApprovalHandler(handler);
+  }
+
   AppRepository get repository => _repository!;
   AgentLoop get agentLoop => _agentLoop!;
 
@@ -148,6 +155,7 @@ class AppController extends ChangeNotifier {
         repository: repository,
         modelsDevCatalog: modelsDevCatalog,
         shellExecutorFactory: _runtimeExecutorForProject,
+        commandApproval: _commandApprovalHandler,
         onMessagesChanged: _refreshChatMessages,
         onStreamingMessageChanged: _updateStreamingMessage,
       );
@@ -298,6 +306,20 @@ class AppController extends ChangeNotifier {
       );
     }
     notifyListeners();
+  }
+
+  Future<void> stopLocalRuntimeJob(String jobId) async {
+    final executor = runtime;
+    if (executor is! ArchLinuxRuntime) return;
+    await executor.stopJob(jobId);
+    await refreshRuntimeStatus();
+  }
+
+  Future<void> restartLocalRuntimeJob(String jobId) async {
+    final executor = runtime;
+    if (executor is! ArchLinuxRuntime) return;
+    await executor.restartJob(jobId);
+    await refreshRuntimeStatus();
   }
 
   Future<void> createProject(String name, String folderPath) async {

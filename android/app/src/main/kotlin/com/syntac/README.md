@@ -1,10 +1,10 @@
 # Android Runtime Bridge
-
 ## Ownership
 
-- `MainActivity.kt` exposes `syntac/runtime`, routes commands, opens storage settings, and requests battery/notification permissions.
-- `LocalRuntimeManager.kt` installs and validates packaged Arch PRoot, runs/cancels commands, bounds streams, and starts/stops foreground work.
-- `RuntimeForegroundService.kt` owns visible long-running runtime notification.
+- `MainActivity.kt` exposes `syntac/runtime`, routes commands, durable job status/log/stop/restart calls, network diagnostics, opens storage settings, and requests battery/notification permissions.
+- `LocalRuntimeManager.kt` installs and validates packaged Arch PRoot, preserves runtime environment, runs/cancels commands, starts persistent jobs, bounds streams, and starts/stops foreground work.
+- `RuntimeJobSupervisor.kt` owns persistent process records and bounded app-private logs independent of Activity lifetime.
+- `RuntimeForegroundService.kt` owns visible long-running runtime notification and stop-all action.
 - `RootfsBundleInstaller.kt` verifies and extracts pinned assets.
 - `TermuxBridge.kt` and `TermuxResultService.kt` implement Termux callbacks.
 
@@ -12,9 +12,10 @@
 
 - Keep rootfs, staging, caches, PRoot temporary files, and runtime metadata under app-private files.
 - Mount only selected user project roots; never copy project data into runtime storage.
-- Keep process output bounded at 2,000,000 characters per stream and return truncation metadata.
-- Classify guest exit failures separately from PRoot/native crashes. Kill active process trees on cancellation.
-- Start foreground service before install, self-test, or Arch command work; stop it only after all native work ends.
+- Keep process output and persisted job logs bounded at 2,000,000 characters per stream with truncation metadata.
+- Classify guest exit failures separately from PRoot/native crashes. Kill active process trees on cancellation and job stop.
+- Start foreground service before install, self-test, Arch commands, diagnostics, or persistent jobs; stop it only after all native work ends.
+- Persistent jobs restore as interrupted after process-owner restart; never claim they remain alive without a process.
 - Request battery-unrestricted and notification access from settings UI; keep fallback behavior when Android declines access.
 - Preserve pinned hashes, sizes, ABI checks, and release-build validation when changing runtime assets.
 

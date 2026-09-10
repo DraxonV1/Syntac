@@ -17,6 +17,8 @@ class CommandResult {
     this.failureKind,
     this.runtimeSignal,
     this.guestExitCode,
+    this.jobId,
+    this.background = false,
     this.stdoutTruncated = false,
     this.stderrTruncated = false,
     this.stdoutOriginalLength,
@@ -39,6 +41,10 @@ class CommandResult {
         guestExitCode: map['guestExitCode'] is int
             ? map['guestExitCode']! as int
             : int.tryParse(map['guestExitCode']?.toString() ?? ''),
+        jobId: map['jobId']?.toString().isNotEmpty == true
+            ? map['jobId']!.toString()
+            : null,
+        background: map['background'] == true,
         stdoutTruncated: map['stdoutTruncated'] == true,
         stderrTruncated: map['stderrTruncated'] == true,
         stdoutOriginalLength: map['stdoutOriginalLength'] is int
@@ -57,6 +63,8 @@ class CommandResult {
   final String? failureKind;
   final String? runtimeSignal;
   final int? guestExitCode;
+  final String? jobId;
+  final bool background;
   final bool stdoutTruncated;
   final bool stderrTruncated;
   final int? stdoutOriginalLength;
@@ -64,7 +72,9 @@ class CommandResult {
   final bool timedOut;
   final bool cancelled;
 
-  bool get success => exitCode == 0 && !timedOut && !cancelled;
+  bool get success =>
+      (background && jobId != null) ||
+      (exitCode == 0 && !timedOut && !cancelled);
 
   Map<String, Object?> toJson() => {
     'stdout': stdout,
@@ -74,6 +84,8 @@ class CommandResult {
     if (failureKind != null) 'failureKind': failureKind,
     if (runtimeSignal != null) 'runtimeSignal': runtimeSignal,
     if (guestExitCode != null) 'guestExitCode': guestExitCode,
+    if (jobId != null) 'jobId': jobId,
+    if (background) 'background': true,
     if (stdoutTruncated) 'stdoutTruncated': true,
     if (stderrTruncated) 'stderrTruncated': true,
     if (stdoutOriginalLength != null)
@@ -240,6 +252,7 @@ abstract class ShellExecutor {
     required String command,
     required String workingDirectory,
     required Duration timeout,
+    bool background = false,
     CancellationToken? cancellationToken,
     CommandOutputCallback? onOutput,
   });
@@ -284,6 +297,7 @@ class PlatformShellExecutor implements ShellExecutor {
     required String command,
     required String workingDirectory,
     required Duration timeout,
+    bool background = false,
     CancellationToken? cancellationToken,
     CommandOutputCallback? onOutput,
   }) async {
@@ -292,6 +306,17 @@ class PlatformShellExecutor implements ShellExecutor {
         stdout: '',
         stderr: 'Shell execution is unavailable on this platform.',
         exitCode: 127,
+        duration: Duration.zero,
+        timedOut: false,
+        cancelled: false,
+      );
+    }
+    if (background) {
+      return CommandResult(
+        stdout: '',
+        stderr: 'Persistent background jobs require ARCH Linux Runtime.',
+        exitCode: -1,
+        failureKind: 'background_jobs_unsupported',
         duration: Duration.zero,
         timedOut: false,
         cancelled: false,
@@ -311,21 +336,23 @@ class PlatformShellExecutor implements ShellExecutor {
       'workingDirectory': workingDirectory,
       'timeoutSeconds': timeout.inSeconds,
     });
-    final timed = future.timeout(
-      timeout,
-      onTimeout: () async {
-        await cancel(commandId);
-        return <Object?, Object?>{
-          'stdout': '',
-          'stderr':
-              'Termux result callback did not arrive after ${timeout.inSeconds}s. Check Termux allow-external-apps, RUN_COMMAND permission, and callback configuration.',
-          'exitCode': -1,
-          'failureKind': 'CallbackFailed',
-          'timedOut': false,
-          'cancelled': false,
-        };
-      },
-    );
+    final timed = timeout == Duration.zero
+        ? future
+        : future.timeout(
+            timeout,
+            onTimeout: () async {
+              await cancel(commandId);
+              return <Object?, Object?>{
+                'stdout': '',
+                'stderr':
+                    'Termux result callback did not arrive after ${timeout.inSeconds}s. Check Termux allow-external-apps, RUN_COMMAND permission, and callback configuration.',
+                'exitCode': -1,
+                'failureKind': 'CallbackFailed',
+                'timedOut': false,
+                'cancelled': false,
+              };
+            },
+          );
     final cancelResult = cancellationToken?.whenCancelled.then((_) async {
       await cancel(commandId);
       return _cancelledCommandResult();
@@ -436,6 +463,7 @@ class ArchLinuxRuntime implements ShellRuntime {
     required String command,
     required String workingDirectory,
     required Duration timeout,
+    bool background = false,
     CancellationToken? cancellationToken,
     CommandOutputCallback? onOutput,
   }) async {
@@ -465,26 +493,30 @@ class ArchLinuxRuntime implements ShellRuntime {
           'command': command,
           'workingDirectory': workingDirectory,
           'timeoutSeconds': timeout.inSeconds,
+          'background': background,
+          'async': background,
           if (_activeProject != null)
             'activeProject': _projectPayload(_activeProject),
           'availableProjects': _availableProjects.map(_projectPayload).toList(),
         });
     try {
-      final timed = future.timeout(
-        timeout,
-        onTimeout: () async {
-          await cancel(commandId);
-          return <Object?, Object?>{
-            'stdout': '',
-            'stderr':
-                'ARCH Linux Runtime command exceeded ${timeout.inSeconds}s.',
-            'exitCode': -1,
-            'failureKind': 'command_timeout',
-            'timedOut': true,
-            'cancelled': false,
-          };
-        },
-      );
+      final timed = timeout == Duration.zero
+          ? future
+          : future.timeout(
+              timeout,
+              onTimeout: () async {
+                await cancel(commandId);
+                return <Object?, Object?>{
+                  'stdout': '',
+                  'stderr':
+                      'ARCH Linux Runtime command exceeded ${timeout.inSeconds}s.',
+                  'exitCode': -1,
+                  'failureKind': 'command_timeout',
+                  'timedOut': true,
+                  'cancelled': false,
+                };
+              },
+            );
       final cancelResult = cancellationToken?.whenCancelled.then((_) async {
         await cancel(commandId);
         return _cancelledCommandResult();
@@ -500,6 +532,67 @@ class ArchLinuxRuntime implements ShellRuntime {
       await outputSub?.cancel();
       await outputQueue?.close();
     }
+  }
+
+  Future<List<Object?>> jobs() async {
+    if (!Platform.isAndroid) return const <Object?>[];
+    return await _channel.invokeListMethod<Object?>('localRuntimeJobs') ??
+        const <Object?>[];
+  }
+
+  Future<Map<Object?, Object?>> jobStatus(String id) async {
+    if (!Platform.isAndroid) return const <Object?, Object?>{};
+    return await _channel.invokeMapMethod<Object?, Object?>(
+          'localRuntimeJobStatus',
+          {'id': id},
+        ) ??
+        const <Object?, Object?>{};
+  }
+
+  Future<Map<Object?, Object?>> jobLogs(
+    String id, {
+    int maxCharacters = 200_000,
+  }) async {
+    if (!Platform.isAndroid) return const <Object?, Object?>{};
+    return await _channel.invokeMapMethod<Object?, Object?>(
+          'localRuntimeJobLogs',
+          {'id': id, 'maxCharacters': maxCharacters},
+        ) ??
+        const <Object?, Object?>{};
+  }
+
+  Future<Map<Object?, Object?>> stopJob(String id) async {
+    if (!Platform.isAndroid) return const <Object?, Object?>{};
+    return await _channel.invokeMapMethod<Object?, Object?>(
+          'stopLocalRuntimeJob',
+          {'id': id},
+        ) ??
+        const <Object?, Object?>{};
+  }
+
+  Future<Map<Object?, Object?>> restartJob(String id) async {
+    if (!Platform.isAndroid) return const <Object?, Object?>{};
+    return await _channel.invokeMapMethod<Object?, Object?>(
+          'restartLocalRuntimeJob',
+          {'id': id},
+        ) ??
+        const <Object?, Object?>{};
+  }
+
+  Future<List<Object?>> stopAllJobs() async {
+    if (!Platform.isAndroid) return const <Object?>[];
+    return await _channel.invokeListMethod<Object?>(
+          'stopAllLocalRuntimeJobs',
+        ) ??
+        const <Object?>[];
+  }
+
+  Future<Map<Object?, Object?>> networkDiagnostics() async {
+    if (!Platform.isAndroid) return const <Object?, Object?>{};
+    return await _channel.invokeMapMethod<Object?, Object?>(
+          'localRuntimeNetworkDiagnostics',
+        ) ??
+        const <Object?, Object?>{};
   }
 
   @override
@@ -595,9 +688,21 @@ class LocalProcessShellExecutor implements ShellExecutor {
     required String command,
     required String workingDirectory,
     required Duration timeout,
+    bool background = false,
     CancellationToken? cancellationToken,
     CommandOutputCallback? onOutput,
   }) async {
+    if (background) {
+      return const CommandResult(
+        stdout: '',
+        stderr: 'Persistent background jobs require ARCH Linux Runtime.',
+        exitCode: -1,
+        failureKind: 'background_jobs_unsupported',
+        duration: Duration.zero,
+        timedOut: false,
+        cancelled: false,
+      );
+    }
     final started = DateTime.now();
     final process = await Process.start(
       Platform.isWindows ? 'cmd.exe' : '/bin/sh',
@@ -648,14 +753,18 @@ class LocalProcessShellExecutor implements ShellExecutor {
     var cancelled = false;
     int exitCode;
     try {
-      exitCode = await process.exitCode.timeout(
-        timeout,
-        onTimeout: () {
-          timedOut = true;
-          _killProcessTree(process, force: true);
-          return -1;
-        },
-      );
+      if (timeout == Duration.zero) {
+        exitCode = await process.exitCode;
+      } else {
+        exitCode = await process.exitCode.timeout(
+          timeout,
+          onTimeout: () {
+            timedOut = true;
+            _killProcessTree(process, force: true);
+            return -1;
+          },
+        );
+      }
       cancelled = cancellationToken?.isCancelled ?? false;
     } finally {
       await Future.wait([

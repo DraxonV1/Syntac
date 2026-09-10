@@ -3545,6 +3545,7 @@ class CapturingShellExecutor implements ShellExecutor {
     required String command,
     required String workingDirectory,
     required Duration timeout,
+    bool background = false,
     CancellationToken? cancellationToken,
     CommandOutputCallback? onOutput,
   }) async {
@@ -3576,6 +3577,7 @@ class CancellableShellExecutor implements ShellExecutor {
     required String command,
     required String workingDirectory,
     required Duration timeout,
+    bool background = false,
     CancellationToken? cancellationToken,
     CommandOutputCallback? onOutput,
   }) async {

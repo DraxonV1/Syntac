@@ -13,6 +13,7 @@ Generated/ignored folders such as `build/`, `.dart_tool/`, `.gradle/`, and local
 ├── PROJECT_STRUCTURE.md
 ├── AGENTS.md
 ├── STATE.md
+├── features.md
 ├── pubspec.yaml
 ├── pubspec.lock
 ├── analysis_options.yaml
@@ -54,6 +55,7 @@ Generated/ignored folders such as `build/`, `.dart_tool/`, `.gradle/`, and local
 │               │           ├── README.md
 │               │           ├── MainActivity.kt
 │               │           ├── LocalRuntimeManager.kt
+│               │           ├── RuntimeJobSupervisor.kt
 │               │           ├── LocalRuntimeConfig.kt
 │               │           ├── LocalRunResult.kt
 │               │           ├── RootfsBundleInstaller.kt
@@ -229,7 +231,8 @@ Generated/ignored folders such as `build/`, `.dart_tool/`, `.gradle/`, and local
 - `PROJECT_STRUCTURE.md`: living source map and ownership boundaries.
 - `AGENTS.md`: global rules for AI agents and developers, including documentation maintenance requirements.
 - `STATE.md`: running engineering state log for resumable AI work.
-- `pubspec.yaml`: Flutter package metadata, app version, dependencies, assets; includes `flutter_math_fork` for TeX rendering.
+- `features.md`: prioritized Syntac feature roadmap, OMP capability mapping, delivery order, dependencies, and acceptance gates.
+- `pubspec.yaml`: Flutter package metadata, dependencies, assets, and SDK constraints.
 - `.github/workflows/`: CI and APK build automation.
 - `update/`: public update manifests for stable, beta, and nightly channels.
 
@@ -277,10 +280,10 @@ Generated/ignored folders such as `build/`, `.dart_tool/`, `.gradle/`, and local
 
 ### Runtime
 
-- `lib/src/runtime/shell_executor.dart`: shell abstraction, local process executor, Termux runtime adapter, Arch Linux runtime adapter, command output streaming, diagnostics redaction.
 - `android/app/src/main/kotlin/com/syntac/MainActivity.kt`: MethodChannel `syntac/runtime`, runtime status, storage settings, background execution permissions, command routing.
-- `LocalRuntimeManager.kt`: Arch Linux PRoot install/run/cancel/remove/self-test and foreground-service lifecycle.
-- `RuntimeForegroundService.kt`: visible Android foreground service for long install/command work.
+- `LocalRuntimeManager.kt`: Arch Linux PRoot install/run/cancel/remove/self-test, environment/network diagnostics, persistent-job launch, and foreground-service lifecycle.
+- `RuntimeJobSupervisor.kt`: durable Arch job metadata/logs, process ownership, restart/status/log/stop APIs, and crash recovery state.
+- `RuntimeForegroundService.kt`: visible Android foreground service for long install/command/job work.
 - `RootfsBundleInstaller.kt`: rootfs bundle verification and extraction.
 - `LocalRuntimeConfig.kt`: pinned native/runtime asset names, sizes, hashes.
 - `LocalRunResult.kt`: native command result and stream-bounding helpers.
