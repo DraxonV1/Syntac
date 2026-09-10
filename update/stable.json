@@ -2,8 +2,8 @@
   "version": "0.1.1-beta.3",
   "versionCode": 13,
   "apkUrl": "https://github.com/DraxonV1/Syntac/releases/download/v0.1.1-beta.3/syntac-arm64.apk",
-  "sha256": "cc90789dbc0d8c9eebdad6804906db1cd24c407f4bd9f613504c9e7f42ebb73e",
-  "size": 151441704,
+  "sha256": "cdd031d1b6d0eba3920470670010b688687b87b72b21b7c8bdd786fb871d49a2",
+  "size": 156994111,
   "mandatory": false,
   "minSupportedVersionCode": 10,
   "notes": [

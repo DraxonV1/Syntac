@@ -44,8 +44,8 @@ void main() {
     const identity = AppIdentity();
     expect(identity.developerName, 'DraxonV1');
     expect(identity.repositoryUrl, 'https://github.com/DraxonV1/Syntac');
-    expect(identity.version, '0.1.1-beta.2');
-    expect(identity.versionCode, 12);
+    expect(identity.version, '0.1.1-beta.3');
+    expect(identity.versionCode, 13);
     expect(identity.updateChannel, 'beta');
   });
 
