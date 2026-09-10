@@ -383,7 +383,7 @@ class OpenAICodexProvider extends AIProvider {
         final definition = function is Map
             ? function.cast<String, Object?>()
             : tool;
-        final name = definition['name']?.toString().trim();
+        final name = definition['name']?.toString().trim().replaceAll('.', '_');
         if (name == null || name.isEmpty) continue;
         final parameters = definition['parameters'];
         responseTools.add({

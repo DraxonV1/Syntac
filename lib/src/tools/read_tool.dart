@@ -17,9 +17,12 @@ mixin ReadTool on ToolContext {
     String? unit,
     bool raw = false,
     bool includeImage = false,
+    bool systemwide = false,
   }) async {
     final path = inputPath.startsWith('local://')
         ? await resolveLocalPath(inputPath)
+        : systemwide
+        ? await resolveSystemPath(inputPath)
         : await resolvePath(inputPath);
     final type = await FileSystemEntity.type(path);
     if (type == FileSystemEntityType.notFound) {

@@ -21,6 +21,7 @@ class RuntimeJobSupervisor private constructor(private val context: Context) {
         val workingDirectory: File,
         val environment: Map<String, String>,
         val ports: List<Int> = emptyList(),
+        val restartCount: Int = 0,
     )
 
     private class Job(
@@ -157,6 +158,7 @@ class RuntimeJobSupervisor private constructor(private val context: Context) {
                 stderrPath = stderrPath,
                 ports = request.ports,
                 startedAt = System.currentTimeMillis(),
+                restartCount = request.restartCount,
             )
             records[record.id] = record
             jobs[record.id] = Job(record, process)
@@ -181,10 +183,9 @@ class RuntimeJobSupervisor private constructor(private val context: Context) {
     fun logs(id: String, maxCharacters: Int = 200_000): Map<String, Any?> {
         val record = records[id] ?: return failure("runtime_job_not_found", "Runtime job not found")
         val limit = maxCharacters.coerceIn(1, MAX_LOG_CHARACTERS)
-        return mapOf(
+        return snapshot(record) + mapOf(
             "success" to true,
             "jobId" to id,
-            "state" to record.state,
             "stdout" to readTail(File(record.stdoutPath), limit),
             "stderr" to readTail(File(record.stderrPath), limit),
             "stdoutTruncated" to (record.omittedStdout > 0L),
@@ -193,8 +194,14 @@ class RuntimeJobSupervisor private constructor(private val context: Context) {
     }
 
     fun stop(id: String): Map<String, Any?> {
-        val job = jobs[id] ?: return records[id]?.let(::snapshot)
-            ?: failure("runtime_job_not_found", "Runtime job not found")
+        val job = jobs[id]
+        if (job == null) {
+            val record = records[id] ?: return failure("runtime_job_not_found", "Runtime job not found")
+            return snapshot(record).toMutableMap().apply {
+                put("success", true)
+                put("message", "Runtime job already exited")
+            }
+        }
         job.stopRequested = true
         killProcessTree(job.process)
         return snapshot(job.record).toMutableMap().apply {
@@ -221,6 +228,7 @@ class RuntimeJobSupervisor private constructor(private val context: Context) {
                 workingDirectory = File(previous.workingDirectory),
                 environment = previous.environment,
                 ports = previous.ports,
+                restartCount = previous.restartCount + 1,
             ),
         ).toMutableMap().apply {
             put("restartedFrom", id)
@@ -324,20 +332,30 @@ class RuntimeJobSupervisor private constructor(private val context: Context) {
         }
     }
 
-    private fun snapshot(record: JobRecord): Map<String, Any?> = mapOf(
-        "jobId" to record.id,
-        "command" to record.command,
-        "state" to record.state,
-        "startedAt" to record.startedAt,
-        "finishedAt" to record.finishedAt,
-        "exitCode" to record.exitCode,
-        "failureKind" to record.failureKind,
-        "ports" to record.ports,
-        "stdoutPreview" to readTail(File(record.stdoutPath), 50_000),
-        "stderrPreview" to readTail(File(record.stderrPath), 50_000),
-        "stdoutTruncated" to (record.omittedStdout > 0L),
-        "stderrTruncated" to (record.omittedStderr > 0L),
-    )
+    private fun snapshot(record: JobRecord): Map<String, Any?> {
+        val finishedAt = record.finishedAt
+        val durationEnd = finishedAt ?: System.currentTimeMillis()
+        return mapOf(
+            "jobId" to record.id,
+            "command" to record.command,
+            "state" to record.state,
+            "running" to (record.state == "running"),
+            "startedAt" to record.startedAt,
+            "finishedAt" to finishedAt,
+            "durationMs" to (durationEnd - record.startedAt).coerceAtLeast(0L),
+            "exitCode" to record.exitCode,
+            "jobSuccess" to (record.state == "completed" && record.exitCode == 0),
+            "failureKind" to record.failureKind,
+            "restartCount" to record.restartCount,
+            "ports" to record.ports,
+            "stdoutPreview" to readTail(File(record.stdoutPath), 50_000),
+            "stderrPreview" to readTail(File(record.stderrPath), 50_000),
+            "stdoutTruncated" to (record.omittedStdout > 0L),
+            "stderrTruncated" to (record.omittedStderr > 0L),
+            "omittedStdout" to record.omittedStdout,
+            "omittedStderr" to record.omittedStderr,
+        )
+    }
 
     private fun readTail(file: File, maxCharacters: Int): String {
         if (!file.exists()) return ""

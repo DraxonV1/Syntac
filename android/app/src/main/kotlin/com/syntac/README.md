@@ -1,9 +1,9 @@
 # Android Runtime Bridge
 ## Ownership
 
-- `MainActivity.kt` exposes `syntac/runtime`, routes commands, durable job status/log/stop/restart calls, network diagnostics, opens storage settings, and requests battery/notification permissions.
+- `MainActivity.kt` exposes `syntac/runtime`, routes commands, durable job list/status/log/stop/restart calls, network diagnostics, opens storage settings, and requests battery/notification permissions.
 - `LocalRuntimeManager.kt` installs and validates packaged Arch PRoot, preserves runtime environment, runs/cancels commands, starts persistent jobs, bounds streams, and starts/stops foreground work.
-- `RuntimeJobSupervisor.kt` owns persistent process records and bounded app-private logs independent of Activity lifetime.
+- `RuntimeJobSupervisor.kt` owns persistent process records, lifecycle timestamps, exit codes, restart counts, and bounded app-private logs independent of Activity lifetime.
 - `RuntimeForegroundService.kt` owns visible long-running runtime notification and stop-all action.
 - `RootfsBundleInstaller.kt` verifies and extracts pinned assets.
 - `TermuxBridge.kt` and `TermuxResultService.kt` implement Termux callbacks.

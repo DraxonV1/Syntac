@@ -127,7 +127,7 @@ class OpenAICompatibleProvider extends AIProvider {
           'messages': request.messages
               .map((message) => message.toJson())
               .toList(),
-          if (request.tools.isNotEmpty) 'tools': request.tools,
+          if (request.tools.isNotEmpty) 'tools': _wireTools(request.tools),
           if (request.tools.isNotEmpty) 'tool_choice': 'auto',
           if (request.temperature != null) 'temperature': request.temperature,
           if (request.maxOutputTokens != null)
@@ -269,6 +269,24 @@ class OpenAICompatibleProvider extends AIProvider {
       await cancellationSub?.cancel();
     }
   }
+
+  List<Map<String, Object?>> _wireTools(List<Map<String, Object?>> tools) =>
+      tools
+          .map((tool) {
+            final function = tool['function'];
+            if (function is! Map) return tool;
+            final wiredFunction = function.cast<String, Object?>();
+            return {
+              ...tool,
+              'function': {
+                ...wiredFunction,
+                'name': _wireToolName(wiredFunction['name']?.toString() ?? ''),
+              },
+            };
+          })
+          .toList(growable: false);
+
+  String _wireToolName(String name) => name.replaceAll('.', '_');
 
   Map<String, String> _headers(String apiKey) => {
     'Authorization': 'Bearer $apiKey',

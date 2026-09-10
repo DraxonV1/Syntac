@@ -970,13 +970,18 @@ class AppController extends ChangeNotifier {
       );
       await tools.writeFile('.syntac_diag.txt', 'one');
       final readOne = await tools.readFile('.syntac_diag.txt');
-      await tools.editFile('.syntac_diag.txt', 'one', 'two');
+      await tools.applyPatch('''*** Begin Patch
+*** Update File: .syntac_diag.txt
+@@
+-one
++two
+*** End Patch''');
       final readTwo = await tools.readFile('.syntac_diag.txt');
       await tools.deletePath('.syntac_diag.txt');
       final diagPath =
           '${project.folderPath}${Platform.pathSeparator}.syntac_diag.txt';
       lines.add('write/read: ${readOne['content'] == 'one'}');
-      lines.add('edit/read: ${readTwo['content'] == 'two'}');
+      lines.add('apply_patch/read: ${readTwo['content'] == 'two'}');
       lines.add('delete: ${!await File(diagPath).exists()}');
       lines.add('');
       lines.add('RUNTIME');

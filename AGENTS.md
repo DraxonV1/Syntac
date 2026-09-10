@@ -42,11 +42,11 @@ test/                                    Regression tests
 - On Android, user-visible metadata and chat data live under `/storage/emulated/0/.syntac`; app-private storage is reserved for runtime binaries, caches, and platform-required state.
 - Shared-storage initialization must be permission-gated and must retain a safe private fallback when access is unavailable.
 - Runtime rootfs stays app-private; selected project files stay in user-selected shared-storage directories.
-- Tool cards show command/edit intent first, bounded output second; edit cards use line-numbered colored diffs.
+- Tool cards show command/edit/patch intent first, bounded output second; apply-patch cards use line-numbered colored diffs and write cards show exact syntax-highlighted content without patch markers.
 - Markdown rendering uses real TeX widgets for math and supports remote/data-URI images without hardcoded symbol substitution.
 - Secrets stay in `SecretStore`/secure storage, never SQLite/JSONL/logs/diagnostics.
 - SQLite stores metadata; JSONL stores chat-owned runtime data.
-- File tools must stay inside project root after realpath/symlink resolution.
+- Normal file tools stay inside project root after realpath/symlink resolution. `read` systemwide mode is explicit, absolute-path, read-only, and sensitive-path blocked.
 - Tool output and stored text must stay bounded.
 - Assistant `tool_calls` metadata must remain before matching tool messages.
 - Cancellation must stop active tools and must not resume model generation afterward.

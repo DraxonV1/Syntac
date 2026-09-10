@@ -725,11 +725,17 @@ class AgentLoop {
   String _actionForTool(AIToolCall call) => switch (call.name) {
     'read' => 'Reading ${_pathFromArgs(call.argumentsJson)}',
     'write' => 'Writing ${_pathFromArgs(call.argumentsJson)}',
-    'edit' => 'Editing ${_pathFromArgs(call.argumentsJson)}',
+    'apply_patch' => 'Applying patch',
     'delete' => 'Deleting ${_pathFromArgs(call.argumentsJson)}',
     'list' => 'Listing ${_pathFromArgs(call.argumentsJson)}',
+    'glob' => 'Matching project paths',
     'search' => 'Searching project',
     'bash' => 'Running command',
+    'jobs.list' || 'jobs_list' => 'Listing runtime jobs',
+    'jobs.status' || 'jobs_status' => 'Reading job status',
+    'jobs.logs' || 'jobs_logs' => 'Reading job logs',
+    'jobs.wait' || 'jobs_wait' => 'Waiting for job',
+    'jobs.cancel' || 'jobs_cancel' => 'Cancelling job',
     _ => 'Running ${call.name}',
   };
 

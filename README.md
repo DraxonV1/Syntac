@@ -21,7 +21,7 @@ Open a project folder on your phone, connect an AI provider, chat about code, in
 - Developer: **DraxonV1**
 - Repository: <https://github.com/DraxonV1/Syntac>
 - Android package: `com.syntac`
-- Current version: `0.1.1-beta.3` (`versionCode` 13)
+- Current version: `0.1.1-beta.4` (`versionCode` 14)
 - Default update channel: **beta**
 
 ## Overview
@@ -40,8 +40,8 @@ Core behavior:
 
 - Local project browser with recent projects and search.
 - Chat-based coding agent with streaming responses.
-- File tools for reading, writing, editing, listing, deleting, and searching project files.
-- Bash tool support through a packaged Android runtime or Termux bridge.
+- File tools for reading, writing, patching, globbing, listing, deleting, and searching project files; explicit read-only systemwide diagnostics.
+- Bash and durable runtime job tools through packaged Android runtime or Termux bridge.
 - Provider support for Google Antigravity / Cloud Code Assist, ChatGPT Codex OAuth, Grok, and OpenAI-compatible APIs.
 - Markdown/code rendering and expandable tool result cards.
 - Startup, runtime, provider, and storage diagnostics.
@@ -97,7 +97,7 @@ Channels:
 Current beta APK target:
 
 ```text
-https://github.com/DraxonV1/Syntac/releases/download/v0.1.1-beta.3/syntac-arm64.apk
+https://github.com/DraxonV1/Syntac/releases/download/v0.1.1-beta.4/syntac-arm64.apk
 ```
 
 Current manifest files:
@@ -166,20 +166,20 @@ Contribution flow:
 
 - Open PR with source changes.
 - CI runs formatting, analysis, and tests.
-- Pushing a version tag like `v0.1.1-beta.3` builds signed `syntac-arm64.apk`.
+- Pushing a version tag like `v0.1.1-beta.4` builds signed `syntac-arm64.apk`.
 - Release workflow publishes APK and update manifests to GitHub Releases.
 - GitHub Release notes come from `CHANGELOG.md`.
 
 Latest beta release:
 
-<https://github.com/DraxonV1/Syntac/releases/tag/v0.1.1-beta.3>
+<https://github.com/DraxonV1/Syntac/releases/tag/v0.1.1-beta.4>
 
 PR builds never receive release signing credentials or provider OAuth secrets.
 
 Release artifacts:
 
 ```text
-https://github.com/DraxonV1/Syntac/releases/download/v0.1.1-beta.3/syntac-arm64.apk
+https://github.com/DraxonV1/Syntac/releases/download/v0.1.1-beta.4/syntac-arm64.apk
 update/stable.json
 update/beta.json
 update/nightly.json

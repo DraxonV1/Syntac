@@ -1,13 +1,13 @@
 {
-  "version": "0.1.1-beta.3",
-  "versionCode": 13,
-  "apkUrl": "https://github.com/DraxonV1/Syntac/releases/download/v0.1.1-beta.3/syntac-arm64.apk",
+  "version": "0.1.1-beta.4",
+  "versionCode": 14,
+  "apkUrl": "https://github.com/DraxonV1/Syntac/releases/download/v0.1.1-beta.4/syntac-arm64.apk",
   "sha256": "cdd031d1b6d0eba3920470670010b688687b87b72b21b7c8bdd786fb871d49a2",
   "size": 156994111,
   "mandatory": false,
   "minSupportedVersionCode": 10,
   "notes": [
-    "Current public Android APK build",
-    "Local chat storage and runtime diagnostics hardened"
+    "Durable runtime jobs with live logs and cancellation",
+    "Apply patch, glob, and bounded systemwide diagnostics"
   ]
 }

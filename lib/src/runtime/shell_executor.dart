@@ -266,6 +266,16 @@ abstract class ShellRuntime implements ShellExecutor {
   Future<String> diagnostics({String? projectRoot});
 }
 
+abstract interface class RuntimeJobExecutor {
+  Future<List<Object?>> listJobs();
+  Future<Map<Object?, Object?>> jobStatus(String id);
+  Future<Map<Object?, Object?>> jobLogs(
+    String id, {
+    int maxCharacters = 200_000,
+  });
+  Future<Map<Object?, Object?>> cancelJob(String id);
+}
+
 class PlatformShellExecutor implements ShellExecutor {
   PlatformShellExecutor({MethodChannel? channel})
     : _channel = channel ?? const MethodChannel('syntac/runtime') {
@@ -423,7 +433,7 @@ class TermuxRuntime extends PlatformShellExecutor implements ShellRuntime {
   );
 }
 
-class ArchLinuxRuntime implements ShellRuntime {
+class ArchLinuxRuntime implements ShellRuntime, RuntimeJobExecutor {
   ArchLinuxRuntime({
     Project? activeProject,
     List<Project> availableProjects = const [],
@@ -540,6 +550,10 @@ class ArchLinuxRuntime implements ShellRuntime {
         const <Object?>[];
   }
 
+  @override
+  Future<List<Object?>> listJobs() => jobs();
+
+  @override
   Future<Map<Object?, Object?>> jobStatus(String id) async {
     if (!Platform.isAndroid) return const <Object?, Object?>{};
     return await _channel.invokeMapMethod<Object?, Object?>(
@@ -549,6 +563,7 @@ class ArchLinuxRuntime implements ShellRuntime {
         const <Object?, Object?>{};
   }
 
+  @override
   Future<Map<Object?, Object?>> jobLogs(
     String id, {
     int maxCharacters = 200_000,
@@ -574,6 +589,16 @@ class ArchLinuxRuntime implements ShellRuntime {
     if (!Platform.isAndroid) return const <Object?, Object?>{};
     return await _channel.invokeMapMethod<Object?, Object?>(
           'restartLocalRuntimeJob',
+          {'id': id},
+        ) ??
+        const <Object?, Object?>{};
+  }
+
+  @override
+  Future<Map<Object?, Object?>> cancelJob(String id) async {
+    if (!Platform.isAndroid) return const <Object?, Object?>{};
+    return await _channel.invokeMapMethod<Object?, Object?>(
+          'cancelLocalRuntimeJob',
           {'id': id},
         ) ??
         const <Object?, Object?>{};

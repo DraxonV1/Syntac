@@ -44,8 +44,8 @@ void main() {
     const identity = AppIdentity();
     expect(identity.developerName, 'DraxonV1');
     expect(identity.repositoryUrl, 'https://github.com/DraxonV1/Syntac');
-    expect(identity.version, '0.1.1-beta.3');
-    expect(identity.versionCode, 13);
+    expect(identity.version, '0.1.1-beta.4');
+    expect(identity.versionCode, 14);
     expect(identity.updateChannel, 'beta');
   });
 
@@ -251,53 +251,50 @@ void main() {
     );
 
     expect(find.text('CONTENT'), findsOneWidget);
-    expect(find.textContaining('+first line'), findsOneWidget);
-    expect(find.textContaining('+second line'), findsOneWidget);
+    expect(find.textContaining('first line'), findsOneWidget);
+    expect(find.textContaining('+first line'), findsNothing);
   });
 
-  testWidgets('ToolCallCard renders edit diff preview', (tester) async {
+  testWidgets('ToolCallCard renders apply patch diff preview', (tester) async {
     final execution = ToolExecution(
-      id: 'tool_edit',
+      id: 'tool_apply_patch',
       chatId: 'chat_1',
-      name: 'edit',
-      argumentsJson:
-          '{"path": "lib/main.txt", "target": "old line", "replacement": "new line"}',
+      name: 'apply_patch',
+      argumentsJson: '{"patch": "*** Begin Patch ..."}',
       status: ToolExecutionStatus.success,
       startedAt: DateTime.now(),
       finishedAt: DateTime.now(),
       resultJson:
-          '{"ok": true, "result": {"path": "lib/main.txt", "replacedBytes": 8, "newBytes": 8, "replacedLines": 1, "newLines": 1, "replacements": 1}}',
+          '{"ok": true, "result": {"changedFiles": [{"path": "lib/main.txt"}], "diff": "*** Begin Patch\\n- old line\\n+ new line\\n*** End Patch"}}',
     );
 
     await tester.pumpWidget(
       _wrap(ToolCallCard(execution: execution, initiallyExpanded: true)),
     );
 
-    expect(find.text('DIFF'), findsOneWidget);
-    expect(find.textContaining('-old line'), findsOneWidget);
-    expect(find.textContaining('+new line'), findsOneWidget);
+    expect(find.text('Apply patch'), findsOneWidget);
+    expect(find.text('PATCH'), findsOneWidget);
+    expect(find.textContaining('- old line'), findsOneWidget);
+    expect(find.textContaining('+ new line'), findsOneWidget);
   });
 
-  testWidgets('ToolCallCard renders edit diff badge using lines', (
-    tester,
-  ) async {
+  testWidgets('ToolCallCard renders apply patch file badge', (tester) async {
     final execution = ToolExecution(
       id: 'tool_2',
       chatId: 'chat_1',
-      name: 'edit',
-      argumentsJson: '{"path": "lib/auth.dart"}',
+      name: 'apply_patch',
+      argumentsJson: '{"patch": "*** Begin Patch ..."}',
       status: ToolExecutionStatus.success,
       startedAt: DateTime.now(),
       finishedAt: DateTime.now(),
       resultJson:
-          '{"path": "lib/auth.dart", "replacedBytes": 3, "newBytes": 14, "replacedLines": 3, "newLines": 1}',
+          '{"path": "lib/auth.dart", "changedFiles": [{"path": "lib/auth.dart"}]}',
     );
 
     await tester.pumpWidget(_wrap(ToolCallCard(execution: execution)));
 
-    expect(find.text('Edit'), findsOneWidget);
-    expect(find.text('lib/auth.dart'), findsOneWidget);
-    expect(find.text('+1 -3'), findsOneWidget);
+    expect(find.text('Apply patch'), findsOneWidget);
+    expect(find.text('1 files'), findsOneWidget);
   });
 
   testWidgets('ComposerView renders input, attachments, and send button', (

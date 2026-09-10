@@ -19,7 +19,7 @@ Already implemented:
 - SQLite metadata plus JSONL chat, message, job, tool, attachment storage.
 - Secure API-key/OAuth credential storage.
 - Streaming providers: OpenAI-compatible, ChatGPT Codex OAuth, Google Antigravity / Cloud Code Assist, Grok OAuth.
-- File tools: `read`, `write`, `edit`, `delete`, `list`, `search`, `copy`, `display_image`.
+- File tools: `read`, `write`, `apply_patch`, `delete`, `list`, `glob`, `search`, `copy`, `display_image`; explicit read-only systemwide diagnostics.
 - Bounded Bash through packaged Arch Linux PRoot or Termux `RUN_COMMAND`.
 - Arch rootfs install, checksum validation, DNS setup, workspace mounts, cancellation, bounded output, diagnostics.
 - Markdown, TeX, code highlighting, images, attachments, tool cards, streaming chat UI.
@@ -30,7 +30,7 @@ Already implemented:
 
 Code delivered in current branch:
 
-- Persistent Arch jobs: background/async Bash flags, timeout `0`, durable `jobId`, app-private registry/logs, foreground-service ownership, status/log/stop/restart/stop-all channels, process-tree stop, bounded output, port detection.
+- Persistent Arch jobs: background/async Bash flags, timeout `0`, durable `jobId`, app-private registry/logs, foreground-service ownership, status/log/stop/restart/cancel channels, process-tree stop, lifecycle metadata, bounded output, port detection.
 - Network safety: explicit Arch `PATH`/`HOME`/temp/locale/terminal/CA environment, proxy preservation, DNS/CA/HTTPS diagnostics.
 - Crash containment: supervisor restores running records as `interrupted`, foreground service uses sticky restart only while jobs are active, native failures return structured results.
 - Agent safety: Bash risk classification, explicit approval callback, background-job result categories, durable native job state.
@@ -109,11 +109,11 @@ Acceptance: Arch `curl`, Python HTTPS, FastAPI localhost, and Cloudflare tunnel 
 - Never persist secrets in command logs, tool results, SQLite, or JSONL.
 - Keep project-root and shared-storage containment checks after realpath/symlink resolution.
 
-### 5. Durable jobs and cancellation
+### 5. Durable jobs and cancellation hardening
 
-- Generalize current agent jobs to runtime jobs, install jobs, provider jobs, and background maintenance jobs.
-- Persist queued/running/completed/failed/cancelled states.
-- Make cancellation idempotent and observable.
+- Extend durable registry to install, provider, and maintenance jobs.
+- Keep queued/running/completed/failed/cancelled states persisted.
+- Keep cancellation idempotent and observable.
 - Do not resume model generation after cancellation.
 - Reject jobs for deleted chats/projects.
 - Add bounded retry only for infrastructure recovery, never blind command retry.
@@ -122,12 +122,11 @@ Acceptance: Arch `curl`, Python HTTPS, FastAPI localhost, and Cloudflare tunnel 
 
 ### 6. Hashline editing
 
-Replace fragile text-target editing with content-hash anchored patches.
+Replace fragile text-target editing with content-hash anchored `apply_patch` operations.
 
 - Read output includes stable line anchors.
-- Edit accepts anchor ranges plus replacement content.
+- `apply_patch` accepts anchor ranges plus replacement content.
 - Reject stale anchors before writing.
-- Preserve current edit API as an explicit fallback during migration.
 - Render proposed diff before apply.
 
 Acceptance: stale model patch cannot overwrite unrelated changes; line-numbered diff remains visible.

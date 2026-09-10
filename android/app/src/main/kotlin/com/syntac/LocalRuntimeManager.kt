@@ -187,6 +187,8 @@ class LocalRuntimeManager(
         return output
     }
 
+    fun cancelJob(id: String): Map<String, Any?> = stopJob(id)
+
     fun restartJob(id: String): Map<String, Any?> {
         startBackgroundWork()
         return supervisor.restart(id)

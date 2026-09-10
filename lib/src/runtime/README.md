@@ -5,7 +5,8 @@
 ## Ownership
 
 - Arch PRoot install, validation, package commands, workspace mounts, cancellation.
-- `RuntimeJobSupervisor` owns persistent Arch processes, job registry, bounded logs, restart, and process-tree stop.
+- `RuntimeJobSupervisor` owns persistent Arch processes, job registry, bounded logs, restart, status, wait polling, and process-tree stop.
+- `RuntimeJobExecutor` exposes Dart-side `listJobs`, `jobStatus`, `jobLogs`, and `cancelJob` capability without coupling tools to Android channels.
 - Termux `RUN_COMMAND` bridge and callback handling.
 - Local process executor for tests and development.
 
@@ -13,6 +14,7 @@
 
 - Android Arch rootfs stays under app-private files; selected project directories remain shared-storage paths.
 - Persistent jobs use app-private JSON metadata and bounded stdout/stderr logs; Flutter Activity lifetime must not own their processes.
+- Job records preserve start/finish timestamps, duration, exit code, terminal state, failure kind, restart count, and log truncation counts.
 - Python is installed inside Arch with `pacman`; package installs must pass storage preflight and clear package cache after success.
 - Termux uses its external-command bridge and callback service; durable background jobs are Arch-only.
 - Command timeout `0` means no deadline; cancellation still kills active process trees.

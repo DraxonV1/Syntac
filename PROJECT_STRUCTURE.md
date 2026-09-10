@@ -135,6 +135,9 @@ Generated/ignored folders such as `build/`, `.dart_tool/`, `.gradle/`, and local
 │       │   ├── AGENTS.md
 │       │   ├── README.md
 │       │   ├── agent_tools.dart
+│       │   ├── apply_patch_tool.dart
+│       │   ├── glob_tool.dart
+│       │   ├── runtime_jobs_tool.dart
 │       │   ├── copy_tool.dart
 │       │   └── tool_context.dart
 │       └── ui/
@@ -276,13 +279,16 @@ Generated/ignored folders such as `build/`, `.dart_tool/`, `.gradle/`, and local
 
 ### Tools
 
-- `lib/src/tools/agent_tools.dart`: model-callable `read`, `write`, `edit`, `delete`, `list`, `search`, `bash`, and `copy` tools. Owns path sandboxing, output caps, persisted truncation notices, and tool result shape.
+- `lib/src/tools/agent_tools.dart`: model-callable `read`, `write`, `apply_patch`, `delete`, `list`, `glob`, `search`, `bash`, `jobs.*`, and `copy` tools. Owns path sandboxing, output caps, persisted truncation notices, and tool result shape.
+- `lib/src/tools/apply_patch_tool.dart`: bounded multi-file patch parser and project-root writes.
+- `lib/src/tools/glob_tool.dart`: bounded project-relative file/directory discovery.
+- `lib/src/tools/runtime_jobs_tool.dart`: durable runtime job list/status/log-follow/wait/cancel calls.
 
 ### Runtime
 
-- `android/app/src/main/kotlin/com/syntac/MainActivity.kt`: MethodChannel `syntac/runtime`, runtime status, storage settings, background execution permissions, command routing.
+- `android/app/src/main/kotlin/com/syntac/MainActivity.kt`: MethodChannel `syntac/runtime`, runtime status, storage settings, background execution permissions, command routing, and durable job list/status/log/stop/restart/cancel APIs.
 - `LocalRuntimeManager.kt`: Arch Linux PRoot install/run/cancel/remove/self-test, environment/network diagnostics, persistent-job launch, and foreground-service lifecycle.
-- `RuntimeJobSupervisor.kt`: durable Arch job metadata/logs, process ownership, restart/status/log/stop APIs, and crash recovery state.
+- `RuntimeJobSupervisor.kt`: durable Arch job metadata/logs, process ownership, restart/status/log/cancel APIs, lifecycle timestamps, exit codes, truncation counts, and crash recovery state.
 - `RuntimeForegroundService.kt`: visible Android foreground service for long install/command/job work.
 - `RootfsBundleInstaller.kt`: rootfs bundle verification and extraction.
 - `LocalRuntimeConfig.kt`: pinned native/runtime asset names, sizes, hashes.
@@ -304,7 +310,7 @@ Generated/ignored folders such as `build/`, `.dart_tool/`, `.gradle/`, and local
 - `provider_dialog.dart`: provider create/edit/test form.
 - `runtime_screen.dart`: runtime status, install, shell test, storage access.
 - `lib/src/ui/chat/`: chat timeline, composer, tool cards, markdown, TeX, images, and model selector.
-- `lib/src/ui/chat/tool_call_card.dart`: command cards use bordered shell blocks; edit cards use file headers, delta badges, line-numbered colored diffs, and bounded previews.
+- `lib/src/ui/chat/tool_call_card.dart`: command cards use bordered shell blocks; apply-patch cards use line-numbered colored diffs; write cards show exact syntax-highlighted content; job-log cards show bounded live stdout/stderr.
 - `lib/src/ui/components/` and `lib/src/ui/widgets/`: reusable cards, buttons, sheets, empty states, glass surfaces, maximizable panels.
 
 ### Scripts and native code

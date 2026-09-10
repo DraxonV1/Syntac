@@ -2,12 +2,14 @@
 
 import 'dart:io';
 import '../core/cancellation.dart';
+import 'apply_patch_tool.dart';
 import 'bash_tool.dart';
 import 'copy_tool.dart';
 import 'delete_tool.dart';
-import 'edit_tool.dart';
+import 'glob_tool.dart';
 import 'list_tool.dart';
 import 'read_tool.dart';
+import 'runtime_jobs_tool.dart';
 import 'search_tool.dart';
 import 'tool_context.dart';
 import 'write_tool.dart';
@@ -18,11 +20,13 @@ class ProjectTools extends ToolContext
     with
         ReadTool,
         WriteTool,
-        EditTool,
+        ApplyPatchTool,
         DeleteTool,
         ListTool,
+        GlobTool,
         SearchTool,
         BashTool,
+        RuntimeJobsTool,
         CopyTool {
   ProjectTools({
     required super.projectRoot,
@@ -39,7 +43,9 @@ class ProjectTools extends ToolContext
       'read',
       'Read text, or inspect an attached image. Attachments use local://attachment-N. Use includeImage for bounded vision data.',
       {
-        'path': _string('Relative file path or local://attachment-N'),
+        'path': _string(
+          'Relative file path or local://attachment-N; absolute only with systemwide: true',
+        ),
         'offset': {
           'type': 'integer',
           'description':
@@ -61,6 +67,11 @@ class ProjectTools extends ToolContext
           'description':
               'Include bounded base64 data for vision-capable providers',
         },
+        'systemwide': {
+          'type': 'boolean',
+          'description':
+              'Read an absolute system path instead of a project-relative path; read-only and sensitive paths are blocked.',
+        },
       },
       ['path'],
     ),
@@ -80,28 +91,10 @@ class ProjectTools extends ToolContext
       ['path', 'content'],
     ),
     _spec(
-      'copy',
-      'Copy an attached file or project file to a project path or Android shared-storage path. Use local://attachment-N for attachments.',
-      {
-        'source': _string('Relative file path or local://attachment-N'),
-        'target': _string(
-          'Destination path inside project or Android shared storage',
-        ),
-      },
-      ['source', 'target'],
-    ),
-    _spec(
-      'edit',
-      'Replace one unambiguous text target inside a file.',
-      {
-        'path': _string('Relative file path'),
-        'target': _string('Existing text'),
-        'replacement': _string('Replacement text'),
-        'requireUnique': {'type': 'boolean'},
-        'replaceAll': {'type': 'boolean'},
-        'expectedReplacements': {'type': 'integer'},
-      },
-      ['path', 'target', 'replacement'],
+      'apply_patch',
+      'Apply a bounded multi-file patch inside the project.',
+      {'patch': _string('Patch using *** Begin Patch / *** End Patch syntax')},
+      ['patch'],
     ),
     _spec(
       'delete',
@@ -120,6 +113,19 @@ class ProjectTools extends ToolContext
         'depth': {'type': 'integer'},
       },
       ['path'],
+    ),
+    _spec(
+      'glob',
+      'Match project files and directories with a bounded glob pattern.',
+      {
+        'pattern': _string('Relative glob pattern such as lib/**/*.dart'),
+        'maxResults': {'type': 'integer'},
+        'offset': {'type': 'integer'},
+        'includeDirectories': {'type': 'boolean'},
+        'includeFiles': {'type': 'boolean'},
+        'caseSensitive': {'type': 'boolean'},
+      },
+      ['pattern'],
     ),
     _spec(
       'search',
@@ -163,6 +169,51 @@ class ProjectTools extends ToolContext
         },
       },
       ['command'],
+    ),
+    _spec(
+      'jobs.list',
+      'List durable runtime jobs with lifecycle metadata.',
+      const <String, Object?>{},
+      const <String>[],
+    ),
+    _spec(
+      'jobs.status',
+      'Read one durable runtime job status, timestamps, exit code, and failure.',
+      {'jobId': _string('Durable runtime job id')},
+      ['jobId'],
+    ),
+    _spec(
+      'jobs.logs',
+      'Read durable runtime job logs. Follow running jobs by default and stream updates to the user.',
+      {
+        'jobId': _string('Durable runtime job id'),
+        'maxCharacters': {'type': 'integer'},
+        'follow': {'type': 'boolean'},
+        'timeout_seconds': {
+          'type': 'integer',
+          'description':
+              'Follow timeout in seconds; 0 waits without a deadline',
+        },
+      },
+      ['jobId'],
+    ),
+    _spec(
+      'jobs.wait',
+      'Wait until durable runtime job exits or timeout expires.',
+      {
+        'jobId': _string('Durable runtime job id'),
+        'timeout_seconds': {
+          'type': 'integer',
+          'description': 'Wait timeout in seconds; 0 waits without a deadline',
+        },
+      },
+      ['jobId'],
+    ),
+    _spec(
+      'jobs.cancel',
+      'Cancel one durable runtime job and its process tree.',
+      {'jobId': _string('Durable runtime job id')},
+      ['jobId'],
     ),
   ];
 
@@ -212,20 +263,16 @@ class ProjectTools extends ToolContext
           unit: args['unit'] as String?,
           raw: args['raw'] == true,
           includeImage: args['includeImage'] == true,
+          systemwide:
+              args['systemwide'] == true ||
+              args['scope']?.toString() == 'system',
         ),
         'display_image' => await displayImage(args['path'] as String? ?? ''),
         'write' => await writeFile(
           args['path'] as String? ?? '',
           args['content'] as String? ?? '',
         ),
-        'edit' => await editFile(
-          args['path'] as String? ?? '',
-          args['target'] as String? ?? '',
-          args['replacement'] as String? ?? '',
-          requireUnique: args['requireUnique'] as bool? ?? true,
-          replaceAll: args['replaceAll'] == true,
-          expectedReplacements: args['expectedReplacements'] as int?,
-        ),
+        'apply_patch' => await applyPatch(args['patch'] as String? ?? ''),
         'delete' => await deletePath(
           args['path'] as String? ?? '',
           recursive: args['recursive'] as bool? ?? false,
@@ -233,6 +280,14 @@ class ProjectTools extends ToolContext
         'list' => await listDirectory(
           args['path'] as String? ?? '.',
           depth: args['depth'] as int? ?? 1,
+        ),
+        'glob' => await globPaths(
+          args['pattern'] as String? ?? '',
+          maxResults: args['maxResults'] as int? ?? 200,
+          offset: args['offset'] as int? ?? 0,
+          includeDirectories: args['includeDirectories'] as bool? ?? true,
+          includeFiles: args['includeFiles'] as bool? ?? true,
+          caseSensitive: args['caseSensitive'] as bool?,
         ),
         'search' => await search(
           args['query'] as String? ?? '',
@@ -261,6 +316,34 @@ class ProjectTools extends ToolContext
           source: args['source'] as String? ?? '',
           target: args['target'] as String? ?? '',
         ),
+        'jobs.list' || 'jobs_list' => await listRuntimeJobs(),
+        'jobs.status' ||
+        'jobs_status' => await runtimeJobStatus(args['jobId'] as String? ?? ''),
+        'jobs.logs' || 'jobs_logs' => await runtimeJobLogs(
+          args['jobId'] as String? ?? '',
+          maxCharacters: args['maxCharacters'] as int? ?? 200000,
+          follow: args['follow'] as bool? ?? true,
+          timeout: Duration(
+            seconds: _timeoutSeconds(
+              args['timeout_seconds'] ?? args['timeoutSeconds'],
+              const Duration(seconds: 30),
+            ),
+          ),
+          cancellationToken: cancellationToken,
+          onUpdate: onUpdate,
+        ),
+        'jobs.wait' || 'jobs_wait' => await waitForRuntimeJob(
+          args['jobId'] as String? ?? '',
+          timeout: Duration(
+            seconds: _timeoutSeconds(
+              args['timeout_seconds'] ?? args['timeoutSeconds'],
+              const Duration(seconds: 120),
+            ),
+          ),
+          cancellationToken: cancellationToken,
+        ),
+        'jobs.cancel' ||
+        'jobs_cancel' => await cancelRuntimeJob(args['jobId'] as String? ?? ''),
         _ => throw ToolFailure('Unknown tool: $name'),
       };
       return {'ok': true, 'result': result};

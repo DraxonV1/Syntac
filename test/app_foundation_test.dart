@@ -598,7 +598,7 @@ void main() {
     });
 
     test(
-      'validates paths and supports read write edit delete list search bash',
+      'validates paths and supports read write apply_patch delete list search bash',
       () async {
         final dir = await Directory.systemTemp.createTemp('syntac_tools_test_');
         final tools = ProjectTools(
@@ -638,24 +638,28 @@ void main() {
         expect(byteRange['content'], 'world');
         expect(byteRange['startByte'], 6);
 
-        final firstEdit = await tools.editFile('lib/main.txt', 'hello', 'hi');
+        final firstPatch = await tools.applyPatch('''*** Begin Patch
+*** Update File: lib/main.txt
+@@
+-hello world
++hi world
+*** End Patch''');
+        expect(firstPatch['changedFiles'], hasLength(1));
         expect(
           (await File(
             '${dir.path}${Platform.pathSeparator}lib${Platform.pathSeparator}main.txt',
           ).readAsString()).startsWith('hi'),
           isTrue,
         );
-        expect(firstEdit['replacedLines'], 1);
-        expect(firstEdit['newLines'], 1);
 
-        await tools.editFile(
-          'lib/main.txt',
-          'i',
-          'I',
-          replaceAll: true,
-          requireUnique: false,
-          expectedReplacements: 2,
-        );
+        await tools.applyPatch('''*** Begin Patch
+*** Update File: lib/main.txt
+@@
+-hi world
+-second line
++hI world
++second lIne
+*** End Patch''');
         expect(
           await File(
             '${dir.path}${Platform.pathSeparator}lib${Platform.pathSeparator}main.txt',
@@ -727,6 +731,115 @@ void main() {
         await dir.delete(recursive: true);
       },
     );
+    test('glob systemwide read and durable job tools', () async {
+      final dir = await Directory.systemTemp.createTemp('syntac_glob_test_');
+      final outside = await Directory.systemTemp.createTemp(
+        'syntac_system_read_test_',
+      );
+      try {
+        await Directory('${dir.path}${Platform.pathSeparator}lib').create();
+        await File(
+          '${dir.path}${Platform.pathSeparator}lib${Platform.pathSeparator}a.dart',
+        ).writeAsString('void main() {}');
+        await File(
+          '${dir.path}${Platform.pathSeparator}lib${Platform.pathSeparator}b.dart',
+        ).writeAsString('text');
+        await File(
+          '${dir.path}${Platform.pathSeparator}root.dart',
+        ).writeAsString('root');
+        final outsideFile = File(
+          '${outside.path}${Platform.pathSeparator}diagnostic.txt',
+        );
+        await outsideFile.writeAsString('system diagnostic');
+        final sensitiveFile = File(
+          '${outside.path}${Platform.pathSeparator}private.key',
+        );
+        await sensitiveFile.writeAsString('private');
+        final tools = ProjectTools(
+          projectRoot: dir.path,
+          shellExecutor: FakeRuntimeJobExecutor(),
+        );
+        final toolNames = tools.specs
+            .map((spec) => (spec['function']! as Map)['name'])
+            .toSet();
+        expect(
+          toolNames,
+          containsAll(<Object?>[
+            'apply_patch',
+            'glob',
+            'jobs.list',
+            'jobs.status',
+            'jobs.logs',
+            'jobs.wait',
+            'jobs.cancel',
+          ]),
+        );
+        expect(toolNames, isNot(contains('edit')));
+
+        final globResult = await tools.globPaths(
+          '**/*.dart',
+          includeDirectories: false,
+          maxResults: 1,
+        );
+        expect(globResult['count'], 1);
+        expect(globResult['hasMore'], isTrue);
+        expect(globResult['matches'], isNotEmpty);
+        expect(
+          ((globResult['matches'] as List).first as Map)['path'].toString(),
+          anyOf('lib/a.dart', 'root.dart'),
+        );
+
+        final systemRead = await tools.execute('read', {
+          'path': outsideFile.path,
+          'systemwide': true,
+        });
+        expect(systemRead['ok'], isTrue);
+        expect((systemRead['result']! as Map)['content'], 'system diagnostic');
+        final sensitiveRead = await tools.execute('read', {
+          'path': sensitiveFile.path,
+          'systemwide': true,
+        });
+        expect(sensitiveRead['ok'], isFalse);
+
+        final listed = await tools.execute('jobs.list', {});
+        final listedResult = listed['result']! as Map;
+        expect(listed['ok'], isTrue);
+        expect(listedResult['jobs'], hasLength(1));
+
+        final updates = <Map<String, Object?>>[];
+        final logs = await tools.execute('jobs.logs', {
+          'jobId': 'job-1',
+          'timeout_seconds': 5,
+        }, onUpdate: updates.add);
+        final logsResult = logs['result']! as Map;
+        expect(logs['ok'], isTrue);
+        expect(logsResult['category'], 'jobs_logs');
+        expect(logsResult['state'], 'completed');
+        expect(updates, isNotEmpty);
+        expect(
+          updates.any((update) => update['stdout'].toString().contains('line')),
+          isTrue,
+        );
+
+        final fake = tools.shellExecutor as FakeRuntimeJobExecutor;
+        fake.state = 'running';
+        fake.statusPolls = 0;
+        final waited = await tools.execute('jobs.wait', {
+          'jobId': 'job-1',
+          'timeout_seconds': 5,
+        });
+        expect((waited['result']! as Map)['state'], 'completed');
+
+        fake.state = 'running';
+        final cancelled = await tools.execute('jobs.cancel', {
+          'jobId': 'job-1',
+        });
+        expect((cancelled['result']! as Map)['state'], 'cancelled');
+      } finally {
+        await dir.delete(recursive: true);
+        await outside.delete(recursive: true);
+      }
+    });
     test('read caps line output at 500 and exposes continuation', () async {
       final dir = await Directory.systemTemp.createTemp('syntac_read_cap_');
       final file = File('${dir.path}${Platform.pathSeparator}large.txt');
@@ -2892,12 +3005,16 @@ void main() {
             },
             3 => {
               'functionCall': {
-                'id': 'call_edit',
-                'name': 'edit',
+                'id': 'call_apply_patch',
+                'name': 'apply_patch',
                 'args': {
-                  'path': 'hello.txt',
-                  'target': 'Hello',
-                  'replacement': 'Hello World',
+                  'patch':
+                      '*** Begin Patch\n'
+                      '*** Update File: hello.txt\n'
+                      '@@\n'
+                      '-Hello\n'
+                      '+Hello World\n'
+                      '*** End Patch',
                 },
               },
               'thoughtSignature': 'sig_3',
@@ -2930,7 +3047,7 @@ void main() {
       await loop.send(
         project: project,
         chat: chat,
-        userText: 'list, read, edit, final',
+        userText: 'list, read, apply patch, final',
       );
 
       expect(requestCount, 4);
@@ -3554,6 +3671,84 @@ class CapturingShellExecutor implements ShellExecutor {
     }
     return result;
   }
+
+  @override
+  Future<RuntimeStatus> status() async =>
+      const RuntimeStatus(state: RuntimeState.ready, message: 'ready');
+}
+
+class FakeRuntimeJobExecutor implements ShellExecutor, RuntimeJobExecutor {
+  String state = 'running';
+  int statusPolls = 0;
+  int logPolls = 0;
+
+  Map<Object?, Object?> _snapshot() => {
+    'jobId': 'job-1',
+    'command': 'fake command',
+    'state': state,
+    'running': state == 'running',
+    'startedAt': 1000,
+    'finishedAt': state == 'running' ? null : 2000,
+    'durationMs': state == 'running' ? 1000 : 2000,
+    'exitCode': state == 'completed' ? 0 : null,
+    'jobSuccess': state == 'completed',
+    'failureKind': state == 'cancelled' ? 'cancelled' : null,
+    'stdoutPreview': 'line',
+    'stderrPreview': '',
+  };
+
+  @override
+  String get runtimeId => 'fake-runtime';
+
+  @override
+  Future<void> cancel(String commandId) async {}
+
+  @override
+  Future<Map<Object?, Object?>> cancelJob(String id) async {
+    state = 'cancelled';
+    return _snapshot();
+  }
+
+  @override
+  Future<Map<Object?, Object?>> jobLogs(
+    String id, {
+    int maxCharacters = 200000,
+  }) async {
+    if (id != 'job-1') return {'failureKind': 'runtime_job_not_found'};
+    logPolls++;
+    if (state == 'running' && logPolls > 1) state = 'completed';
+    return {..._snapshot(), 'stdout': 'line $logPolls', 'stderr': ''};
+  }
+
+  @override
+  Future<Map<Object?, Object?>> jobStatus(String id) async {
+    if (id != 'job-1') return {'failureKind': 'runtime_job_not_found'};
+    if (state == 'running') {
+      statusPolls++;
+      if (statusPolls >= 2) state = 'completed';
+    }
+    return _snapshot();
+  }
+
+  @override
+  Future<List<Object?>> listJobs() async => [_snapshot()];
+
+  @override
+  Future<CommandResult> run({
+    required String command,
+    required String workingDirectory,
+    required Duration timeout,
+    bool background = false,
+    CancellationToken? cancellationToken,
+    CommandOutputCallback? onOutput,
+  }) async => const CommandResult(
+    stdout: '',
+    stderr: '',
+    exitCode: 0,
+    duration: Duration.zero,
+    timedOut: false,
+    cancelled: false,
+  );
 
   @override
   Future<RuntimeStatus> status() async =>

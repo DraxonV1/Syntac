@@ -62,6 +62,10 @@ class MainActivity : FlutterActivity() {
                     val id = (call.arguments as? Map<*, *>)?.get("id")?.toString().orEmpty()
                     result.success(localRuntime.stopJob(id))
                 }
+                "cancelLocalRuntimeJob" -> {
+                    val id = (call.arguments as? Map<*, *>)?.get("id")?.toString().orEmpty()
+                    result.success(localRuntime.cancelJob(id))
+                }
                 "restartLocalRuntimeJob" -> {
                     val id = (call.arguments as? Map<*, *>)?.get("id")?.toString().orEmpty()
                     result.success(localRuntime.restartJob(id))

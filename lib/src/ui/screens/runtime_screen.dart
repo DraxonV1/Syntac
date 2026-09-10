@@ -425,6 +425,40 @@ class _RuntimeScreenState extends State<RuntimeScreen>
                 color: AppColors.textSecondary,
               ),
             ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 10,
+              runSpacing: 4,
+              children: [
+                if (job['startedAt'] != null)
+                  Text(
+                    'started ${_jobTimestamp(job['startedAt'])}',
+                    style: AppTypography.monoSmall,
+                  ),
+                if (job['finishedAt'] != null)
+                  Text(
+                    'finished ${_jobTimestamp(job['finishedAt'])}',
+                    style: AppTypography.monoSmall,
+                  ),
+                if (job['exitCode'] != null)
+                  Text(
+                    'exit ${job['exitCode']}',
+                    style: AppTypography.monoSmall,
+                  ),
+                if (job['durationMs'] != null)
+                  Text(
+                    '${job['durationMs']} ms',
+                    style: AppTypography.monoSmall,
+                  ),
+                if (job['failureKind'] != null)
+                  Text(
+                    job['failureKind'].toString(),
+                    style: AppTypography.monoSmall.copyWith(
+                      color: AppColors.errorText,
+                    ),
+                  ),
+              ],
+            ),
             if (job['stdoutPreview']?.toString().isNotEmpty == true)
               SelectableText(
                 job['stdoutPreview']!.toString(),
@@ -436,6 +470,12 @@ class _RuntimeScreenState extends State<RuntimeScreen>
         ],
       ),
     );
+  }
+
+  String _jobTimestamp(Object? value) {
+    final milliseconds = value is num ? value.toInt() : int.tryParse('$value');
+    if (milliseconds == null) return 'unknown';
+    return DateTime.fromMillisecondsSinceEpoch(milliseconds).toIso8601String();
   }
 
   Widget _buildEnvironmentCard(bool isLandscape) {

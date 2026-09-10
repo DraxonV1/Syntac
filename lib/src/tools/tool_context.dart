@@ -183,6 +183,65 @@ class ToolContext {
     return lexicalTarget;
   }
 
+  Future<String> resolveSystemPath(String inputPath) async {
+    final raw = inputPath.trim();
+    if (raw.isEmpty) throw ToolFailure('Path is required');
+    if (raw.contains('\u0000')) {
+      throw ToolFailure('Path contains an invalid character');
+    }
+    final isWindowsAbsolute = RegExp(r'^[A-Za-z]:[\\/]').hasMatch(raw);
+    if (!isWindowsAbsolute && (Uri.tryParse(raw)?.hasScheme ?? false)) {
+      throw ToolFailure('URI paths are not supported for system reads');
+    }
+    if (!p.isAbsolute(raw)) {
+      throw ToolFailure(
+        'Systemwide reads require an absolute filesystem path: $inputPath',
+      );
+    }
+    final target = p.normalize(p.absolute(raw));
+    final type = await FileSystemEntity.type(target);
+    if (type != FileSystemEntityType.notFound) {
+      final entity = type == FileSystemEntityType.directory
+          ? Directory(target)
+          : File(target);
+      final real = await realPathForExisting(entity, inputPath);
+      if (_isSensitiveSystemPath(real)) {
+        throw ToolFailure('Systemwide read blocked for sensitive path');
+      }
+    }
+    return target;
+  }
+
+  bool _isSensitiveSystemPath(String path) {
+    final segments = p
+        .split(p.normalize(path).toLowerCase())
+        .where((segment) => segment.isNotEmpty)
+        .toSet();
+    const blockedSegments = {
+      '.ssh',
+      '.gnupg',
+      '.aws',
+      '.azure',
+      'credentials',
+      'secrets',
+      'keystore',
+    };
+    if (segments.any(blockedSegments.contains)) return true;
+    final name = p.basename(path).toLowerCase();
+    return name == '.env' ||
+        name.startsWith('.env.') ||
+        const {
+          '.pem',
+          '.key',
+          '.p12',
+          '.pfx',
+          '.jks',
+        }.contains(p.extension(name)) ||
+        RegExp(
+          r'(token|password|secret|credential|private[._-]?key)',
+        ).hasMatch(name);
+  }
+
   Future<String> _resolveLocalAttachment(String inputPath) async {
     final raw = inputPath.substring('local://'.length).replaceAll('\\', '/');
     final slash = raw.indexOf('/');

@@ -430,7 +430,7 @@ class GoogleCloudCodeAssistProvider extends AIProvider {
     final function = spec['function'];
     if (function is Map) {
       return {
-        'name': function['name']?.toString() ?? 'tool',
+        'name': function['name']?.toString().replaceAll('.', '_') ?? 'tool',
         if (function['description'] != null)
           'description': function['description'],
         'parameters': _normalizeCloudCodeSchema(

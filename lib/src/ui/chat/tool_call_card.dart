@@ -88,31 +88,52 @@ class _ToolCallCardState extends State<ToolCallCard>
     return canonicalResult;
   }
 
+  String _canonicalToolName(String name) => switch (name.toLowerCase()) {
+    'jobs_list' => 'jobs.list',
+    'jobs_status' => 'jobs.status',
+    'jobs_logs' => 'jobs.logs',
+    'jobs_wait' => 'jobs.wait',
+    'jobs_cancel' => 'jobs.cancel',
+    _ => name.toLowerCase(),
+  };
+
   String _formatToolName(String name) {
-    return switch (name.toLowerCase()) {
+    return switch (_canonicalToolName(name)) {
       'read' => 'Read',
       'display_image' => 'Display image',
       'write' => 'Write',
-      'edit' => 'Edit',
+      'apply_patch' => 'Apply patch',
       'delete' => 'Delete',
       'list' => 'List',
+      'glob' => 'Glob',
       'search' => 'Search',
       'bash' => 'Bash',
+      'jobs.list' => 'Jobs list',
+      'jobs.status' => 'Job status',
+      'jobs.logs' => 'Job logs',
+      'jobs.wait' => 'Wait for job',
+      'jobs.cancel' => 'Cancel job',
       'copy' => 'Copy',
       _ => name,
     };
   }
 
   IconData _iconForTool(String name) {
-    return switch (name.toLowerCase()) {
+    return switch (_canonicalToolName(name)) {
       'read' => Icons.description_outlined,
       'display_image' => Icons.image_outlined,
       'write' => Icons.note_add_outlined,
-      'edit' => Icons.edit_note_outlined,
+      'apply_patch' => Icons.build_circle_outlined,
       'delete' => Icons.delete_outline,
       'list' => Icons.folder_open_outlined,
+      'glob' => Icons.manage_search_outlined,
       'search' => Icons.search,
       'bash' => Icons.terminal,
+      'jobs.list' ||
+      'jobs.status' ||
+      'jobs.logs' ||
+      'jobs.wait' ||
+      'jobs.cancel' => Icons.work_history_outlined,
       'copy' => Icons.content_copy_outlined,
       _ => Icons.build_outlined,
     };
@@ -208,9 +229,10 @@ class _ToolCallCardState extends State<ToolCallCard>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Divider(color: AppColors.borderSubtle, height: 12),
-                  if (widget.execution.name.toLowerCase() == 'bash')
+                  if (_canonicalToolName(widget.execution.name) == 'bash')
                     _buildBashDetails(args, result)
-                  else if (widget.execution.name.toLowerCase() == 'search')
+                  else if (_canonicalToolName(widget.execution.name) ==
+                      'search')
                     _buildSearchDetails(args, result)
                   else
                     _buildGenericDetails(args, result),
@@ -256,16 +278,18 @@ class _ToolCallCardState extends State<ToolCallCard>
   }
 
   String _extractTargetText(String toolName, Map<String, Object?> args) {
-    return switch (toolName.toLowerCase()) {
-      'read' ||
-      'write' ||
-      'edit' ||
-      'delete' ||
-      'list' => args['path']?.toString() ?? '',
+    return switch (_canonicalToolName(toolName)) {
+      'read' || 'write' || 'delete' || 'list' => args['path']?.toString() ?? '',
+      'apply_patch' => 'multi-file patch',
+      'glob' => args['pattern']?.toString() ?? '',
       'copy' =>
         '${args['source']?.toString() ?? ''} → ${args['target']?.toString() ?? ''}',
       'search' => '"${args['query']?.toString() ?? ''}"',
       'bash' => args['command']?.toString() ?? '',
+      'jobs.status' ||
+      'jobs.logs' ||
+      'jobs.wait' ||
+      'jobs.cancel' => args['jobId']?.toString() ?? '',
       _ => args.entries.map((e) => '${e.key}: ${e.value}').take(2).join(', '),
     };
   }
@@ -282,7 +306,7 @@ class _ToolCallCardState extends State<ToolCallCard>
       return BadgeChip.error(label: 'Cancelled');
     }
     if (widget.execution.status == ToolExecutionStatus.error) {
-      if (toolName.toLowerCase() == 'bash') {
+      if (_canonicalToolName(toolName) == 'bash') {
         final exitCode = result['exitCode'];
         if (exitCode != null && exitCode.toString() != '-1') {
           return BadgeChip.error(label: 'Exit $exitCode');
@@ -295,15 +319,29 @@ class _ToolCallCardState extends State<ToolCallCard>
       return BadgeChip.error(label: 'Failed');
     }
 
-    return switch (toolName.toLowerCase()) {
-      'edit' => () {
-        final removed =
-            _intValue(result['replacedLines']) ??
-            _lineCount(args['target']?.toString() ?? '');
-        final added =
-            _intValue(result['newLines']) ??
-            _lineCount(args['replacement']?.toString() ?? '');
-        return BadgeChip.diff(added: added, removed: removed);
+    return switch (_canonicalToolName(toolName)) {
+      'apply_patch' => () {
+        final files = result['changedFiles'];
+        if (files is List) {
+          return BadgeChip.neutral(label: '${files.length} files');
+        }
+        return null;
+      }(),
+      'glob' => () {
+        final count = _intValue(result['count']);
+        return count == null
+            ? null
+            : BadgeChip.neutral(label: '$count matches');
+      }(),
+      'jobs.list' => () {
+        final jobs = result['jobs'];
+        return jobs is List
+            ? BadgeChip.neutral(label: '${jobs.length} jobs')
+            : null;
+      }(),
+      'jobs.status' || 'jobs.logs' || 'jobs.wait' || 'jobs.cancel' => () {
+        final state = result['state']?.toString();
+        return state == null ? null : BadgeChip.neutral(label: state);
       }(),
       'search' => () {
         final results = result['results'];
@@ -521,12 +559,17 @@ class _ToolCallCardState extends State<ToolCallCard>
     Map<String, Object?> args,
     Map<String, Object?> result,
   ) {
-    return switch (widget.execution.name.toLowerCase()) {
+    return switch (_canonicalToolName(widget.execution.name)) {
       'read' || 'display_image' => _buildImageOrReadDetails(args, result),
       'write' => _buildWriteDetails(args, result),
-      'edit' => _buildEditDetails(args, result),
+      'apply_patch' => _buildPatchDetails(result),
       'delete' => _buildDeleteDetails(args, result),
       'list' => _buildListDetails(args, result),
+      'jobs.logs' => _buildJobLogsDetails(result),
+      'jobs.list' ||
+      'jobs.status' ||
+      'jobs.wait' ||
+      'jobs.cancel' => _buildJobDetails(result),
       _ => _buildJsonDetails(args, result),
     };
   }
@@ -608,79 +651,95 @@ class _ToolCallCardState extends State<ToolCallCard>
         ], copyValue: path),
         if (content != null) ...[
           const SizedBox(height: 6),
-          _buildDiffBox(
-            title: 'CONTENT',
-            content: _addedContentPreview(content),
+          Text(
+            'CONTENT',
+            style: AppTypography.caption.copyWith(color: AppColors.textMuted),
+          ),
+          const SizedBox(height: 4),
+          _buildPlainOutputBox(
+            content,
             copyContent: content,
+            language: _languageForPath(path),
+            maxHeight: 220,
           ),
         ],
       ],
     );
   }
 
-  Widget _buildEditDetails(
-    Map<String, Object?> args,
-    Map<String, Object?> result,
-  ) {
-    final path = result['path']?.toString() ?? args['path']?.toString() ?? '';
-    final target = args['target']?.toString() ?? '';
-    final replacement = args['replacement']?.toString() ?? '';
-    final removedLines =
-        _intValue(result['replacedLines']) ?? _lineCount(target);
-    final addedLines = _intValue(result['newLines']) ?? _lineCount(replacement);
+  Widget _buildPatchDetails(Map<String, Object?> result) {
+    final patch = result['diff']?.toString() ?? '';
+    return _buildDiffBox(
+      title: 'PATCH',
+      content: patch.isEmpty ? '(no patch)' : patch,
+      copyContent: patch,
+      maxHeight: 260,
+    );
+  }
+
+  Widget _buildJobDetails(Map<String, Object?> result) {
+    return _buildKeyValueDetails([
+      ('Job', result['jobId']?.toString() ?? ''),
+      ('State', result['state']?.toString() ?? 'unknown'),
+      if (result['startedAt'] != null)
+        ('Started', _formatTimestamp(result['startedAt'])),
+      if (result['finishedAt'] != null)
+        ('Finished', _formatTimestamp(result['finishedAt'])),
+      if (result['exitCode'] != null)
+        ('Exit code', result['exitCode'].toString()),
+      if (result['durationMs'] != null)
+        ('Duration', '${result['durationMs']} ms'),
+      if (result['failureKind'] != null)
+        ('Failure', result['failureKind'].toString()),
+    ]);
+  }
+
+  Widget _buildJobLogsDetails(Map<String, Object?> result) {
+    final stdout = result['stdout']?.toString() ?? '';
+    final stderr = result['stderr']?.toString() ?? '';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildEditHeader(path, removedLines, addedLines),
-        if (target.isNotEmpty || replacement.isNotEmpty) ...[
+        _buildJobDetails(result),
+        if (stdout.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          _buildPlainOutputBox(
+            stdout,
+            copyContent: stdout,
+            language: 'text',
+            maxHeight: 240,
+          ),
+        ],
+        if (stderr.isNotEmpty) ...[
           const SizedBox(height: 6),
-          _buildDiffBox(
-            title: 'DIFF',
-            content: _replacementDiffPreview(target, replacement),
+          _buildPlainOutputBox(
+            stderr,
+            copyContent: stderr,
+            language: 'text',
+            isError: true,
+            maxHeight: 180,
           ),
         ],
-      ],
-    );
-  }
-
-  Widget _buildEditHeader(String path, int removedLines, int addedLines) {
-    final delta = addedLines - removedLines;
-    final badge = delta == 0 ? null : '[${delta > 0 ? '+' : ''}$delta]';
-    return Row(
-      children: [
-        Icon(Icons.build_outlined, size: 14, color: AppColors.textMuted),
-        const SizedBox(width: 6),
-        Text(
-          'Edit:',
-          style: AppTypography.monoSmall.copyWith(color: AppColors.textMuted),
-        ),
-        const SizedBox(width: 6),
-        Expanded(
-          child: Text(
-            _compactPath(path),
-            overflow: TextOverflow.ellipsis,
-            style: AppTypography.monoSmall.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-        ),
-        if (badge != null) ...[
-          const SizedBox(width: 8),
+        if (stdout.isEmpty && stderr.isEmpty)
           Text(
-            badge,
-            style: AppTypography.monoSmall.copyWith(
-              color: AppColors.accentText,
-              fontWeight: FontWeight.w700,
-            ),
+            result['message']?.toString() ?? '(no output)',
+            style: AppTypography.monoSmall.copyWith(color: AppColors.textMuted),
           ),
-        ],
       ],
     );
   }
 
-  String _compactPath(String path) {
-    if (path.length <= 52) return path;
-    return '${path.substring(0, 24)}…${path.substring(path.length - 24)}';
+  String _formatTimestamp(Object? value) {
+    final milliseconds = _intValue(value);
+    if (milliseconds == null) return value?.toString() ?? 'unknown';
+    return DateTime.fromMillisecondsSinceEpoch(milliseconds).toIso8601String();
+  }
+
+  String? _languageForPath(String path) {
+    final basename = path.split(RegExp(r'[\\\\/]')).last;
+    final dot = basename.lastIndexOf('.');
+    if (dot < 0 || dot == basename.length - 1) return null;
+    return basename.substring(dot + 1);
   }
 
   Widget _buildDeleteDetails(
@@ -786,18 +845,6 @@ class _ToolCallCardState extends State<ToolCallCard>
     final omitted = content.length - _codePreviewCharacters;
     return '${content.substring(0, _codePreviewCharacters)}\n'
         '[preview truncated $omitted characters; copy gets full value]';
-  }
-
-  String _addedContentPreview(String content) =>
-      content.split('\n').map((line) => '+$line').join('\n');
-
-  int _lineCount(String value) =>
-      value.isEmpty ? 0 : '\n'.allMatches(value).length + 1;
-
-  String _replacementDiffPreview(String target, String replacement) {
-    final removed = target.split('\n').map((line) => '-$line');
-    final added = replacement.split('\n').map((line) => '+$line');
-    return [...removed, ...added].join('\n');
   }
 
   TextStyle _diffLineStyle(String line) {

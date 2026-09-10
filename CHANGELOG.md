@@ -1,51 +1,27 @@
 # Changelog
-## 0.1.1-beta.3
 
-P0 runtime reliability release for Android Early Access.
+## 0.1.1-beta.4
 
-### Added
-
-- Durable Arch Linux runtime jobs with `background`/`async` Bash execution and `timeout_seconds: 0`.
-- App-private runtime job registry and bounded logs with status, logs, stop, restart, and stop-all controls.
-- Foreground-service ownership and notification stop action for persistent runtime jobs.
-- Arch network diagnostics for DNS, CA certificates, and HTTPS connectivity.
-- Explicit command approval for destructive commands, package installation, and persistent services.
-
-### Hardened
-
-- Preserved Arch PATH, proxy, locale, terminal, temporary-directory, and CA environment settings.
-- Added process-tree cancellation, crash recovery state, bounded output, port detection, and structured runtime failures.
-
-### Release
-
-- Android package: `com.syntac`
-- Version: `0.1.1-beta.3`
-- Version code: `13`
-- Default update channel: `beta`
-
-
-## 0.1.1-beta.2
-
-Syntac Early Access Android beta.
+Android Early Access tooling release.
 
 ### Added
 
-- Local-first Android coding-agent app with on-device project, chat, tool result, provider, runtime, and update state.
-- Project browser, chat-based coding agent, markdown/code rendering, expandable tool result cards, and settings diagnostics.
-- Google Antigravity / Cloud Code Assist OAuth, ChatGPT Codex OAuth, Grok, and OpenAI-compatible provider support.
-- Packaged Arch Linux PRoot runtime and Termux `RUN_COMMAND` bridge for project shell commands.
-- Public update manifests for stable, beta, and nightly channels.
+- Durable ARCH Linux Runtime job APIs: list, status, bounded logs, live log follow, wait, and cancel.
+- Job lifecycle metadata: start/finish timestamps, duration, exit code, terminal state, failure kind, restart count, and log truncation counts.
+- Bounded project `glob` discovery for files and directories.
+- Explicit read-only systemwide `read` mode for absolute diagnostic paths with sensitive-path blocking.
+- Multi-file `apply_patch` tool with project-root validation and atomic file writes.
+- Live durable job log updates in tool cards.
 
-### Hardened
+### Changed
 
-- JSONL chat storage with atomic writes, malformed-line recovery, legacy SQLite migration coverage, and concurrent update stress tests.
-- Startup/onboarding initialization error handling and retry surfaces.
-- Provider credential handling: OAuth secrets come from build-time configuration; missing Google OAuth config fails safely.
-- Android release automation now requires stable signing secrets before publishing public APKs.
+- `write` cards now show exact content with syntax highlighting; no patch markers or green diff styling.
+- `edit` tool replaced by `apply_patch`.
+- Runtime job controls expose explicit cancel routing through Android MethodChannel.
 
-### Release
+### Release metadata
 
 - Android package: `com.syntac`
-- Version: `0.1.1-beta.2`
-- Version code: `12`
+- Version: `0.1.1-beta.4`
+- Version code: `14`
 - Default update channel: `beta`
