@@ -9,6 +9,7 @@ import '../../app.dart';
 import '../../models.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_icons.dart';
+import '../theme/app_motion.dart';
 import '../theme/app_typography.dart';
 import '../widgets/adaptive_sheet.dart';
 import '../widgets/app_buttons.dart';
@@ -17,6 +18,7 @@ import '../widgets/app_modal.dart';
 import '../widgets/badge_chip.dart';
 import '../widgets/maximizable_surface.dart';
 import '../widgets/status_indicator.dart';
+import 'runtime_jobs_screen.dart';
 
 /// Standalone top-level screen for managing shell runtimes, rootfs installation,
 /// environment diagnostics, and terminal tests.
@@ -213,10 +215,41 @@ class _RuntimeScreenState extends State<RuntimeScreen>
           _buildEnvironmentCard(isLandscape),
           const SizedBox(height: 16),
 
-          // Persistent jobs
-          if (selectedRuntime == ShellRuntimeId.archLinux &&
-              status.jobs.isNotEmpty) ...[
-            _buildJobsCard(status.jobs),
+          if (selectedRuntime == ShellRuntimeId.archLinux) ...[
+            AppCard(
+              padding: const EdgeInsets.all(14),
+              backgroundColor: AppColors.surfaceElevated,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('RUNTIME JOBS', style: AppTypography.label),
+                        const SizedBox(height: 4),
+                        Text(
+                          'View and control active and recent shell jobs',
+                          style: AppTypography.bodySmall.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  AppButton(
+                    label: 'View Jobs',
+                    compact: true,
+                    variant: AppButtonVariant.secondary,
+                    onPressed: () => Navigator.of(context).push(
+                      AppMotion.pageRoute(
+                        builder: (_) =>
+                            RuntimeJobsScreen(controller: widget.controller),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: 16),
           ],
 
@@ -376,106 +409,6 @@ class _RuntimeScreenState extends State<RuntimeScreen>
         ],
       ),
     );
-  }
-
-  Widget _buildJobsCard(List<Map<String, Object?>> jobs) {
-    return AppCard(
-      padding: const EdgeInsets.all(14),
-      backgroundColor: AppColors.surfaceElevated,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('PERSISTENT JOBS', style: AppTypography.label),
-          const SizedBox(height: 8),
-          for (final job in jobs) ...[
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '${job['state'] ?? 'unknown'}  ${job['jobId'] ?? ''}',
-                    style: AppTypography.bodySmall,
-                  ),
-                ),
-                if (job['state'] == 'running')
-                  AppButton(
-                    label: 'Stop',
-                    variant: AppButtonVariant.danger,
-                    compact: true,
-                    onPressed: () => widget.controller.stopLocalRuntimeJob(
-                      job['jobId']?.toString() ?? '',
-                    ),
-                  )
-                else
-                  AppButton(
-                    label: 'Restart',
-                    variant: AppButtonVariant.ghost,
-                    compact: true,
-                    onPressed: () => widget.controller.restartLocalRuntimeJob(
-                      job['jobId']?.toString() ?? '',
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              job['command']?.toString() ?? '',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: AppTypography.bodySmall.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 10,
-              runSpacing: 4,
-              children: [
-                if (job['startedAt'] != null)
-                  Text(
-                    'started ${_jobTimestamp(job['startedAt'])}',
-                    style: AppTypography.monoSmall,
-                  ),
-                if (job['finishedAt'] != null)
-                  Text(
-                    'finished ${_jobTimestamp(job['finishedAt'])}',
-                    style: AppTypography.monoSmall,
-                  ),
-                if (job['exitCode'] != null)
-                  Text(
-                    'exit ${job['exitCode']}',
-                    style: AppTypography.monoSmall,
-                  ),
-                if (job['durationMs'] != null)
-                  Text(
-                    '${job['durationMs']} ms',
-                    style: AppTypography.monoSmall,
-                  ),
-                if (job['failureKind'] != null)
-                  Text(
-                    job['failureKind'].toString(),
-                    style: AppTypography.monoSmall.copyWith(
-                      color: AppColors.errorText,
-                    ),
-                  ),
-              ],
-            ),
-            if (job['stdoutPreview']?.toString().isNotEmpty == true)
-              SelectableText(
-                job['stdoutPreview']!.toString(),
-                maxLines: 3,
-                style: AppTypography.bodySmall,
-              ),
-            if (job != jobs.last) const Divider(height: 16),
-          ],
-        ],
-      ),
-    );
-  }
-
-  String _jobTimestamp(Object? value) {
-    final milliseconds = value is num ? value.toInt() : int.tryParse('$value');
-    if (milliseconds == null) return 'unknown';
-    return DateTime.fromMillisecondsSinceEpoch(milliseconds).toIso8601String();
   }
 
   Widget _buildEnvironmentCard(bool isLandscape) {

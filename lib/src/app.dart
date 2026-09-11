@@ -20,6 +20,7 @@ import 'ai/openai_provider.dart';
 import 'ai/registry/provider_registry.dart';
 import 'ai/models_dev_catalog.dart';
 import 'core/app_identity.dart';
+import 'core/cancellation.dart';
 import 'core/update_service.dart';
 import 'models.dart';
 import 'tools/agent_tools.dart';
@@ -99,6 +100,9 @@ class AppController extends ChangeNotifier {
   final UpdateService _updateService;
   AppRepository? _repository;
   AgentLoop? _agentLoop;
+  final Set<String> _directCommandChats = <String>{};
+  final Map<String, CancellationToken> _directCommandTokens =
+      <String, CancellationToken>{};
   ModelsDevCatalog modelsDevCatalog = ModelsDevCatalog.empty();
   ShellRuntimeSettings shellRuntimeSettings = const ShellRuntimeSettings();
   CommandApprovalHandler? _commandApprovalHandler;
@@ -308,11 +312,31 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> stopLocalRuntimeJob(String jobId) async {
+  bool isChatRunning(String chatId) =>
+      _directCommandChats.contains(chatId) ||
+      (_agentLoop?.isChatRunning(chatId) ?? false);
+
+  Future<List<Map<String, Object?>>> listLocalRuntimeJobs() async {
     final executor = runtime;
-    if (executor is! ArchLinuxRuntime) return;
-    await executor.stopJob(jobId);
+    if (executor is! RuntimeJobExecutor) {
+      return const <Map<String, Object?>>[];
+    }
+    final jobs = await (executor as RuntimeJobExecutor).listJobs();
+    return jobs
+        .whereType<Map<Object?, Object?>>()
+        .map((job) => job.map((key, value) => MapEntry(key.toString(), value)))
+        .toList(growable: false);
+  }
+
+  Future<void> cancelLocalRuntimeJob(String jobId) async {
+    final executor = runtime;
+    if (executor is! RuntimeJobExecutor) return;
+    await (executor as RuntimeJobExecutor).cancelJob(jobId);
     await refreshRuntimeStatus();
+  }
+
+  Future<void> stopLocalRuntimeJob(String jobId) async {
+    await cancelLocalRuntimeJob(jobId);
   }
 
   Future<void> restartLocalRuntimeJob(String jobId) async {
@@ -417,6 +441,20 @@ class AppController extends ChangeNotifier {
     final project = selectedProject;
     var chat = selectedChat;
     if (project == null) return;
+    final directCommand = _directBashCommand(text);
+    if (directCommand != null) {
+      unawaited(
+        _runDirectBash(
+          project: project,
+          chat: chat,
+          userText: text,
+          command: directCommand,
+          attachments: attachments,
+        ),
+      );
+      await refreshAll();
+      return;
+    }
     final prompt = await _prepareUserText(text, project.folderPath);
     if (chat == null) {
       final provider = _defaultProvider();
@@ -529,6 +567,11 @@ class AppController extends ChangeNotifier {
   Future<void> stopCurrentChat() async {
     final chat = selectedChat;
     if (chat == null) return;
+    final directToken = _directCommandTokens[chat.id];
+    if (directToken != null) {
+      directToken.cancel();
+      return;
+    }
     await agentLoop.stop(chat.id);
     await refreshAll();
   }
@@ -1190,6 +1233,194 @@ class AppController extends ChangeNotifier {
     ShellRuntimeId.termux => TermuxRuntime(),
     ShellRuntimeId.archLinux => ArchLinuxRuntime(),
   };
+
+  String? _directBashCommand(String text) {
+    final trimmed = text.trimLeft();
+    if (!trimmed.startsWith('!')) return null;
+    final command = trimmed.substring(1).trim();
+    return command.isEmpty ? null : command;
+  }
+
+  Future<void> _runDirectBash({
+    required Project project,
+    required Chat? chat,
+    required String userText,
+    required String command,
+    required List<Attachment> attachments,
+  }) async {
+    final initialRuntime = runtime;
+    if (chat != null) chat = await repository.getChat(chat.id);
+    if (chat == null) {
+      final provider = _defaultProvider();
+      final model = _firstModelForProvider(provider);
+      chat = await repository.createChat(
+        projectId: project.id,
+        title: titleFromPrompt(command),
+        providerId: provider?.id,
+        modelId: model?.id,
+      );
+      selectedChat = chat;
+    }
+    if (isChatRunning(chat.id)) {
+      lastError = 'This chat already has a running operation.';
+      notifyListeners();
+      return;
+    }
+
+    final directToken = CancellationToken();
+    _directCommandChats.add(chat.id);
+    _directCommandTokens[chat.id] = directToken;
+    lastError = null;
+    notifyListeners();
+    ToolExecution? execution;
+    try {
+      final firstMessage = ChatMessage.create(
+        chatId: chat.id,
+        role: MessageRole.user,
+        content: userText,
+        metadata: attachments
+            .map((attachment) => attachment.toMap())
+            .toList(growable: false),
+      );
+      await repository.addMessage(firstMessage);
+      for (final attachment in attachments) {
+        await repository.addAttachment(
+          Attachment.create(
+            messageId: firstMessage.id,
+            path: attachment.path,
+            kind: attachment.kind,
+            name: attachment.name,
+            mimeType: attachment.mimeType,
+          ),
+        );
+      }
+      execution = ToolExecution.start(
+        chatId: chat.id,
+        name: 'bash',
+        arguments: <String, Object?>{'command': command, 'source': 'user'},
+      );
+      await repository.addToolExecution(execution);
+      await repository.setChatStatus(chat.id, ChatStatus.running);
+      await _refreshChatMessages(chat.id);
+
+      final shellExecutor =
+          shellRuntimeSettings.selected == ShellRuntimeId.termux
+          ? initialRuntime
+          : await _runtimeExecutorForProject(project);
+      final tools = ProjectTools(
+        projectRoot: project.folderPath,
+        shellExecutor: shellExecutor,
+        commandApproval: _commandApprovalHandler,
+        attachments: attachments,
+      );
+      var lastPreview = DateTime.fromMillisecondsSinceEpoch(0);
+      final result = await tools.execute(
+        'bash',
+        <String, Object?>{'command': command},
+        cancellationToken: directToken,
+        commandTimeout: Duration(seconds: limits.commandTimeoutSeconds),
+        onUpdate: (partialResult) async {
+          final now = DateTime.now();
+          if (now.difference(lastPreview).inMilliseconds < 250) return;
+          lastPreview = now;
+          final updated = execution!.runningResult({
+            'ok': true,
+            'result': partialResult,
+          });
+          await repository.updateToolExecution(updated);
+          await _refreshChatMessages(chat!.id);
+        },
+      );
+      final status = _directToolStatus(result);
+      final completed = execution.finish(
+        status: status,
+        result: result,
+        error: _directToolError(result, status),
+      );
+      await repository.updateToolExecution(completed);
+      await repository.addMessage(
+        ChatMessage.create(
+          chatId: chat.id,
+          role: MessageRole.tool,
+          toolCallId: execution.id,
+          content: jsonEncode(result),
+          metadata: const {'source': 'user'},
+        ),
+      );
+      await repository.setChatStatus(
+        chat.id,
+        status == ToolExecutionStatus.success
+            ? ChatStatus.completed
+            : status == ToolExecutionStatus.cancelled
+            ? ChatStatus.interrupted
+            : ChatStatus.error,
+        error: _directToolError(result, status),
+      );
+      await _refreshChatMessages(chat.id);
+    } catch (error, stackTrace) {
+      logDetailedAIError(error, stackTrace, context: 'Direct bash failed');
+      if (execution != null) {
+        final errorResult = <String, Object?>{
+          'ok': false,
+          'category': 'direct_bash_error',
+          'error': error.toString(),
+        };
+        await repository.updateToolExecution(
+          execution.finish(
+            status: ToolExecutionStatus.error,
+            result: errorResult,
+            error: error.toString(),
+          ),
+        );
+        await repository.addMessage(
+          ChatMessage.create(
+            chatId: chat.id,
+            role: MessageRole.tool,
+            toolCallId: execution.id,
+            content: jsonEncode(errorResult),
+            metadata: const {'source': 'user'},
+          ),
+        );
+        await repository.setChatStatus(
+          chat.id,
+          ChatStatus.error,
+          error: error.toString(),
+        );
+        await _refreshChatMessages(chat.id);
+      }
+      lastError = error.toString();
+      notifyListeners();
+    } finally {
+      _directCommandChats.remove(chat.id);
+      _directCommandTokens.remove(chat.id);
+      notifyListeners();
+    }
+  }
+
+  ToolExecutionStatus _directToolStatus(Map<String, Object?> result) {
+    if (result['cancelled'] == true) return ToolExecutionStatus.cancelled;
+    final nested = result['result'];
+    if (nested is Map && nested['cancelled'] == true) {
+      return ToolExecutionStatus.cancelled;
+    }
+    if (result['ok'] != true) return ToolExecutionStatus.error;
+    if (nested is Map && nested['success'] == false) {
+      return ToolExecutionStatus.error;
+    }
+    return ToolExecutionStatus.success;
+  }
+
+  String? _directToolError(
+    Map<String, Object?> result,
+    ToolExecutionStatus status,
+  ) {
+    if (status == ToolExecutionStatus.success) return null;
+    final nested = result['result'];
+    if (nested is Map && nested['error'] != null) {
+      return nested['error'].toString();
+    }
+    return result['error']?.toString() ?? result['category']?.toString();
+  }
 
   Future<String> _prepareUserText(String text, String projectRoot) async {
     final trimmed = text.trim();

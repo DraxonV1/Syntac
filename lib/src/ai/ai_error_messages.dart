@@ -29,6 +29,15 @@ String describeAIErrorForUser(
   final name = providerName.trim().isEmpty ? 'provider' : providerName.trim();
   if (error is OperationCancelledException) return 'Stopped by user';
   if (error is AIProviderException) {
+    final details = error.details;
+    if (details != null &&
+        (details.httpStatus != null ||
+            (details.responseBody?.isNotEmpty ?? false) ||
+            (details.finalResponse?.isNotEmpty ?? false))) {
+      return details
+          .copyWith(providerName: name)
+          .toDisplayText(title: 'Provider response');
+    }
     final transportKind = _transportErrorKind(error);
     if (transportKind != null) {
       return _displayProviderError(
@@ -37,8 +46,8 @@ String describeAIErrorForUser(
         statusCode: error.statusCode,
       );
     }
-    if (error.details != null) {
-      return error.details!.copyWith(providerName: name).toDisplayText();
+    if (details != null) {
+      return details.copyWith(providerName: name).toDisplayText();
     }
     return _displayProviderError(
       error.kind,

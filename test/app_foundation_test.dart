@@ -26,6 +26,7 @@ import 'package:syntac/src/ai/openai_provider.dart';
 import 'package:syntac/src/ai/models_dev_catalog.dart';
 import 'package:syntac/src/ai/registry/provider_registry.dart';
 import 'package:syntac/src/ai/provider_diagnostics.dart';
+import 'package:syntac/src/ai/provider_error_store.dart';
 import 'package:syntac/src/core/cancellation.dart';
 import 'package:syntac/src/core/update_service.dart';
 import 'package:syntac/src/models.dart';
@@ -905,6 +906,71 @@ void main() {
     });
   });
 
+  test(
+    'runs bang bash locally and persists output as user-owned context',
+    () async {
+      final chatDirectory = await Directory.systemTemp.createTemp(
+        'syntac_direct_bash_chats_',
+      );
+      final projectDirectory = await Directory.systemTemp.createTemp(
+        'syntac_direct_bash_project_',
+      );
+      final controller = AppController(
+        openDatabase: () => LocalDatabase.open(
+          path: inMemoryDatabasePath,
+          factory: databaseFactoryFfi,
+        ),
+        secretStore: MemorySecretStore(),
+        chatStorageDirectory: chatDirectory,
+      );
+      await controller.initialize();
+      final project = await controller.repository.createProject(
+        name: 'Direct Bash',
+        folderPath: projectDirectory.path,
+      );
+      controller.selectedProject = project;
+      final chat = await controller.repository.createChat(
+        projectId: project.id,
+        title: 'Direct Bash',
+      );
+      await controller.openChat(chat);
+      controller.runtime = CapturingShellExecutor(
+        const CommandResult(
+          stdout: 'direct output',
+          stderr: '',
+          exitCode: 0,
+          duration: Duration(milliseconds: 2),
+          timedOut: false,
+          cancelled: false,
+        ),
+      );
+      final chatId = chat.id;
+
+      await controller.sendMessage('  !printf direct output', const []);
+
+      ChatMessage? result;
+      for (var attempt = 0; attempt < 40; attempt++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        result = (await controller.repository.listMessages(
+          chatId,
+        )).where((message) => message.role == MessageRole.tool).firstOrNull;
+        if (result != null && !controller.isChatRunning(chatId)) break;
+      }
+
+      expect(result, isNotNull);
+      final metadata =
+          jsonDecode(result!.metadataJson!) as Map<String, Object?>;
+      expect(metadata['source'], 'user');
+      expect(result.content, contains('direct output'));
+      final executions = await controller.repository.listToolExecutions(chatId);
+      expect(executions.single.argumentsJson, contains('"source":"user"'));
+      expect(executions.single.status, ToolExecutionStatus.success);
+
+      await projectDirectory.delete(recursive: true);
+      await chatDirectory.delete(recursive: true);
+    },
+  );
+
   group('provider', () {
     test('maps OpenAI-compatible HTTP errors', () async {
       final provider = OpenAICompatibleProvider(
@@ -914,6 +980,7 @@ void main() {
               http.Response('{"error":{"message":"slow down"}}', 429),
         ),
       );
+
       expect(
         provider.testConnection(apiKey: 'k'),
         throwsA(
@@ -925,6 +992,37 @@ void main() {
         ),
       );
     });
+    test(
+      'maps supported reasoning effort for OpenAI-compatible providers',
+      () async {
+        Map<String, Object?>? captured;
+        final provider = OpenAICompatibleProvider(
+          baseUrl: 'https://example.test',
+          client: MockClient((request) async {
+            captured = jsonDecode(request.body) as Map<String, Object?>;
+            return http.Response(
+              'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n'
+              'data: [DONE]\n\n',
+              200,
+              headers: {'content-type': 'text/event-stream'},
+            );
+          }),
+        );
+
+        await provider.completeChat(
+          const AIChatRequest(
+            model: 'o3',
+            messages: [AIChatMessage(role: 'user', content: 'hello')],
+            tools: [],
+            reasoningEffort: AIReasoningEffort.xhigh,
+            supportsReasoning: true,
+          ),
+          apiKey: 'k',
+        );
+
+        expect(captured!['reasoning_effort'], 'high');
+      },
+    );
 
     test(
       'normalizes OpenAI-compatible base paths without duplicating v1',
@@ -2675,6 +2773,71 @@ void main() {
     expect(message, isNot(contains('Bearer abc')));
   });
 
+  test('provider response display stays bounded', () {
+    final response = 'provider detail ' * 400;
+    final message = describeAIErrorForUser(
+      AIProviderException(
+        'rejected',
+        statusCode: 400,
+        kind: 'bad_request',
+        details: ProviderErrorDetails(
+          providerName: 'OpenRouter',
+          modelId: 'model',
+          requestUrl: 'https://example.test/v1/chat/completions',
+          errorType: 'bad_request',
+          httpStatus: 400,
+          responseBody: response,
+        ),
+      ),
+      providerName: 'OpenRouter',
+    );
+
+    expect(message, contains('Response:\nprovider detail provider detail'));
+    expect(message.length, lessThan(5000));
+    expect(message, contains('…'));
+  });
+
+  test('persists redacted full provider payload by status and chat', () async {
+    final projectRoot = await Directory.systemTemp.createTemp(
+      'syntac_provider_errors_',
+    );
+    final error = AIProviderException(
+      'bad request',
+      statusCode: 429,
+      kind: 'rate_limited',
+      details: ProviderErrorDetails(
+        providerName: 'OpenRouter',
+        modelId: 'model',
+        requestUrl: 'https://example.test/v1/chat/completions',
+        method: 'POST',
+        httpStatus: 429,
+        errorType: 'rate_limited',
+        requestPayload: '{"model":"model","api_key":"secret"}',
+        responseBody: '{"error":"retry","request_id":"req-1"}',
+      ),
+    );
+
+    await persistProviderError(
+      projectRoot: projectRoot.path,
+      chatId: 'chat/id',
+      error: error,
+    );
+
+    final file = File(
+      '${projectRoot.path}${Platform.pathSeparator}.syntac'
+      '${Platform.pathSeparator}errors${Platform.pathSeparator}429'
+      '${Platform.pathSeparator}chat_id.jsonl',
+    );
+    expect(await file.exists(), isTrue);
+    final record =
+        jsonDecode((await file.readAsLines()).single) as Map<String, Object?>;
+    expect(record['statusCode'], 429);
+    expect(record['requestPayload'], contains('[redacted]'));
+    expect(record['requestPayload'], isNot(contains('secret')));
+    expect(record['responseBody'], contains('request_id'));
+    await projectRoot.delete(recursive: true);
+  });
+
   test('Google Antigravity uses Cloud Code Assist streaming protocol', () async {
     final seen = <String>[];
     final provider = GoogleCloudCodeAssistProvider(
@@ -2730,6 +2893,52 @@ void main() {
       seen.single,
       'POST https://daily-cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse',
     );
+  });
+
+  test('Gemini reasoning config uses provider-native bounded values', () async {
+    Map<String, Object?>? captured;
+    final provider = GoogleCloudCodeAssistProvider(
+      baseUrl: GoogleAntigravityOAuthFlow.defaultBaseUrl,
+      client: MockClient((request) async {
+        captured = jsonDecode(request.body) as Map<String, Object?>;
+        return http.Response(
+          'data: ${jsonEncode({
+            'response': {
+              'candidates': [
+                {
+                  'content': {
+                    'parts': [
+                      {'text': 'ok'},
+                    ],
+                  },
+                  'finishReason': 'STOP',
+                },
+              ],
+            },
+          })}\n\n',
+          200,
+          headers: {'content-type': 'text/event-stream'},
+        );
+      }),
+    );
+
+    await provider.completeChat(
+      const AIChatRequest(
+        model: 'gemini-3.1-pro',
+        messages: [AIChatMessage(role: 'user', content: 'hello')],
+        tools: [],
+        reasoningEffort: AIReasoningEffort.max,
+        includeThinking: true,
+      ),
+      apiKey: '{"token":"access-token","projectId":"project-123"}',
+    );
+
+    final request = captured!['request'] as Map;
+    final generationConfig = request['generationConfig'] as Map;
+    expect(generationConfig['thinkingConfig'], {
+      'includeThoughts': true,
+      'thinkingLevel': 'HIGH',
+    });
   });
 
   test('Antigravity matches OMP routed model output cap', () async {
@@ -3136,6 +3345,33 @@ void main() {
 
     expect(built.last.content, contains('local://attachment-1'));
     expect(built.last.content, isNot(contains('notes.txt')));
+  });
+
+  test('maps direct user bash results back into user context', () async {
+    final chatId = newId();
+    final result = ChatMessage.create(
+      chatId: chatId,
+      role: MessageRole.tool,
+      toolCallId: 'manual-bash',
+      content: '{"ok":true,"stdout":"direct output"}',
+      metadata: const {'source': 'user'},
+    );
+
+    final built = ContextBuilder(maxCharacters: 100000).build(
+      history: [
+        ChatMessage.create(
+          chatId: chatId,
+          role: MessageRole.user,
+          content: '!printf direct output',
+        ),
+        result,
+      ],
+    );
+
+    expect(built.last.role, 'user');
+    expect(built.last.content, contains('[User-run bash result]'));
+    expect(built.last.content, contains('direct output'));
+    expect(built.where((message) => message.role == 'tool'), isEmpty);
   });
 
   test(

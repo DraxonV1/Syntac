@@ -7,6 +7,7 @@ import 'system_prompt.dart';
 
 import '../ai/ai_error_messages.dart';
 import '../ai/ai_provider.dart';
+import '../ai/provider_error_store.dart';
 import '../ai/auth/credential_store.dart';
 import '../ai/google_cloud_code_assist_provider.dart';
 import '../ai/oauth/google_antigravity_oauth.dart';
@@ -131,7 +132,7 @@ class AgentLoop {
     _activeRuns[chat.id] = token;
     var job = AgentJob.start(projectId: project.id, chatId: chat.id);
     String providerName = 'provider';
-
+    AIChatRequest? lastRequest;
     try {
       await _repository.addAgentJob(job);
       await _repository.setChatStatus(chat.id, ChatStatus.running);
@@ -250,8 +251,10 @@ class AgentLoop {
           maxOutputTokens: modelMetadata?.outputLimit,
           reasoningEffort: reasoningEffort,
           includeThinking: includeThinking,
+          supportsReasoning: modelMetadata?.reasoning == true,
           timeout: const Duration(seconds: 90),
         );
+        lastRequest = request;
         final response = await _streamAssistantMessage(
           ai,
           request,
@@ -377,6 +380,12 @@ class AgentLoop {
       );
     } catch (error, stackTrace) {
       logDetailedAIError(error, stackTrace, context: 'Agent loop failed');
+      await persistProviderError(
+        projectRoot: project.folderPath,
+        chatId: chat.id,
+        error: error,
+        request: lastRequest,
+      );
       final userMessage = describeAIErrorForUser(
         error,
         providerName: providerName,
@@ -385,7 +394,7 @@ class AgentLoop {
         ChatMessage.create(
           chatId: chat.id,
           role: MessageRole.internal,
-          content: 'Agent error: $userMessage',
+          content: userMessage,
         ),
       );
       await _finish(

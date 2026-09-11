@@ -10,8 +10,9 @@
 - `openai_provider.dart`: OpenAI-compatible `/v1/chat/completions` streaming and `/v1/models`.
 - `google_cloud_code_assist_provider.dart`: Google Antigravity/Cloud Code Assist streaming protocol.
 - `ai_error_messages.dart`: safe user-facing error classification.
-- `provider_diagnostics.dart`: diagnostic maps, redaction, stream metadata.
-- `registry/provider_registry.dart`: built-in provider definitions, beta visibility, capabilities.
+- `provider_diagnostics.dart`: diagnostic maps, redaction, stream metadata, and bounded response details.
+- `provider_error_store.dart`: redacted full request/response JSONL grouped by status code and chat ID.
+- `registry/provider_registry.dart`: built-in providers, capabilities, beta visibility, and defaults.
 - `oauth/`: OAuth credential model and Google Antigravity OAuth flow.
 - `auth/credential_store.dart`: credential storage abstraction.
 
@@ -24,7 +25,7 @@
 
 - Raw secrets never enter diagnostics, exceptions, SQLite, JSONL, or tests.
 - Stream parsers must handle malformed data as provider errors, not app crashes.
-- Provider errors map auth/rate-limit/context/server/network/timeout/malformed categories.
+- Provider errors map auth/rate-limit/context/server/network/timeout/malformed categories and preserve bounded HTTP response details for users.
 - Registry controls beta-visible providers; UI should filter through registry.
 - Manual user models survive refresh/discovery merges.
 - Unsupported Google model IDs must be filtered before persistence/use.

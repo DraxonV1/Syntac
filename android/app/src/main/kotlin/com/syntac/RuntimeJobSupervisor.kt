@@ -235,18 +235,6 @@ class RuntimeJobSupervisor private constructor(private val context: Context) {
         }
     }
 
-    fun summary(): String {
-        val active = jobs.values.count { it.process.isAlive }
-        val recent = records.values.sortedByDescending { it.startedAt }.take(8)
-        return buildString {
-            append("Persistent runtime jobs: ").append(active).append(" active / ").append(records.size).append(" recorded")
-            recent.forEach { record ->
-                append("\n- ").append(record.id).append(": ").append(record.state)
-                if (record.ports.isNotEmpty()) append(" ports=").append(record.ports.joinToString(","))
-                if (record.failureKind != null) append(" failure=").append(record.failureKind)
-            }
-        }
-    }
 
     private fun startPump(record: JobRecord, input: InputStream, stream: String) {
         executor.execute {
@@ -307,8 +295,8 @@ class RuntimeJobSupervisor private constructor(private val context: Context) {
                     record.state = "interrupted"
                     record.failureKind = "process_owner_restarted"
                     record.finishedAt = System.currentTimeMillis()
+                    records[record.id] = record
                 }
-                records[record.id] = record
             }
             persistRegistry()
         }
@@ -318,8 +306,14 @@ class RuntimeJobSupervisor private constructor(private val context: Context) {
         runtimeDir.mkdirs()
         val temp = File(registryFile.parentFile, "${registryFile.name}.tmp")
         try {
+            val running = records.values
+                .filter { it.state == "running" }
+                .sortedBy { it.startedAt }
             FileOutputStream(temp).use { output ->
-                output.write(JSONArray(records.values.sortedBy { it.startedAt }.map(JobRecord::toJson)).toString(2).toByteArray(StandardCharsets.UTF_8))
+                output.write(
+                    JSONArray(running.map(JobRecord::toJson)).toString(2)
+                        .toByteArray(StandardCharsets.UTF_8),
+                )
                 output.flush()
                 output.fd.sync()
             }

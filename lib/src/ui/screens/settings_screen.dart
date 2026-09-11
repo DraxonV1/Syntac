@@ -276,7 +276,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildNarrowCategoryTile(
             SettingsCategory.appearance,
             'Appearance',
-            'Theme mode and design tokens',
+            'Light or dark display mode',
             AppIcons.model,
           ),
           _buildNarrowCategoryTile(
@@ -484,13 +484,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   children: [
                     Text(
                       widget.controller.lightThemeEnabled
-                          ? 'Light Theme'
-                          : 'Dark Blue Theme',
+                          ? 'Light mode'
+                          : 'Dark mode',
                       style: AppTypography.titleSmall,
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Switch between bright and OLED-friendly surfaces',
+                      'Use light mode for bright surfaces, or dark mode for OLED-friendly surfaces',
                       style: AppTypography.bodySmall,
                     ),
                   ],

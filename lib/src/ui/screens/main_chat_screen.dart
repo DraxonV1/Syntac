@@ -231,8 +231,7 @@ class _MainChatScreenState extends State<MainChatScreen> {
     required Chat? chat,
     required bool isWide,
   }) {
-    final isRunning =
-        chat != null && widget.controller.agentLoop.isChatRunning(chat.id);
+    final isRunning = chat != null && widget.controller.isChatRunning(chat.id);
     final hasMessages = widget.controller.messages.isNotEmpty;
 
     return Column(
@@ -265,6 +264,7 @@ class _MainChatScreenState extends State<MainChatScreen> {
         Expanded(
           child: hasMessages
               ? ChatMessageList(
+                  chatId: chat?.id,
                   messages: widget.controller.messages,
                   toolExecutions: widget.controller.toolExecutions,
                   attachments: widget.controller.attachments,

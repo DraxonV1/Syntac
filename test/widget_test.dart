@@ -1,14 +1,19 @@
+import 'dart:convert';
+
 import 'package:syntac/src/agent/agent_loop.dart';
 import 'package:syntac/src/models.dart';
+import 'package:syntac/src/ui/chat/ansi_text.dart';
+import 'package:syntac/src/ui/chat/chat_message_list.dart';
 import 'package:syntac/src/ui/chat/composer_view.dart';
 import 'package:syntac/src/ui/chat/empty_chat_view.dart';
 import 'package:syntac/src/ui/chat/markdown_content.dart';
 import 'package:syntac/src/ui/chat/model_selector_sheet.dart';
 import 'package:syntac/src/ui/chat/tool_call_card.dart';
-import 'package:syntac/src/ui/screens/home_screen.dart';
-import 'package:syntac/src/ui/theme/app_theme.dart';
 import 'package:syntac/src/ui/widgets/badge_chip.dart';
 import 'package:syntac/src/ui/widgets/status_indicator.dart';
+import 'package:syntac/src/ui/screens/home_screen.dart';
+import 'package:syntac/src/ui/theme/app_colors.dart';
+import 'package:syntac/src/ui/theme/app_theme.dart';
 import 'package:syntac/src/core/app_identity.dart';
 import 'package:syntac/src/ui/onboarding/steps/welcome_step.dart';
 import 'package:syntac/src/ui/widgets/empty_state.dart';
@@ -17,6 +22,7 @@ import 'package:syntac/src/ui/components/animated_hamburger.dart';
 import 'package:syntac/src/ui/components/wipe_reveal_text.dart';
 import 'package:syntac/src/ui/navigation/central_navigation_overlay.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_highlight/flutter_highlight.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
 
 Widget _wrap(Widget child) {
@@ -65,6 +71,116 @@ void main() {
     expect(find.byType(StatusIndicator), findsNWidgets(3));
   });
 
+  testWidgets('chat list opens and switches chats at latest message', (
+    tester,
+  ) async {
+    final firstMessages = List<ChatMessage>.generate(
+      60,
+      (index) => ChatMessage.create(
+        chatId: 'chat-1',
+        role: MessageRole.user,
+        content: 'Message $index',
+      ),
+    );
+    final secondMessages = List<ChatMessage>.generate(
+      60,
+      (index) => ChatMessage.create(
+        chatId: 'chat-2',
+        role: MessageRole.user,
+        content: 'Other message $index',
+      ),
+    );
+
+    await tester.pumpWidget(
+      _wrap(
+        SizedBox(
+          height: 220,
+          child: ChatMessageList(
+            chatId: 'chat-1',
+            messages: firstMessages,
+            toolExecutions: const [],
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    var list = tester.widget<ListView>(
+      find.byKey(const ValueKey('chat-message-list-scroll')),
+    );
+    expect(
+      list.controller!.offset,
+      closeTo(list.controller!.position.maxScrollExtent, 0.1),
+    );
+
+    await tester.pumpWidget(
+      _wrap(
+        SizedBox(
+          height: 220,
+          child: ChatMessageList(
+            chatId: 'chat-2',
+            messages: secondMessages,
+            toolExecutions: const [],
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    list = tester.widget<ListView>(
+      find.byKey(const ValueKey('chat-message-list-scroll')),
+    );
+    expect(
+      list.controller!.offset,
+      closeTo(list.controller!.position.maxScrollExtent, 0.1),
+    );
+  });
+
+  testWidgets('light mode uses readable dark text tokens', (tester) async {
+    final previous = AppColors.lightMode;
+    AppColors.lightMode = true;
+    try {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme,
+          themeMode: ThemeMode.light,
+          home: const Text('Readable light text'),
+        ),
+      );
+
+      expect(
+        AppTheme.lightTheme.textTheme.bodyLarge!.color,
+        AppColors.textPrimary,
+      );
+      expect(AppTheme.lightTheme.colorScheme.onSurface, AppColors.textPrimary);
+    } finally {
+      AppColors.lightMode = previous;
+    }
+  });
+
+  testWidgets('ANSI output renders styled spans without escape sequences', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _wrap(
+        const AnsiText(
+          text: '\u001b[31mred\u001b[0m plain \u001b[38;2;0;128;255mblue',
+        ),
+      ),
+    );
+
+    final rendered = tester.widget<SelectableText>(find.byType(SelectableText));
+    final spans = rendered.textSpan!.children!.cast<TextSpan>();
+    expect(
+      spans.map((span) => span.text),
+      containsAll(['red', ' plain ', 'blue']),
+    );
+    expect(spans.first.style!.color, isNot(AppColors.textPrimary));
+    expect(spans.last.style!.color, const Color(0xFF0080FF));
+    expect(find.textContaining('\u001b['), findsNothing);
+  });
   testWidgets('BadgeChip renders diff and metadata badges', (tester) async {
     await tester.pumpWidget(
       _wrap(
@@ -207,6 +323,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('All tests passed!'), findsOneWidget);
+    final highlight = tester.widget<HighlightView>(
+      find.byType(HighlightView).last,
+    );
+    expect(highlight.theme['root']?.backgroundColor, Colors.transparent);
   });
 
   testWidgets('ToolCallCard shows bash exit failures and stderr', (
@@ -295,6 +415,78 @@ void main() {
 
     expect(find.text('Apply patch'), findsOneWidget);
     expect(find.text('1 files'), findsOneWidget);
+  });
+
+  testWidgets('ToolCallCard renders runtime job summaries with state colors', (
+    tester,
+  ) async {
+    final execution = ToolExecution(
+      id: 'tool_jobs',
+      chatId: 'chat_1',
+      name: 'jobs.list',
+      argumentsJson: '{}',
+      status: ToolExecutionStatus.success,
+      startedAt: DateTime.now(),
+      finishedAt: DateTime.now(),
+      resultJson: jsonEncode({
+        'ok': true,
+        'result': {
+          'category': 'jobs_list',
+          'success': true,
+          'jobs': [
+            {
+              'jobId': 'job-running',
+              'state': 'running',
+              'command': 'npm run dev',
+              'stdoutPreview': '\u001b[33mListening\u001b[0m on 3000',
+            },
+            {
+              'jobId': 'job-completed',
+              'state': 'completed',
+              'command': 'npm test',
+              'stdoutPreview': 'All tests passed',
+            },
+            {
+              'jobId': 'job-failed',
+              'state': 'failed',
+              'command': 'npm run build',
+              'stderrPreview': 'Build failed',
+            },
+          ],
+        },
+      }),
+    );
+
+    await tester.pumpWidget(
+      _wrap(ToolCallCard(execution: execution, initiallyExpanded: true)),
+    );
+
+    expect(find.text('RUNNING'), findsOneWidget);
+    expect(find.text('COMPLETED'), findsOneWidget);
+    expect(find.text('FAILED'), findsOneWidget);
+    expect(find.text('job-running'), findsOneWidget);
+    expect(find.text('job-completed'), findsOneWidget);
+    expect(find.text('job-failed'), findsOneWidget);
+    expect(find.text('\$ npm run dev'), findsOneWidget);
+    expect(find.byType(AnsiText), findsOneWidget);
+    expect(
+      tester.widget<AnsiText>(find.byType(AnsiText)).text,
+      contains('Listening'),
+    );
+    expect(find.text('All tests passed'), findsOneWidget);
+    expect(find.text('Build failed'), findsOneWidget);
+    expect(
+      tester.widget<Text>(find.text('RUNNING')).style!.color,
+      AppColors.warning,
+    );
+    expect(
+      tester.widget<Text>(find.text('COMPLETED')).style!.color,
+      AppColors.success,
+    );
+    expect(
+      tester.widget<Text>(find.text('FAILED')).style!.color,
+      AppColors.error,
+    );
   });
 
   testWidgets('ComposerView renders input, attachments, and send button', (

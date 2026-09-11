@@ -118,6 +118,7 @@ class AIChatRequest {
     this.timeout,
     this.reasoningEffort = AIReasoningEffort.medium,
     this.includeThinking = true,
+    this.supportsReasoning = false,
   });
 
   final String model;
@@ -128,6 +129,7 @@ class AIChatRequest {
   final Duration? timeout;
   final AIReasoningEffort? reasoningEffort;
   final bool includeThinking;
+  final bool supportsReasoning;
 }
 
 class AIChatResponse {

@@ -89,7 +89,6 @@ class LocalRuntimeManager(
             "state" to state,
             "message" to message,
             "details" to lightweightDetails(state, current),
-            "jobs" to supervisor.list(),
         )
     }
 
@@ -914,7 +913,6 @@ class LocalRuntimeManager(
         "Expected installed size: ${ArchRuntimeManifest.rootfsBundle.installedSizeBytes}",
         "Free app storage: ${activity.filesDir.usableSpace}",
         "Last error: ${current?.optString("lastInstallException", "none") ?: "none"}",
-        supervisor.summary(),
     ).joinToString("\n")
 
     private fun diagnostics(installed: Boolean): String {
@@ -1007,7 +1005,6 @@ class LocalRuntimeManager(
             "Environment PATH: /usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/sbin:/bin",
             "Environment HOME: /root",
             "Environment CA bundle: /etc/ssl/certs/ca-certificates.crt",
-            supervisor.summary(),
         )
         return lines.joinToString("\n")
     }

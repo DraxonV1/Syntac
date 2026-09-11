@@ -68,11 +68,15 @@ abstract class AppColors {
       lightMode ? const Color(0x338296B2) : const Color(0x1F8296DC);
   static Color get codeHeader =>
       lightMode ? const Color(0xFFE8ECF3) : const Color(0xFF0B101A);
-  static const codeKeyword = Color(0xFFF472B6);
-  static const codeString = Color(0xFF059669);
-  static const codeNumber = Color(0xFFD97706);
-  static const codeComment = Color(0xFF667085);
-  static const codeVariable = Color(0xFF405CC8);
+  static Color get codeKeyword =>
+      lightMode ? const Color(0xFFA21CAF) : const Color(0xFFF472B6);
+  static Color get codeString =>
+      lightMode ? const Color(0xFF047857) : const Color(0xFF059669);
+  static Color get codeNumber =>
+      lightMode ? const Color(0xFFB45309) : const Color(0xFFD97706);
+  static Color get codeComment => textMuted;
+  static Color get codeVariable =>
+      lightMode ? const Color(0xFF334AA5) : const Color(0xFF405CC8);
 
   static const _darkBackground = Color(0xFF05070C);
   static const _darkSurface = Color(0xFF080C14);

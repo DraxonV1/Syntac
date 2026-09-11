@@ -31,12 +31,14 @@ class ChatMessageList extends StatefulWidget {
     super.key,
     required this.messages,
     required this.toolExecutions,
+    this.chatId,
     this.attachments = const <Attachment>[],
     this.onAttachmentTap,
     this.autoExpandThinking = true,
     this.padding = const EdgeInsets.fromLTRB(16, 12, 16, 12),
   });
 
+  final String? chatId;
   final List<ChatMessage> messages;
   final List<ToolExecution> toolExecutions;
   final List<Attachment> attachments;
@@ -57,6 +59,9 @@ class ChatMessageListState extends State<ChatMessageList> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) scrollToBottom(animate: false);
+    });
   }
 
   void _onScroll() {
@@ -79,13 +84,13 @@ class ChatMessageListState extends State<ChatMessageList> {
   @override
   void didUpdateWidget(ChatMessageList oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final hasNewItems =
-        widget.messages.length != oldWidget.messages.length ||
-        widget.toolExecutions.length != oldWidget.toolExecutions.length;
-
-    if (hasNewItems && _isNearBottom) {
+    final chatChanged = widget.chatId != oldWidget.chatId;
+    final itemsChanged =
+        !identical(widget.messages, oldWidget.messages) ||
+        !identical(widget.toolExecutions, oldWidget.toolExecutions);
+    if ((chatChanged || itemsChanged) && (chatChanged || _isNearBottom)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        scrollToBottom(animate: false);
+        if (mounted) scrollToBottom(animate: false);
       });
     }
   }
@@ -127,6 +132,7 @@ class ChatMessageListState extends State<ChatMessageList> {
     return Stack(
       children: [
         ListView.builder(
+          key: const ValueKey('chat-message-list-scroll'),
           controller: _scrollController,
           padding: widget.padding,
           itemCount: timeline.length,

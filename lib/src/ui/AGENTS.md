@@ -6,7 +6,7 @@
 
 ## Directories
 
-- `screens/`: full pages: home, project chat, providers, runtime, settings, chats, project creation.
+- `screens/`: full pages: home, project chat, providers, runtime status, runtime jobs, settings, chats, project creation.
 - `onboarding/`: first-run setup flow and step widgets.
 - `chat/`: composer, message view, markdown, model selector, tool call cards.
 - `theme/`: colors, typography, motion, icons, app theme.
@@ -26,8 +26,8 @@
 - No emoji icons; use `AppIcons`/vector icons.
 - Keep portrait and landscape usable.
 - Tool cards must show intent before bounded output. Edit cards use line numbers, changed-line colors, compact paths, and delta badges.
-- Shell command cards use monospace bordered command blocks; output appears separately and remains bounded.
-- `MarkdownContent` uses `flutter_math_fork` for TeX and supports remote/data-URI images. Never replace TeX with hardcoded symbol substitution.
+- Shell command cards use monospace bordered command blocks; normal output containers stay transparent, while diffs/code retain intentional surfaces.
+- `MarkdownContent` uses `flutter_math_fork` for TeX and supports remote/data-URI images. `SyntaxHighlightedCode` follows active light/dark palette. Never replace TeX with hardcoded symbol substitution.
 - Large tool output must use bounded previews and maximizable surfaces.
 - Startup must show progress or retry, not blank/hanging UI.
 

@@ -13,6 +13,7 @@ import '../widgets/badge_chip.dart';
 import '../widgets/status_indicator.dart';
 import '../theme/app_icons.dart';
 import '../theme/app_motion.dart';
+import 'ansi_text.dart';
 import 'syntax_highlighted_code.dart';
 
 /// Compact, expandable tool call card matching the developer aesthetics.
@@ -153,14 +154,14 @@ class _ToolCallCardState extends State<ToolCallCard>
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: Colors.transparent,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: isError
               ? AppColors.error.withValues(alpha: 0.3)
               : isRunning
               ? AppColors.warning.withValues(alpha: 0.3)
-              : AppColors.border,
+              : Colors.transparent,
           width: 1,
         ),
       ),
@@ -416,7 +417,7 @@ class _ToolCallCardState extends State<ToolCallCard>
             width: double.infinity,
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: AppColors.codeBackground,
+              color: Colors.transparent,
               borderRadius: BorderRadius.circular(6),
               border: Border.all(color: AppColors.warning, width: 1),
             ),
@@ -508,9 +509,9 @@ class _ToolCallCardState extends State<ToolCallCard>
         Container(
           constraints: const BoxConstraints(maxHeight: 160),
           decoration: BoxDecoration(
-            color: AppColors.codeBackground,
+            color: Colors.transparent,
             borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: AppColors.codeBorder, width: 1),
+            border: Border.all(color: Colors.transparent, width: 1),
           ),
           child: ListView.separated(
             shrinkWrap: true,
@@ -565,11 +566,9 @@ class _ToolCallCardState extends State<ToolCallCard>
       'apply_patch' => _buildPatchDetails(result),
       'delete' => _buildDeleteDetails(args, result),
       'list' => _buildListDetails(args, result),
+      'jobs.list' => _buildJobsListDetails(result),
       'jobs.logs' => _buildJobLogsDetails(result),
-      'jobs.list' ||
-      'jobs.status' ||
-      'jobs.wait' ||
-      'jobs.cancel' => _buildJobDetails(result),
+      'jobs.status' || 'jobs.wait' || 'jobs.cancel' => _buildJobDetails(result),
       _ => _buildJsonDetails(args, result),
     };
   }
@@ -677,10 +676,131 @@ class _ToolCallCardState extends State<ToolCallCard>
     );
   }
 
+  Widget _buildJobsListDetails(Map<String, Object?> result) {
+    final rawJobs = result['jobs'];
+    if (rawJobs is! List) return _buildJobDetails(result);
+    final jobs = rawJobs
+        .whereType<Map>()
+        .map((job) => job.map((key, value) => MapEntry(key.toString(), value)))
+        .toList(growable: false);
+    if (jobs.isEmpty) {
+      return Text(
+        'No runtime jobs',
+        style: AppTypography.monoSmall.copyWith(color: AppColors.textMuted),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var index = 0; index < jobs.length; index++) ...[
+          if (index > 0) const SizedBox(height: 6),
+          _buildJobSummary(jobs[index]),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildJobSummary(Map<String, Object?> job) {
+    final state = _jobState(job);
+    final chatStatus = _jobChatStatus(state);
+    final color = _jobStatusColor(chatStatus);
+    final jobId = _jobIdentifier(job);
+    final command = job['command']?.toString() ?? job['cmd']?.toString() ?? '';
+    final stdout = _jobOutput(job['stdoutPreview'] ?? job['stdout']);
+    final stderr = _jobOutput(job['stderrPreview'] ?? job['stderr']);
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.45)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              StatusIndicator(status: chatStatus, size: 7),
+              const SizedBox(width: 7),
+              Text(
+                state.toUpperCase(),
+                style: AppTypography.monoSmall.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  jobId,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.monoSmall.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (command.isNotEmpty) ...[
+            const SizedBox(height: 5),
+            Text(
+              '\$ $command',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.monoSmall.copyWith(
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ],
+          if (stdout.isNotEmpty) ...[
+            const SizedBox(height: 5),
+            _buildJobOutputPreview('stdout', stdout),
+          ],
+          if (stderr.isNotEmpty) ...[
+            const SizedBox(height: 5),
+            _buildJobOutputPreview('stderr', stderr, isError: true),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildJobOutputPreview(
+    String label,
+    String text, {
+    bool isError = false,
+  }) {
+    final outputStyle = AppTypography.monoSmall.copyWith(
+      color: isError ? AppColors.errorText : AppColors.textSecondary,
+    );
+    final preview = _previewJobOutput(text);
+    final rendered = AnsiText.containsAnsi(preview)
+        ? AnsiText(text: preview, style: outputStyle)
+        : SelectableText(preview, style: outputStyle);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: AppTypography.caption.copyWith(
+            color: isError ? AppColors.errorText : AppColors.textMuted,
+          ),
+        ),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 58),
+          child: SingleChildScrollView(child: rendered),
+        ),
+      ],
+    );
+  }
+
   Widget _buildJobDetails(Map<String, Object?> result) {
+    final state = _jobState(result);
     return _buildKeyValueDetails([
-      ('Job', result['jobId']?.toString() ?? ''),
-      ('State', result['state']?.toString() ?? 'unknown'),
+      ('Job', _jobIdentifier(result)),
+      ('State', state),
+      if (result['command'] != null) ('Command', result['command'].toString()),
       if (result['startedAt'] != null)
         ('Started', _formatTimestamp(result['startedAt'])),
       if (result['finishedAt'] != null)
@@ -693,6 +813,39 @@ class _ToolCallCardState extends State<ToolCallCard>
         ('Failure', result['failureKind'].toString()),
     ]);
   }
+
+  String _jobIdentifier(Map<String, Object?> job) =>
+      job['jobId']?.toString() ?? job['id']?.toString() ?? 'unknown';
+
+  String _jobState(Map<String, Object?> job) {
+    final state = job['state']?.toString().trim();
+    if (state != null && state.isNotEmpty) return state;
+    if (job['running'] == true) return 'running';
+    if (job['jobSuccess'] == true || job['success'] == true) {
+      return 'completed';
+    }
+    if (job['jobSuccess'] == false || job['success'] == false) return 'failed';
+    return 'unknown';
+  }
+
+  ChatStatus _jobChatStatus(String state) => switch (state.toLowerCase()) {
+    'running' || 'started' => ChatStatus.running,
+    'completed' || 'success' || 'succeeded' => ChatStatus.completed,
+    'cancelled' || 'canceled' || 'interrupted' => ChatStatus.interrupted,
+    _ => ChatStatus.error,
+  };
+
+  Color _jobStatusColor(ChatStatus status) => switch (status) {
+    ChatStatus.running => AppColors.warning,
+    ChatStatus.completed => AppColors.success,
+    ChatStatus.error || ChatStatus.interrupted => AppColors.error,
+    ChatStatus.idle => AppColors.textMuted,
+  };
+
+  String _jobOutput(Object? value) => value?.toString().trim() ?? '';
+
+  String _previewJobOutput(String value) =>
+      value.length <= 600 ? value : '${value.substring(0, 600)}…';
 
   Widget _buildJobLogsDetails(Map<String, Object?> result) {
     final stdout = result['stdout']?.toString() ?? '';
@@ -933,17 +1086,27 @@ class _ToolCallCardState extends State<ToolCallCard>
     double maxHeight = 180,
   }) {
     final visibleContent = _previewText(content);
+    final outputStyle = AppTypography.monoSmall.copyWith(
+      color: isError ? AppColors.errorText : AppColors.textPrimary,
+    );
+    final rendered = AnsiText.containsAnsi(visibleContent)
+        ? AnsiText(text: visibleContent, style: outputStyle)
+        : SyntaxHighlightedCode(
+            text: visibleContent,
+            language: language,
+            backgroundColor: Colors.transparent,
+          );
     return Container(
       constraints: BoxConstraints(maxHeight: maxHeight),
       width: double.infinity,
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: isError ? AppColors.errorSubtle : AppColors.codeBackground,
+        color: isError ? AppColors.errorSubtle : Colors.transparent,
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
           color: isError
               ? AppColors.error.withValues(alpha: 0.35)
-              : AppColors.codeBorder,
+              : Colors.transparent,
         ),
       ),
       child: SingleChildScrollView(
@@ -958,10 +1121,7 @@ class _ToolCallCardState extends State<ToolCallCard>
               ),
             );
           },
-          child: SyntaxHighlightedCode(
-            text: visibleContent,
-            language: language,
-          ),
+          child: rendered,
         ),
       ),
     );
@@ -1037,12 +1197,12 @@ class _ToolCallCardState extends State<ToolCallCard>
           decoration: BoxDecoration(
             color: isError
                 ? AppColors.errorSubtle.withValues(alpha: 0.5)
-                : AppColors.codeBackground,
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(6),
             border: Border.all(
               color: isError
                   ? AppColors.error.withValues(alpha: 0.3)
-                  : AppColors.codeBorder,
+                  : Colors.transparent,
               width: 1,
             ),
           ),

@@ -161,22 +161,34 @@ class OpenAICodexProvider extends AIProvider {
     try {
       cancellationToken?.throwIfCancelled();
       final body = _requestBody(request);
+      final requestPayload = jsonEncode(body);
       final response = await _client
           .send(
             http.Request('POST', resolvedResponsesUri)
               ..headers.addAll(_headers(credential))
-              ..body = jsonEncode(body),
+              ..body = requestPayload,
           )
           .timeout(request.timeout ?? const Duration(seconds: 90));
       cancellationToken?.throwIfCancelled();
       if (response.statusCode < 200 || response.statusCode >= 300) {
         final text = await response.stream.bytesToString();
+        final kind = response.statusCode == 401 || response.statusCode == 403
+            ? 'auth_error'
+            : 'provider_error';
         throw AIProviderException(
           '$_providerName request failed: ${response.statusCode}: ${_safeError(text)}',
           statusCode: response.statusCode,
-          kind: response.statusCode == 401 || response.statusCode == 403
-              ? 'unauthorized'
-              : 'provider_error',
+          kind: kind,
+          details: ProviderErrorDetails(
+            providerName: _providerName,
+            modelId: request.model,
+            requestUrl: resolvedResponsesUri.toString(),
+            method: 'POST',
+            httpStatus: response.statusCode,
+            errorType: kind,
+            requestPayload: requestPayload,
+            responseBody: text,
+          ),
         );
       }
 
@@ -365,12 +377,10 @@ class OpenAICodexProvider extends AIProvider {
       if (_credentialProvider != OAuthProviderId.openAICodex &&
           request.maxOutputTokens != null)
         'max_output_tokens': request.maxOutputTokens,
-      if (!request.includeThinking || request.reasoningEffort != null)
+      if (request.supportsReasoning && request.includeThinking)
         'reasoning': {
-          'effort': request.includeThinking
-              ? request.reasoningEffort!.wireValue
-              : 'none',
-          if (request.includeThinking) 'summary': 'auto',
+          'effort': _wireReasoningEffort(request.reasoningEffort),
+          'summary': 'auto',
         },
     };
     if (instructions != null && instructions.isNotEmpty) {
@@ -403,8 +413,18 @@ class OpenAICodexProvider extends AIProvider {
     return body;
   }
 
+  static String _wireReasoningEffort(AIReasoningEffort? effort) =>
+      switch (effort ?? AIReasoningEffort.medium) {
+        AIReasoningEffort.minimal || AIReasoningEffort.low => 'low',
+        AIReasoningEffort.medium => 'medium',
+        AIReasoningEffort.high ||
+        AIReasoningEffort.xhigh ||
+        AIReasoningEffort.max => 'high',
+      };
+
   static Map<String, Object?> _normalizeXaiToolSchema(Object value) {
     if (value is! Map) return <String, Object?>{};
+
     final schema = value.cast<String, Object?>();
     final unionKey = schema['anyOf'] is List
         ? 'anyOf'

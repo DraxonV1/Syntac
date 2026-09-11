@@ -12,6 +12,8 @@ abstract class AppTheme {
 
   static ThemeData _build(Brightness brightness) {
     final isDark = brightness == Brightness.dark;
+    final previousLightMode = AppColors.lightMode;
+    AppColors.lightMode = !isDark;
     final textTheme = AppTypography.textTheme();
     final scheme = ColorScheme(
       brightness: brightness,
@@ -25,7 +27,7 @@ abstract class AppTheme {
       onError: Colors.white,
     );
 
-    return ThemeData(
+    final theme = ThemeData(
       useMaterial3: true,
       brightness: brightness,
       scaffoldBackgroundColor: AppColors.background,
@@ -105,5 +107,7 @@ abstract class AppTheme {
         behavior: SnackBarBehavior.floating,
       ),
     );
+    AppColors.lightMode = previousLightMode;
+    return theme;
   }
 }

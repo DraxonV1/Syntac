@@ -55,6 +55,7 @@ class GoogleCloudCodeAssistProvider extends AIProvider {
       credential['projectId']!,
       wireModel,
     );
+    final body = jsonEncode(requestBody);
     final structuralTrace = _geminiStructuralTrace(requestBody);
     final validationError = _validateGeminiContents(requestBody);
     if (validationError != null) {
@@ -64,12 +65,12 @@ class GoogleCloudCodeAssistProvider extends AIProvider {
         details: _details(
           request,
           'malformed_request',
+          requestPayload: body,
           exceptionMessage: validationError,
           finalResponse: structuralTrace,
         ),
       );
     }
-    final body = jsonEncode(requestBody);
     var streamStarted = false;
     var chunksReceived = 0;
     final toolCalls = <AIToolCall>[];
@@ -95,10 +96,10 @@ class GoogleCloudCodeAssistProvider extends AIProvider {
         throw AIProviderException(
           _extractMessage(responseBody),
           statusCode: response.statusCode,
-          kind: _kindForStatus(response.statusCode),
           details: _details(
             request,
             _kindForStatus(response.statusCode),
+            requestPayload: body,
             httpStatus: response.statusCode,
             responseBody: responseBody,
             streamStarted: streamStarted,
@@ -130,10 +131,10 @@ class GoogleCloudCodeAssistProvider extends AIProvider {
           throw AIProviderException(
             message,
             statusCode: error['code'] is int ? error['code'] as int : null,
-            kind: 'provider_error',
             details: _details(
               request,
               'provider_error',
+              requestPayload: body,
               httpStatus: error['code'] is int ? error['code'] as int : null,
               responseBody: data,
               streamStarted: streamStarted,
@@ -205,6 +206,7 @@ class GoogleCloudCodeAssistProvider extends AIProvider {
           details: _details(
             request,
             'incomplete_stream',
+            requestPayload: body,
             streamStarted: streamStarted,
             chunksReceived: chunksReceived,
           ),
@@ -222,6 +224,7 @@ class GoogleCloudCodeAssistProvider extends AIProvider {
         details: _details(
           request,
           'timeout',
+          requestPayload: body,
           exceptionMessage: error.toString(),
           streamStarted: streamStarted,
           chunksReceived: chunksReceived,
@@ -239,6 +242,7 @@ class GoogleCloudCodeAssistProvider extends AIProvider {
         details: _details(
           request,
           'provider_error',
+          requestPayload: body,
           exceptionMessage: error.toString(),
           streamStarted: streamStarted,
           chunksReceived: chunksReceived,
@@ -358,20 +362,22 @@ class GoogleCloudCodeAssistProvider extends AIProvider {
     if (outputTokens != null) {
       generationConfig['maxOutputTokens'] = outputTokens;
     }
-    if (request.reasoningEffort != null) {
-      final effort = request.reasoningEffort!;
+    if (wireModel.startsWith('gemini-')) {
+      final effort = request.reasoningEffort ?? AIReasoningEffort.medium;
       final thinkingConfig = <String, Object?>{
         'includeThoughts': request.includeThinking,
       };
       if (wireModel.startsWith('gemini-3')) {
-        thinkingConfig['thinkingLevel'] = switch (effort) {
-          AIReasoningEffort.minimal => 'MINIMAL',
-          AIReasoningEffort.low => 'LOW',
-          AIReasoningEffort.medium => 'MEDIUM',
-          AIReasoningEffort.high ||
-          AIReasoningEffort.xhigh ||
-          AIReasoningEffort.max => 'HIGH',
-        };
+        thinkingConfig['thinkingLevel'] = request.includeThinking
+            ? switch (effort) {
+                AIReasoningEffort.minimal => 'MINIMAL',
+                AIReasoningEffort.low => 'LOW',
+                AIReasoningEffort.medium => 'MEDIUM',
+                AIReasoningEffort.high ||
+                AIReasoningEffort.xhigh ||
+                AIReasoningEffort.max => 'HIGH',
+              }
+            : 'MINIMAL';
       } else {
         thinkingConfig['thinkingBudget'] = request.includeThinking
             ? switch (effort) {
@@ -379,8 +385,8 @@ class GoogleCloudCodeAssistProvider extends AIProvider {
                 AIReasoningEffort.low => 4096,
                 AIReasoningEffort.medium => 8192,
                 AIReasoningEffort.high => 16384,
-                AIReasoningEffort.xhigh => 32768,
-                AIReasoningEffort.max => 65536,
+                AIReasoningEffort.xhigh => 24576,
+                AIReasoningEffort.max => 24576,
               }
             : 0;
       }
@@ -634,6 +640,7 @@ class GoogleCloudCodeAssistProvider extends AIProvider {
     AIChatRequest request,
     String kind, {
     int? httpStatus,
+    String? requestPayload,
     String? responseBody,
     String? exceptionMessage,
     bool streamStarted = false,
@@ -646,6 +653,7 @@ class GoogleCloudCodeAssistProvider extends AIProvider {
     method: 'POST',
     httpStatus: httpStatus,
     errorType: kind,
+    requestPayload: requestPayload,
     responseBody: responseBody,
     exceptionMessage: exceptionMessage,
     headers: const {

@@ -7,6 +7,7 @@ class ProviderErrorDetails {
     DateTime? timestamp,
     this.method,
     this.httpStatus,
+    this.requestPayload,
     this.responseBody,
     this.exceptionMessage,
     this.headers,
@@ -22,6 +23,7 @@ class ProviderErrorDetails {
   final DateTime timestamp;
   final String? method;
   final int? httpStatus;
+  final String? requestPayload;
   final String? responseBody;
   final String? exceptionMessage;
   final Map<String, String>? headers;
@@ -37,6 +39,7 @@ class ProviderErrorDetails {
     DateTime? timestamp,
     String? method,
     int? httpStatus,
+    String? requestPayload,
     String? responseBody,
     String? exceptionMessage,
     Map<String, String>? headers,
@@ -51,6 +54,7 @@ class ProviderErrorDetails {
     timestamp: timestamp ?? this.timestamp,
     method: method ?? this.method,
     httpStatus: httpStatus ?? this.httpStatus,
+    requestPayload: requestPayload ?? this.requestPayload,
     responseBody: responseBody ?? this.responseBody,
     exceptionMessage: exceptionMessage ?? this.exceptionMessage,
     headers: headers ?? this.headers,
@@ -66,6 +70,8 @@ class ProviderErrorDetails {
     if (method != null) 'method': method,
     if (httpStatus != null) 'httpStatus': httpStatus,
     'errorType': errorType,
+    if (requestPayload != null)
+      'requestPayload': redactSecrets(requestPayload!),
     if (headers != null)
       'headers': headers!.map(
         (key, value) => MapEntry(

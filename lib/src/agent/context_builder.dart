@@ -90,25 +90,42 @@ class ContextBuilder {
     ChatMessage message, {
     List<AIImagePart> images = const <AIImagePart>[],
   }) {
-    final role = switch (message.role) {
-      MessageRole.system => 'system',
-      MessageRole.user => 'user',
-      MessageRole.assistant => 'assistant',
-      MessageRole.tool => 'tool',
-      MessageRole.internal => 'system',
-    };
+    final userRun = _isUserRunResult(message);
+    final role = userRun
+        ? 'user'
+        : switch (message.role) {
+            MessageRole.system => 'system',
+            MessageRole.user => 'user',
+            MessageRole.assistant => 'assistant',
+            MessageRole.tool => 'tool',
+            MessageRole.internal => 'system',
+          };
     return AIChatMessage(
       role: role,
-      content: _contentForModel(message),
-      images: images,
-      toolCallId: message.toolCallId,
-      toolCalls: message.role == MessageRole.assistant
+      content: userRun
+          ? '[User-run bash result]\\n${message.content}'
+          : _contentForModel(message),
+      images: userRun ? const <AIImagePart>[] : images,
+      toolCallId: userRun ? null : message.toolCallId,
+      toolCalls: !userRun && message.role == MessageRole.assistant
           ? _toolCallsFromMetadata(message.metadataJson)
           : null,
-      providerMetadata: message.role == MessageRole.assistant
+      providerMetadata: !userRun && message.role == MessageRole.assistant
           ? _providerMetadataFromMessage(message.metadataJson)
           : const <String, Object?>{},
     );
+  }
+
+  bool _isUserRunResult(ChatMessage message) {
+    if (message.role != MessageRole.tool) return false;
+    final metadata = message.metadataJson;
+    if (metadata == null || metadata.isEmpty) return false;
+    try {
+      final decoded = jsonDecode(metadata);
+      return decoded is Map && decoded['source'] == 'user';
+    } catch (_) {
+      return false;
+    }
   }
 
   List<AIImagePart> _imagesFromContent(ChatMessage message) {

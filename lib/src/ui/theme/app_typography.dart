@@ -35,8 +35,8 @@ abstract class AppTypography {
     height: height,
   );
 
-  // Headings
-  static TextStyle display = _sans(
+  // Getters keep text colors synchronized with active light/dark palette.
+  static TextStyle get display => _sans(
     fontSize: 26,
     fontWeight: FontWeight.w700,
     color: AppColors.textPrimary,
@@ -44,7 +44,7 @@ abstract class AppTypography {
     height: 1.25,
   );
 
-  static TextStyle titleLarge = _sans(
+  static TextStyle get titleLarge => _sans(
     fontSize: 20,
     fontWeight: FontWeight.w600,
     color: AppColors.textPrimary,
@@ -52,7 +52,7 @@ abstract class AppTypography {
     height: 1.3,
   );
 
-  static TextStyle titleMedium = _sans(
+  static TextStyle get titleMedium => _sans(
     fontSize: 16,
     fontWeight: FontWeight.w600,
     color: AppColors.textPrimary,
@@ -60,7 +60,7 @@ abstract class AppTypography {
     height: 1.35,
   );
 
-  static TextStyle titleSmall = _sans(
+  static TextStyle get titleSmall => _sans(
     fontSize: 14,
     fontWeight: FontWeight.w600,
     color: AppColors.textPrimary,
@@ -68,30 +68,28 @@ abstract class AppTypography {
     height: 1.4,
   );
 
-  // Body Styles (400 regular)
-  static TextStyle bodyLarge = _sans(
+  static TextStyle get bodyLarge => _sans(
     fontSize: 15,
     fontWeight: FontWeight.w400,
     color: AppColors.textPrimary,
     height: 1.5,
   );
 
-  static TextStyle bodyMedium = _sans(
+  static TextStyle get bodyMedium => _sans(
     fontSize: 13.5,
     fontWeight: FontWeight.w400,
     color: AppColors.textPrimary,
     height: 1.45,
   );
 
-  static TextStyle bodySmall = _sans(
+  static TextStyle get bodySmall => _sans(
     fontSize: 12,
     fontWeight: FontWeight.w400,
     color: AppColors.textSecondary,
     height: 1.4,
   );
 
-  // Controls & Labels (500 medium)
-  static TextStyle button = _sans(
+  static TextStyle get button => _sans(
     fontSize: 13.5,
     fontWeight: FontWeight.w500,
     color: AppColors.textPrimary,
@@ -99,7 +97,7 @@ abstract class AppTypography {
     height: 1.3,
   );
 
-  static TextStyle buttonSmall = _sans(
+  static TextStyle get buttonSmall => _sans(
     fontSize: 12,
     fontWeight: FontWeight.w500,
     color: AppColors.textPrimary,
@@ -107,7 +105,7 @@ abstract class AppTypography {
     height: 1.3,
   );
 
-  static TextStyle label = _sans(
+  static TextStyle get label => _sans(
     fontSize: 11,
     fontWeight: FontWeight.w600,
     color: AppColors.textMuted,
@@ -115,7 +113,7 @@ abstract class AppTypography {
     height: 1.25,
   );
 
-  static TextStyle labelMedium = _sans(
+  static TextStyle get labelMedium => _sans(
     fontSize: 12,
     fontWeight: FontWeight.w500,
     color: AppColors.textSecondary,
@@ -123,30 +121,30 @@ abstract class AppTypography {
     height: 1.25,
   );
 
-  // Code & Terminal Styles
-  static TextStyle code = _monoText(
+  static TextStyle get code => _monoText(
     fontSize: 12.5,
     fontWeight: FontWeight.w400,
     color: AppColors.textPrimary,
     height: 1.45,
   );
-  static TextStyle caption = bodySmall;
-  static TextStyle mono = code;
-  static TextStyle monoSmall = codeSmall;
-  static TextStyle codeInline = codeSmall.copyWith(
+
+  static TextStyle get caption => bodySmall;
+  static TextStyle get mono => code;
+  static TextStyle get monoSmall => codeSmall;
+  static TextStyle get codeInline => codeSmall.copyWith(
     color: AppColors.primaryBright,
     backgroundColor: AppColors.surfaceFloating,
   );
-  static TextStyle displayMedium = display.copyWith(fontSize: 22);
+  static TextStyle get displayMedium => display.copyWith(fontSize: 22);
 
-  static TextStyle codeSmall = _monoText(
+  static TextStyle get codeSmall => _monoText(
     fontSize: 11,
     fontWeight: FontWeight.w400,
     color: AppColors.textSecondary,
     height: 1.4,
   );
 
-  static TextStyle terminal = _monoText(
+  static TextStyle get terminal => _monoText(
     fontSize: 11.5,
     fontWeight: FontWeight.w400,
     color: AppColors.textPrimary,

@@ -120,20 +120,26 @@ class OpenAICompatibleProvider extends AIProvider {
 
     try {
       cancellationToken?.throwIfCancelled();
+      final requestBody = <String, Object?>{
+        'model': request.model,
+        'messages': request.messages
+            .map((message) => message.toJson())
+            .toList(),
+        if (request.tools.isNotEmpty) 'tools': _wireTools(request.tools),
+        if (request.tools.isNotEmpty) 'tool_choice': 'auto',
+        if (request.temperature != null) 'temperature': request.temperature,
+        if (request.maxOutputTokens != null)
+          'max_tokens': request.maxOutputTokens,
+        if (request.supportsReasoning &&
+            request.includeThinking &&
+            request.reasoningEffort != null)
+          'reasoning_effort': _wireReasoningEffort(request.reasoningEffort!),
+        'stream': true,
+      };
+      final requestPayload = jsonEncode(requestBody);
       final httpRequest = http.Request('POST', _chatCompletionsUri)
         ..headers.addAll(_headers(apiKey))
-        ..body = jsonEncode({
-          'model': request.model,
-          'messages': request.messages
-              .map((message) => message.toJson())
-              .toList(),
-          if (request.tools.isNotEmpty) 'tools': _wireTools(request.tools),
-          if (request.tools.isNotEmpty) 'tool_choice': 'auto',
-          if (request.temperature != null) 'temperature': request.temperature,
-          if (request.maxOutputTokens != null)
-            'max_tokens': request.maxOutputTokens,
-          'stream': true,
-        });
+        ..body = requestPayload;
 
       final response = await _client
           .send(httpRequest)
@@ -147,6 +153,7 @@ class OpenAICompatibleProvider extends AIProvider {
           _chatCompletionsUri,
           'POST',
           request.model,
+          requestPayload: requestPayload,
         );
       }
 
@@ -181,14 +188,19 @@ class OpenAICompatibleProvider extends AIProvider {
         if (choices is! List || choices.isEmpty) continue;
         final choice = choices.first;
         if (choice is! Map) continue;
-        finishReason = choice['finish_reason']?.toString() ?? finishReason;
+        final rawFinishReason = choice['finish_reason'];
+        if (rawFinishReason is String && rawFinishReason.isNotEmpty) {
+          finishReason = rawFinishReason;
+        }
         final delta = choice['delta'];
         if (delta is! Map) continue;
         final reasoning =
             delta['reasoning_content'] ??
             delta['reasoning'] ??
             delta['thinking'];
-        if (reasoning is String && reasoning.isNotEmpty) {
+        if (request.includeThinking &&
+            reasoning is String &&
+            reasoning.isNotEmpty) {
           yield AIStreamEvent.thinking(
             reasoning,
             networkChunkAt: eventAt,
@@ -285,6 +297,13 @@ class OpenAICompatibleProvider extends AIProvider {
             };
           })
           .toList(growable: false);
+  String _wireReasoningEffort(AIReasoningEffort effort) => switch (effort) {
+    AIReasoningEffort.minimal || AIReasoningEffort.low => 'low',
+    AIReasoningEffort.medium => 'medium',
+    AIReasoningEffort.high ||
+    AIReasoningEffort.xhigh ||
+    AIReasoningEffort.max => 'high',
+  };
 
   String _wireToolName(String name) => name.replaceAll('.', '_');
 
@@ -298,8 +317,9 @@ class OpenAICompatibleProvider extends AIProvider {
     String body,
     Uri uri,
     String method,
-    String modelId,
-  ) {
+    String modelId, {
+    String? requestPayload,
+  }) {
     var message = body;
     try {
       final decoded = jsonDecode(body);
@@ -329,6 +349,7 @@ class OpenAICompatibleProvider extends AIProvider {
         method: method,
         httpStatus: statusCode,
         errorType: kind,
+        requestPayload: requestPayload,
         responseBody: body,
       ),
     );

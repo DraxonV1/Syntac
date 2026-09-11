@@ -13,7 +13,7 @@ publish_to: 'none'
 # In Android, build-name is used as versionName while build-number used as versionCode.
 # Read more about Android versioning at https://developer.android.com/studio/publish/versioning
 # In Windows, build-name is used as the major, minor, and patch parts
-version: 0.1.1-beta.4+14
+version: 0.1.1-beta.5+15
 
 environment:
   sdk: ^3.11.5

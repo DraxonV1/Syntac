@@ -1,9 +1,9 @@
 # Android Runtime Bridge
 ## Ownership
 
-- `MainActivity.kt` exposes `syntac/runtime`, routes commands, durable job list/status/log/stop/restart calls, network diagnostics, opens storage settings, and requests battery/notification permissions.
-- `LocalRuntimeManager.kt` installs and validates packaged Arch PRoot, preserves runtime environment, runs/cancels commands, starts persistent jobs, bounds streams, and starts/stops foreground work.
-- `RuntimeJobSupervisor.kt` owns persistent process records, lifecycle timestamps, exit codes, restart counts, and bounded app-private logs independent of Activity lifetime.
+- `MainActivity.kt` exposes `syntac/runtime`, routes commands, runtime status, current-session job list/status/log/stop/restart calls, network diagnostics, opens storage settings, and requests battery/notification permissions.
+- `LocalRuntimeManager.kt` installs and validates packaged Arch PRoot, preserves runtime environment, runs/cancels commands, starts runtime jobs, bounds streams, and starts/stops foreground work.
+- `RuntimeJobSupervisor.kt` owns current-session process records, lifecycle timestamps, exit codes, restart counts, and bounded app-private logs independent of Activity lifetime. Only active records survive process-owner restart; terminal records are memory-only.
 - `RuntimeForegroundService.kt` owns visible long-running runtime notification and stop-all action.
 - `RootfsBundleInstaller.kt` verifies and extracts pinned assets.
 - `TermuxBridge.kt` and `TermuxResultService.kt` implement Termux callbacks.
@@ -15,7 +15,7 @@
 - Keep process output and persisted job logs bounded at 2,000,000 characters per stream with truncation metadata.
 - Classify guest exit failures separately from PRoot/native crashes. Kill active process trees on cancellation and job stop.
 - Start foreground service before install, self-test, Arch commands, diagnostics, or persistent jobs; stop it only after all native work ends.
-- Persistent jobs restore as interrupted after process-owner restart; never claim they remain alive without a process.
+- Active runtime jobs restore as interrupted after process-owner restart; completed/cancelled records are not persisted and general runtime status does not list jobs.
 - Request battery-unrestricted and notification access from settings UI; keep fallback behavior when Android declines access.
 - Preserve pinned hashes, sizes, ABI checks, and release-build validation when changing runtime assets.
 
