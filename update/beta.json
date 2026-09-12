@@ -1,9 +1,9 @@
 {
-  "version": "0.1.1-beta.5",
-  "versionCode": 15,
-  "apkUrl": "https://github.com/DraxonV1/Syntac/releases/download/v0.1.1-beta.5/syntac-arm64.apk",
-  "sha256": "fc82d7521c4dcb5901851ab2fdc5ccc7da9b349599942bf4e6a6fb421a0c5e9d",
-  "size": 157193667,
+  "version": "0.1.1-beta.6",
+  "versionCode": 16,
+  "apkUrl": "https://github.com/DraxonV1/Syntac/releases/download/v0.1.1-beta.6/syntac-arm64.apk",
+  "sha256": "dc303c32061944009690593f14f06a4a750ddf93ab53cf2f708f9e5cfd7e16fa",
+  "size": 139224385,
   "mandatory": false,
   "minSupportedVersionCode": 10,
   "notes": [
