@@ -1038,6 +1038,55 @@ void main() {
     },
   );
 
+  test('controller restores persistent todo state with opened chat', () async {
+    final chatDirectory = await Directory.systemTemp.createTemp(
+      'syntac_todo_controller_',
+    );
+    final projectDirectory = await Directory.systemTemp.createTemp(
+      'syntac_todo_project_',
+    );
+    final controller = AppController(
+      openDatabase: () => LocalDatabase.open(
+        path: inMemoryDatabasePath,
+        factory: databaseFactoryFfi,
+      ),
+      secretStore: MemorySecretStore(),
+      chatStorageDirectory: chatDirectory,
+    );
+    addTearDown(controller.dispose);
+    await controller.initialize();
+    final project = await controller.repository.createProject(
+      name: 'Todo project',
+      folderPath: projectDirectory.path,
+    );
+    final chat = await controller.repository.createChat(
+      projectId: project.id,
+      title: 'Todo chat',
+    );
+    await controller.repository.executeTodo(chat.id, {
+      'op': 'init',
+      'items': ['Connect provider', 'Verify model'],
+    });
+
+    await controller.openChat(chat);
+
+    expect(controller.chatTodo['total'], 2);
+    expect(
+      ((controller.chatTodo['phases'] as List).single as Map)['items'],
+      hasLength(2),
+    );
+
+    await controller.repository.executeTodo(chat.id, {
+      'op': 'done',
+      'task': 'Connect provider',
+    });
+    await controller.openChat(chat);
+    expect(controller.chatTodo['completed'], 1);
+
+    await projectDirectory.delete(recursive: true);
+    await chatDirectory.delete(recursive: true);
+  });
+
   group('provider', () {
     test('maps OpenAI-compatible HTTP errors', () async {
       final provider = OpenAICompatibleProvider(

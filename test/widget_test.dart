@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:syntac/src/agent/agent_loop.dart';
+import 'package:syntac/src/app.dart';
 import 'package:syntac/src/models.dart';
 import 'package:syntac/src/ui/chat/ansi_text.dart';
 import 'package:syntac/src/ui/chat/chat_message_list.dart';
@@ -16,6 +17,7 @@ import 'package:syntac/src/ui/theme/app_colors.dart';
 import 'package:syntac/src/ui/theme/app_theme.dart';
 import 'package:syntac/src/core/app_identity.dart';
 import 'package:syntac/src/ui/onboarding/steps/welcome_step.dart';
+import 'package:syntac/src/ui/onboarding/steps/provider_step.dart';
 import 'package:syntac/src/ui/widgets/empty_state.dart';
 import 'package:flutter/material.dart';
 import 'package:syntac/src/ui/components/animated_hamburger.dart';
@@ -44,6 +46,25 @@ void main() {
       ),
       'Implement authentication with JSON web tokens...',
     );
+  });
+
+  testWidgets('provider setup exposes native DeepSeek connection', (
+    tester,
+  ) async {
+    final controller = AppController();
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      _wrap(
+        ProviderStep(controller: controller, settingsMode: true, onNext: () {}),
+      ),
+    );
+
+    expect(find.text('DeepSeek'), findsOneWidget);
+    expect(find.text('DeepSeek API key and native thinking'), findsOneWidget);
+    await tester.tap(find.text('DeepSeek'));
+    await tester.pump();
+    expect(find.textContaining('Use a DeepSeek API key.'), findsOneWidget);
   });
 
   testWidgets('StatusIndicator renders correct status colors', (tester) async {
@@ -427,6 +448,58 @@ void main() {
     expect(find.text('Todo'), findsOneWidget);
     expect(find.text('done · Verify provider'), findsOneWidget);
     expect(find.text('2/3 done'), findsOneWidget);
+  });
+
+  testWidgets('active todo stays readable until every task is terminal', (
+    tester,
+  ) async {
+    final activeState = <String, Object?>{
+      'phases': [
+        {
+          'phase': 'Provider',
+          'items': [
+            {'text': 'Expose DeepSeek', 'status': 'completed'},
+            {'text': 'Verify connection', 'status': 'in_progress'},
+            {
+              'text': 'Phone smoke test',
+              'status': 'blocked',
+              'reason': 'Phone required',
+            },
+          ],
+        },
+      ],
+      'completed': 1,
+      'total': 3,
+    };
+
+    await tester.pumpWidget(_wrap(TodoProgressPanel(state: activeState)));
+
+    expect(find.byKey(const ValueKey('chat-todo-panel')), findsOneWidget);
+    expect(find.text('Tasks'), findsOneWidget);
+    expect(find.text('1/3 done'), findsOneWidget);
+    expect(find.text('Verify connection'), findsOneWidget);
+    expect(find.text('Phone required'), findsOneWidget);
+
+    await tester.pumpWidget(
+      _wrap(
+        TodoProgressPanel(
+          state: {
+            'phases': [
+              {
+                'phase': 'Provider',
+                'items': [
+                  {'text': 'Expose DeepSeek', 'status': 'completed'},
+                  {'text': 'Verify connection', 'status': 'completed'},
+                  {'text': 'Phone smoke test', 'status': 'abandoned'},
+                ],
+              },
+            ],
+          },
+        ),
+      ),
+    );
+
+    expect(find.byKey(const ValueKey('chat-todo-panel')), findsNothing);
   });
 
   testWidgets('ToolCallCard renders runtime job summaries with state colors', (
