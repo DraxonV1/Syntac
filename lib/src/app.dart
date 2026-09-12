@@ -120,6 +120,7 @@ class AppController extends ChangeNotifier {
   List<ChatMessage> messages = <ChatMessage>[];
   List<Attachment> attachments = <Attachment>[];
   List<ToolExecution> toolExecutions = <ToolExecution>[];
+  Map<String, Object?> chatTodo = const <String, Object?>{};
   List<ProviderConfig> providers = <ProviderConfig>[];
   Map<String, List<ProviderModel>> providerModels =
       <String, List<ProviderModel>>{};
@@ -200,6 +201,7 @@ class AppController extends ChangeNotifier {
     messages = await repository.listMessages(chatId);
     attachments = await _attachmentsForMessages(messages);
     toolExecutions = await repository.listToolExecutions(chatId);
+    chatTodo = await repository.executeTodo(chatId, const {'op': 'view'});
     notifyListeners();
   }
 
@@ -261,15 +263,20 @@ class AppController extends ChangeNotifier {
         messages = await repository.listMessages(selectedChat!.id);
         attachments = await _attachmentsForMessages(messages);
         toolExecutions = await repository.listToolExecutions(selectedChat!.id);
+        chatTodo = await repository.executeTodo(selectedChat!.id, const {
+          'op': 'view',
+        });
       } else {
         messages = <ChatMessage>[];
         attachments = <Attachment>[];
         toolExecutions = <ToolExecution>[];
+        chatTodo = const <String, Object?>{};
       }
     } else {
       messages = <ChatMessage>[];
       attachments = <Attachment>[];
       toolExecutions = <ToolExecution>[];
+      chatTodo = const <String, Object?>{};
     }
     notifyListeners();
   }
@@ -377,6 +384,7 @@ class AppController extends ChangeNotifier {
     messages = <ChatMessage>[];
     attachments = <Attachment>[];
     toolExecutions = <ToolExecution>[];
+    chatTodo = const <String, Object?>{};
     await refreshAll();
   }
 
@@ -386,6 +394,7 @@ class AppController extends ChangeNotifier {
     messages = <ChatMessage>[];
     attachments = <Attachment>[];
     toolExecutions = <ToolExecution>[];
+    chatTodo = const <String, Object?>{};
     chats = await repository.listChats(project.id);
     notifyListeners();
   }
@@ -395,6 +404,7 @@ class AppController extends ChangeNotifier {
     messages = await repository.listMessages(chat.id);
     attachments = await _attachmentsForMessages(messages);
     toolExecutions = await repository.listToolExecutions(chat.id);
+    chatTodo = await repository.executeTodo(chat.id, const {'op': 'view'});
     notifyListeners();
   }
 
@@ -420,6 +430,7 @@ class AppController extends ChangeNotifier {
       messages = <ChatMessage>[];
       attachments = <Attachment>[];
       toolExecutions = <ToolExecution>[];
+      chatTodo = const <String, Object?>{};
     }
     await refreshAll();
   }
@@ -656,6 +667,7 @@ class AppController extends ChangeNotifier {
         await OpenAICompatibleProvider(
           baseUrl: provider.baseUrl,
           providerName: provider.name,
+          providerKey: provider.providerKey,
         ).testConnection(apiKey: apiKey);
       }
       return 'Connection ok';
@@ -732,6 +744,7 @@ class AppController extends ChangeNotifier {
         final openAIProvider = OpenAICompatibleProvider(
           baseUrl: provider.baseUrl,
           providerName: provider.name,
+          providerKey: provider.providerKey,
         );
         discovered = await openAIProvider.discoverModels(apiKey: apiKey);
         authoritativeDiscovery = discovered.isNotEmpty;
@@ -959,6 +972,7 @@ class AppController extends ChangeNotifier {
       _ => OpenAICompatibleProvider(
         baseUrl: provider.baseUrl,
         providerName: provider.name,
+        providerKey: provider.providerKey,
       ),
     };
 
@@ -1013,12 +1027,15 @@ class AppController extends ChangeNotifier {
       );
       await tools.writeFile('.syntac_diag.txt', 'one');
       final readOne = await tools.readFile('.syntac_diag.txt');
-      await tools.applyPatch('''*** Begin Patch
+      await tools.applyPatch(
+        '''*** Begin Patch
 *** Update File: .syntac_diag.txt
 @@
 -one
 +two
-*** End Patch''');
+*** End Patch''',
+        expectedSnapshots: {'.syntac_diag.txt': readOne['snapshot']!},
+      );
       final readTwo = await tools.readFile('.syntac_diag.txt');
       await tools.deletePath('.syntac_diag.txt');
       final diagPath =

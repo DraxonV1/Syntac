@@ -3,6 +3,8 @@
 ## Ownership
 
 - `ai_provider.dart` defines provider-neutral requests, responses, tool calls, reasoning events, and errors. Concrete transports implement protocol behavior only.
+- `models_dev_catalog.dart` loads offline Models.dev capabilities refreshed by `scripts/update_model_catalog.py`; live provider discovery remains authoritative for availability.
+- `deepseek_chat_policy.dart` owns direct DeepSeek thinking mode, effort mapping, and required assistant `reasoning_content` replay.
 
 `registry/` controls supported providers, capabilities, beta visibility, and defaults. `oauth/` owns login/refresh/discovery. `auth/` owns credential access. `provider_error_store.dart` writes redacted full request/response diagnostics by HTTP status and chat ID.
 
@@ -12,6 +14,7 @@
 - Convert malformed streams and HTTP failures into sanitized provider errors, never uncaught UI failures.
 - Preserve tool-call ordering, reasoning metadata, cancellation, and replay fields.
 - Emit provider reasoning configuration only for transports/models that support it; map effort to each wire protocol's bounded values.
+- DeepSeek tool conversations replay exact provider reasoning from every assistant turn. Truncated reasoning fails clearly instead of sending invalid synthetic data.
 - Filter unsupported discovered models before persistence; preserve manual models during refresh merges.
 - Validate OAuth callback port/path and state before exchanging codes.
 - Keep provider-specific JSON mapping inside provider files; do not leak transport details into UI or `AgentLoop`.

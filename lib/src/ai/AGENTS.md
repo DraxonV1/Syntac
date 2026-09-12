@@ -8,6 +8,8 @@
 
 - `ai_provider.dart`: provider request/response/event interfaces.
 - `openai_provider.dart`: OpenAI-compatible `/v1/chat/completions` streaming and `/v1/models`.
+- `deepseek_chat_policy.dart`: direct DeepSeek thinking, effort, and reasoning replay rules.
+- `models_dev_catalog.dart`: bundled offline model capabilities and provider alias lookup.
 - `google_cloud_code_assist_provider.dart`: Google Antigravity/Cloud Code Assist streaming protocol.
 - `ai_error_messages.dart`: safe user-facing error classification.
 - `provider_diagnostics.dart`: diagnostic maps, redaction, stream metadata, and bounded response details.
@@ -30,6 +32,7 @@
 - Manual user models survive refresh/discovery merges.
 - Unsupported Google model IDs must be filtered before persistence/use.
 - OAuth callback redirects must validate expected port/path.
+- DeepSeek tool turns must replay exact untruncated `reasoning_content`; never synthesize it or emit `tool_choice`.
 
 ## Tests
 

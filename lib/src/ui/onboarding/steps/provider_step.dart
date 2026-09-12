@@ -15,8 +15,8 @@ import '../widgets/oauth_auth_sheet.dart';
 enum ProviderTestState { idle, connecting, testing, streaming, success, error }
 
 /// Step 2 — Configure Provider
-/// Dedicated surface for Google Antigravity, ChatGPT Codex, Grok, and
-/// supported OpenAI-compatible custom providers.
+/// Dedicated surface for Google Antigravity, ChatGPT Codex, DeepSeek, Grok,
+/// and supported OpenAI-compatible custom providers.
 class ProviderStep extends StatefulWidget {
   const ProviderStep({
     super.key,
@@ -75,6 +75,9 @@ class _ProviderStepState extends State<ProviderStep> {
         case 'google-antigravity':
           _nameController.text = 'Google Antigravity';
           _baseUrlController.text = 'https://daily-cloudcode-pa.googleapis.com';
+        case 'deepseek':
+          _nameController.text = 'DeepSeek';
+          _baseUrlController.text = 'https://api.deepseek.com';
         case 'grok':
           _nameController.text = 'Grok';
           _baseUrlController.text = 'https://api.x.ai/v1';
@@ -135,9 +138,11 @@ class _ProviderStepState extends State<ProviderStep> {
           name: _nameController.text.trim(),
           baseUrl: _baseUrlController.text.trim(),
           apiKey: apiKey,
-          providerKey: _selectedProviderKey == 'grok'
-              ? 'xai'
-              : 'custom-openai-compatible',
+          providerKey: switch (_selectedProviderKey) {
+            'custom' => 'custom-openai-compatible',
+            'grok' => 'xai',
+            final key => key,
+          },
           authType: 'apiKey',
           models: const [],
         );
@@ -274,6 +279,13 @@ class _ProviderStepState extends State<ProviderStep> {
           ),
           const SizedBox(height: 10),
           _buildProviderChoiceCard(
+            key: 'deepseek',
+            title: 'DeepSeek',
+            subtitle: 'DeepSeek API key and native thinking',
+            logo: AppIcons.providerLogo('deepseek', size: 22),
+          ),
+          const SizedBox(height: 10),
+          _buildProviderChoiceCard(
             key: 'grok',
             title: 'Grok',
             subtitle: 'xAI API key',
@@ -297,6 +309,7 @@ class _ProviderStepState extends State<ProviderStep> {
 
           // Custom Options if selected
           if (_selectedProviderKey == 'custom' ||
+              _selectedProviderKey == 'deepseek' ||
               _selectedProviderKey == 'grok') ...[
             _buildCustomProviderFields(),
             const SizedBox(height: 20),
@@ -390,7 +403,9 @@ class _ProviderStepState extends State<ProviderStep> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Use an OpenAI-compatible API endpoint. Anthropic-compatible custom providers are hidden for beta until a native Anthropic transport is implemented.',
+          _selectedProviderKey == 'deepseek'
+              ? 'Use a DeepSeek API key. Models are loaded from the DeepSeek API after connection.'
+              : 'Use an OpenAI-compatible API endpoint. Anthropic-compatible custom providers are hidden for beta until a native Anthropic transport is implemented.',
           style: AppTypography.bodySmall,
         ),
         const SizedBox(height: 12),

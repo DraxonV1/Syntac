@@ -5,7 +5,7 @@
 ## Ownership
 
 - `LocalDatabase` stores stable metadata: projects, providers, models, settings.
-- `ChatJsonlStore` stores chats, messages, tool executions, jobs, and attachments as user-accessible JSONL.
+- `ChatJsonlStore` stores chats, messages, tool executions, jobs, attachments, and bounded todo state as user-accessible JSONL.
 - `storage_stats.dart` reports metadata and chat-store sizes to settings UI.
 
 ## Android layout
@@ -26,12 +26,15 @@ Preferred shared root:
     └── sessions/
         ├── chats.jsonl
         ├── attachments.jsonl
-        └── sqlite-chat-migration-v1.done
+        ├── sqlite-chat-migration-v1.done
+        └── chats/<chat-id>/todo.jsonl
 ```
 
 `agent/` and `sessions/` match OMP's internal layout while keeping Syntac data under `.syntac`. Runtime binaries stay app-private. API keys and OAuth credentials stay in Android secure storage.
 
 If shared storage permission or filesystem access fails, app-private database/chat paths remain usable. Startup copies legacy private `chats_jsonl/`, shared `.syntac/chats_jsonl/`, and old `.omp/agent/sessions/` files into preferred paths without overwriting newer files.
+
+Each chat may own one `todo.jsonl` snapshot: at most 8 phases and 40 uniquely named tasks. Invalid transitions do not replace saved state. Deleting chat removes todo with its session directory and blocks later todo writes.
 
 ## Change workflow
 

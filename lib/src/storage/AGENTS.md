@@ -9,6 +9,7 @@
 - `local_database.dart`: SQLite open/create/upgrade, metadata schema, project mount naming.
 - `app_repository.dart`: storage facade used by app/agent/UI; also implements `CredentialStore` bridge.
 - `chat_jsonl_store.dart`: chat index, messages, tool executions, jobs, attachments, JSONL recovery/migration.
+- `chat_todo.dart`: bounded per-chat todo state transitions.
 - `storage_stats.dart`: async storage breakdown for settings UI.
 
 ## Change here when
@@ -29,7 +30,7 @@
 - JSONL writes must remain per-file serialized and atomically replaced through unique temp files.
 - Startup must recover/dismiss temp files safely.
 - Malformed rows must not drop valid rows.
-- Deleted chats must reject later messages, jobs, tool executions, and attachments.
+- Deleted chats must reject later messages, jobs, tool executions, attachments, and todo transitions.
 - Persisted text/raw JSON caps must keep UI responsive.
 
 ## Documentation

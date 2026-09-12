@@ -16,6 +16,192 @@ import '../theme/app_motion.dart';
 import 'ansi_text.dart';
 import 'syntax_highlighted_code.dart';
 
+/// Persistent readable task state shown above the composer while work remains.
+class TodoProgressPanel extends StatelessWidget {
+  const TodoProgressPanel({super.key, required this.state});
+
+  final Map<String, Object?> state;
+
+  List<Map<String, Object?>> _phases() {
+    final rawPhases = state['phases'];
+    if (rawPhases is! List) return const <Map<String, Object?>>[];
+    return [
+      for (final raw in rawPhases)
+        if (raw is Map) Map<String, Object?>.from(raw),
+    ];
+  }
+
+  List<Map<String, Object?>> _items(Map<String, Object?> phase) {
+    final rawItems = phase['items'];
+    if (rawItems is! List) return const <Map<String, Object?>>[];
+    return [
+      for (final raw in rawItems)
+        if (raw is Map) Map<String, Object?>.from(raw),
+    ];
+  }
+
+  bool _isTerminal(String status) =>
+      status == 'completed' || status == 'abandoned';
+
+  (IconData, Color, String) _statusStyle(String status) => switch (status) {
+    'in_progress' => (
+      Icons.play_circle_outline,
+      AppColors.primaryBright,
+      'In progress',
+    ),
+    'completed' => (Icons.check_circle_outline, AppColors.success, 'Completed'),
+    'blocked' => (Icons.pause_circle_outline, AppColors.warning, 'Blocked'),
+    'abandoned' => (Icons.cancel_outlined, AppColors.textMuted, 'Closed'),
+    _ => (Icons.radio_button_unchecked, AppColors.textMuted, 'Pending'),
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final phases = _phases();
+    final items = [for (final phase in phases) ..._items(phase)];
+    if (items.isEmpty ||
+        items.every((item) => _isTerminal(item['status']?.toString() ?? ''))) {
+      return const SizedBox.shrink();
+    }
+
+    final completed = items
+        .where((item) => item['status'] == 'completed')
+        .length;
+    final total = items.length;
+
+    return Semantics(
+      container: true,
+      label: 'Current tasks, $completed of $total completed',
+      child: Container(
+        key: const ValueKey('chat-todo-panel'),
+        margin: const EdgeInsets.fromLTRB(12, 8, 12, 6),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceElevated,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.checklist_outlined,
+                    size: 17,
+                    color: AppColors.primaryBright,
+                  ),
+                  const SizedBox(width: 8),
+                  Text('Tasks', style: AppTypography.titleSmall),
+                  const Spacer(),
+                  Text(
+                    '$completed/$total done',
+                    style: AppTypography.monoSmall.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Divider(height: 1, color: AppColors.borderSubtle),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 210),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final phase in phases)
+                      if (_items(phase).isNotEmpty) ...[
+                        Padding(
+                          padding: const EdgeInsets.only(top: 3, bottom: 4),
+                          child: Text(
+                            phase['phase']?.toString() ?? 'Tasks',
+                            style: AppTypography.monoSmall.copyWith(
+                              color: AppColors.textSecondary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        for (final item in _items(phase))
+                          _TodoProgressRow(
+                            text: item['text']?.toString() ?? 'Task',
+                            reason: item['reason']?.toString(),
+                            status: item['status']?.toString() ?? 'pending',
+                            statusStyle: _statusStyle(
+                              item['status']?.toString() ?? 'pending',
+                            ),
+                          ),
+                      ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TodoProgressRow extends StatelessWidget {
+  const _TodoProgressRow({
+    required this.text,
+    required this.reason,
+    required this.status,
+    required this.statusStyle,
+  });
+
+  final String text;
+  final String? reason;
+  final String status;
+  final (IconData, Color, String) statusStyle;
+
+  @override
+  Widget build(BuildContext context) {
+    final (icon, color, label) = statusStyle;
+    final terminal = status == 'completed' || status == 'abandoned';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Tooltip(
+            message: label,
+            child: Icon(icon, size: 16, color: color),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  text,
+                  style: AppTypography.bodySmall.copyWith(
+                    color: terminal
+                        ? AppColors.textMuted
+                        : AppColors.textPrimary,
+                    decoration: terminal ? TextDecoration.lineThrough : null,
+                  ),
+                ),
+                if (reason != null && reason!.isNotEmpty)
+                  Text(
+                    reason!,
+                    style: AppTypography.monoSmall.copyWith(
+                      color: AppColors.warning,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Compact, expandable tool call card matching the developer aesthetics.
 class ToolCallCard extends StatefulWidget {
   const ToolCallCard({
@@ -115,6 +301,7 @@ class _ToolCallCardState extends State<ToolCallCard>
       'jobs.wait' => 'Wait for job',
       'jobs.cancel' => 'Cancel job',
       'copy' => 'Copy',
+      'todo' => 'Todo',
       _ => name,
     };
   }
@@ -136,6 +323,7 @@ class _ToolCallCardState extends State<ToolCallCard>
       'jobs.wait' ||
       'jobs.cancel' => Icons.work_history_outlined,
       'copy' => Icons.content_copy_outlined,
+      'todo' => Icons.checklist_outlined,
       _ => Icons.build_outlined,
     };
   }
@@ -291,6 +479,10 @@ class _ToolCallCardState extends State<ToolCallCard>
       'jobs.logs' ||
       'jobs.wait' ||
       'jobs.cancel' => args['jobId']?.toString() ?? '',
+      'todo' => [
+        args['op']?.toString() ?? 'view',
+        args['task']?.toString() ?? args['phase']?.toString() ?? '',
+      ].where((value) => value.isNotEmpty).join(' · '),
       _ => args.entries.map((e) => '${e.key}: ${e.value}').take(2).join(', '),
     };
   }
@@ -327,6 +519,13 @@ class _ToolCallCardState extends State<ToolCallCard>
           return BadgeChip.neutral(label: '${files.length} files');
         }
         return null;
+      }(),
+      'todo' => () {
+        final completed = _intValue(result['completed']);
+        final total = _intValue(result['total']);
+        return completed == null || total == null
+            ? null
+            : BadgeChip.neutral(label: '$completed/$total done');
       }(),
       'glob' => () {
         final count = _intValue(result['count']);

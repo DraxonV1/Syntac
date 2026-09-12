@@ -95,7 +95,6 @@ class ModelsDevCatalog {
           json: rawModel.cast<String, Object?>(),
         );
         models[_key(providerId, id)] = metadata;
-        models.putIfAbsent(_key('', id), () => metadata);
       }
     }
     return ModelsDevCatalog._(models);
@@ -110,9 +109,14 @@ class ModelsDevCatalog {
     required String providerKey,
     required String modelId,
   }) {
-    return _models[_key(providerKey, modelId)] ??
-        _models[_key('', modelId)] ??
-        _models.values.where((model) => model.id == modelId).firstOrNull;
+    final catalogProvider = switch (providerKey) {
+      'openai-codex' => 'openai',
+      'xai-oauth' => 'xai',
+      'google-antigravity' =>
+        modelId.startsWith('claude-') ? 'anthropic' : 'google',
+      _ => providerKey,
+    };
+    return _models[_key(catalogProvider, modelId)];
   }
 
   int? contextWindowFor({
@@ -127,8 +131,4 @@ class ModelsDevCatalog {
 
   static String _key(String providerId, String modelId) =>
       '${providerId.toLowerCase()}::$modelId';
-}
-
-extension<T> on Iterable<T> {
-  T? get firstOrNull => isEmpty ? null : first;
 }

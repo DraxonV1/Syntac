@@ -85,9 +85,35 @@ class UpdateService {
   static List<Uri> defaultEndpoints(UpdateChannel channel) => <Uri>[
     Uri.parse('https://syntac.com/download/${channel.name}.json'),
     Uri.parse(
-      'https://raw.githubusercontent.com/DraxonV1/Syntac/main/update/${channel.name}.json',
+      'https://raw.githubusercontent.com/DraxonV1/Syntac/master/update/${channel.name}.json',
     ),
   ];
+
+  static final _sha256 = RegExp(r'^[a-fA-F0-9]{64}$');
+  static final _version = RegExp(r'^\d+\.\d+\.\d+(?:-(?:beta|nightly)\.\d+)?$');
+
+  static bool _validManifest(UpdateManifest manifest) {
+    final uri = Uri.tryParse(manifest.apkUrl);
+    if (!_version.hasMatch(manifest.version) ||
+        manifest.versionCode <= 0 ||
+        uri?.scheme != 'https' ||
+        uri!.host.isEmpty ||
+        !_sha256.hasMatch(manifest.sha256) ||
+        manifest.size <= 0 ||
+        manifest.minSupportedVersionCode < 0) {
+      return false;
+    }
+    final qualifier = manifest.version
+        .split('-')
+        .skip(1)
+        .join('-')
+        .toLowerCase();
+    return switch (manifest.channel) {
+      UpdateChannel.stable => qualifier.isEmpty,
+      UpdateChannel.beta => qualifier.isEmpty || qualifier.startsWith('beta.'),
+      UpdateChannel.nightly => qualifier.startsWith('nightly.'),
+    };
+  }
 
   Future<UpdateManifest?> check({
     required UpdateChannel channel,
@@ -100,7 +126,7 @@ class UpdateService {
         final decoded = jsonDecode(response.body);
         if (decoded is! Map<String, Object?>) continue;
         final manifest = UpdateManifest.fromJson(decoded, channel: channel);
-        if (manifest.apkUrl.isEmpty || manifest.versionCode <= 0) continue;
+        if (!_validManifest(manifest)) continue;
         if (manifest.isNewerThan(currentVersionCode) ||
             manifest.requiresUpgradeFrom(currentVersionCode)) {
           return manifest;

@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   build-apk:
@@ -66,91 +67,132 @@ jobs:
           keyPassword=$ANDROID_KEY_PASSWORD
           EOF
 
+      - name: Verify release source
+        run: |
+          dart format --output=none --set-exit-if-changed lib test
+          flutter analyze
+          flutter test
+
       - name: Build release APK
         run: >
-          flutter build apk --release
+          flutter build apk --release --target-platform android-arm64
           --dart-define=SYNTAC_GOOGLE_OAUTH_CLIENT_ID="${SYNTAC_GOOGLE_OAUTH_CLIENT_ID}"
           --dart-define=SYNTAC_GOOGLE_OAUTH_CLIENT_SECRET="${SYNTAC_GOOGLE_OAUTH_CLIENT_SECRET}"
 
       - name: Prepare release asset name
         run: cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/syntac-arm64.apk
 
-      - name: Update release manifests
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import hashlib
-          import json
-          from pathlib import Path
-
-          apk = Path("build/app/outputs/flutter-apk/syntac-arm64.apk")
-          digest = hashlib.sha256(apk.read_bytes()).hexdigest()
-          size = apk.stat().st_size
-
-          for path in Path("update").glob("*.json"):
-              data = json.loads(path.read_text())
-              data["sha256"] = digest
-              data["size"] = size
-              path.write_text(json.dumps(data, indent=2) + "\n")
-          PY
-
       - name: Resolve release metadata
         id: release_meta
         shell: bash
         run: |
           set -euo pipefail
-          version="$(python3 - <<'PY'
+          readarray -t metadata < <(python3 - <<'PY'
           import re
           from pathlib import Path
-          match = re.search(r'^version:\s*([^\s]+)', Path('pubspec.yaml').read_text(), re.MULTILINE)
+          match = re.search(r'^version:\s*([^\s+]+)\+(\d+)', Path('pubspec.yaml').read_text(), re.MULTILINE)
           if not match:
-              raise SystemExit('pubspec.yaml version not found')
-          print(match.group(1).split('+', 1)[0])
+              raise SystemExit('pubspec.yaml version and build number not found')
+          print(match.group(1))
+          print(match.group(2))
           PY
-          )"
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            tag="${GITHUB_REF_NAME}"
-          else
-            tag="v${version}"
-          fi
-          if [[ "$tag" == *beta* || "$tag" == *nightly* ]]; then
+          )
+          version="${metadata[0]}"
+          version_code="${metadata[1]}"
+          qualifier="${version#*-}"
+          if [[ "$version" != *-* ]]; then
+            channel=stable
+            prerelease=false
+          elif [[ "$qualifier" == beta.* ]]; then
+            channel=beta
+            prerelease=true
+          elif [[ "$qualifier" == nightly.* ]]; then
+            channel=nightly
             prerelease=true
           else
-            prerelease=false
+            echo "::error::Version qualifier must be beta.N or nightly.N"
+            exit 1
+          fi
+          tag="v${version}"
+          if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" != "$tag" ]]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match pubspec version $tag"
+            exit 1
           fi
           {
+            echo "version=$version"
+            echo "version_code=$version_code"
             echo "tag=$tag"
+            echo "channel=$channel"
             echo "prerelease=$prerelease"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Update release tag
-        if: github.ref_type != 'tag'
+      - name: Build channel manifest
         shell: bash
+        env:
+          RELEASE_VERSION: ${{ steps.release_meta.outputs.version }}
+          RELEASE_VERSION_CODE: ${{ steps.release_meta.outputs.version_code }}
+          RELEASE_TAG: ${{ steps.release_meta.outputs.tag }}
+          RELEASE_CHANNEL: ${{ steps.release_meta.outputs.channel }}
         run: |
           set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -fa "${{ steps.release_meta.outputs.tag }}" "$GITHUB_SHA" -m "Syntac ${{ steps.release_meta.outputs.tag }}"
-          git push --force origin "refs/tags/${{ steps.release_meta.outputs.tag }}"
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
 
-      - name: Upload APK
+          apk = Path("build/app/outputs/flutter-apk/syntac-arm64.apk")
+          channel = os.environ["RELEASE_CHANNEL"]
+          template = Path("update") / f"{channel}.json"
+          data = json.loads(template.read_text())
+          data.update({
+              "version": os.environ["RELEASE_VERSION"],
+              "versionCode": int(os.environ["RELEASE_VERSION_CODE"]),
+              "apkUrl": (
+                  f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/"
+                  f"download/{os.environ['RELEASE_TAG']}/syntac-arm64.apk"
+              ),
+              "sha256": hashlib.sha256(apk.read_bytes()).hexdigest(),
+              "size": apk.stat().st_size,
+          })
+          output = Path("build/release") / f"{channel}.json"
+          output.parent.mkdir(parents=True, exist_ok=True)
+          rendered = json.dumps(data, indent=2) + "\n"
+          output.write_text(rendered)
+          template.write_text(rendered)
+
+      - name: Upload release candidate
         uses: actions/upload-artifact@v4
         with:
-          name: syntac-arm64-apk
-          path: build/app/outputs/flutter-apk/syntac-arm64.apk
+          name: syntac-${{ steps.release_meta.outputs.channel }}-candidate
+          path: |
+            build/app/outputs/flutter-apk/syntac-arm64.apk
+            build/release/${{ steps.release_meta.outputs.channel }}.json
           if-no-files-found: error
 
       - name: Publish GitHub release
+        if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.release_meta.outputs.tag }}
+          tag_name: ${{ github.ref_name }}
           target_commitish: ${{ github.sha }}
           prerelease: ${{ steps.release_meta.outputs.prerelease }}
-          name: Syntac ${{ steps.release_meta.outputs.tag }}
+          name: Syntac ${{ github.ref_name }}
           body_path: CHANGELOG.md
           files: |
             build/app/outputs/flutter-apk/syntac-arm64.apk
-            update/beta.json
-            update/stable.json
-            update/nightly.json
+            build/release/${{ steps.release_meta.outputs.channel }}.json
+
+      - name: Open channel-manifest PR
+        if: github.ref_type == 'tag'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          base: master
+          branch: automation/${{ steps.release_meta.outputs.tag }}-manifest
+          delete-branch: true
+          add-paths: update/${{ steps.release_meta.outputs.channel }}.json
+          commit-message: "chore: sync ${{ steps.release_meta.outputs.channel }} release manifest"
+          title: "chore: sync ${{ steps.release_meta.outputs.tag }} update manifest"
+          body: |
+            Generated from exact signed APK published by Android APK workflow.
+            Review channel, version, URL, SHA-256, and size before merge.

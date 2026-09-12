@@ -1,0 +1,7 @@
+{
+  "source": "https://models.dev/api.json",
+  "sha256": "4b999771d62f84b9d85fcbbb958487efdb830be185cdac406565c4a2f51ae1e1",
+  "bytes": 4620818,
+  "ompReference": "e24466515dae616f4027170027245c6222f28ab2",
+  "deepSeekPolicySource": "https://api-docs.deepseek.com/guides/thinking_mode"
+}

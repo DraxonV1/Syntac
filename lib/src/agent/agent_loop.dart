@@ -81,6 +81,7 @@ class AgentLoop {
                : OpenAICompatibleProvider(
                    baseUrl: provider.baseUrl,
                    providerName: provider.name,
+                   providerKey: provider.providerKey,
                  ));
 
   final AppRepository _repository;
@@ -206,6 +207,7 @@ class AgentLoop {
         shellExecutor: await _runtimeExecutorForProject(project),
         commandApproval: _commandApproval,
         attachments: attachments,
+        todoHandler: (arguments) => _repository.executeTodo(chat.id, arguments),
       );
       final ai = _providerFactory(provider);
       final globalPrompt = await _repository.readGlobalSystemPrompt();

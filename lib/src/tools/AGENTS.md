@@ -6,10 +6,11 @@
 
 ## Main files
 
-- `agent_tools.dart`: tool specs and dispatch for `read`, `write`, `apply_patch`, `delete`, `list`, `glob`, `search`, `bash`, `jobs.*`, and `copy`.
+- `agent_tools.dart`: tool specs and dispatch for `read`, `write`, `apply_patch`, `delete`, `list`, `glob`, `search`, `bash`, `jobs.*`, `copy`, and optional per-chat `todo`.
 - `tool_context.dart`: project-root realpath sandbox, explicit read-only systemwide path resolver, output bounds, and local artifact helpers.
 - `apply_patch_tool.dart`: bounded multi-file patch parser and atomic project writes.
 - `glob_tool.dart`: bounded project file/directory matching.
+- `file_snapshot.dart`: SHA-256 read snapshots and patch size limits.
 - `runtime_jobs_tool.dart`: status, log follow, wait, and cancel APIs over durable runtime capability.
 
 ## Change here when
@@ -26,6 +27,7 @@
 - Reject URI/fake SAF paths and invalid symlink ancestors.
 - Bound read/search/bash/job output before returning and before persistence.
 - `read` defaults to at most 500 lines; continuation metadata must identify next offset.
+- Updated/deleted patch files require exact `read` snapshots; validate all paths and snapshots before first write.
 - Bash stdout/stderr share aggregate cap; current runtime stream cap is 2,000,000 characters per stream.
 - Large command output gets persisted through local artifact references, not unbounded JSONL.
 - Running bash and `jobs.logs` updates must be bounded and safe to persist often.

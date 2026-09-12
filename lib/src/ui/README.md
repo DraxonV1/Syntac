@@ -4,7 +4,7 @@
 
 Screens coordinate visible state through `AppController`. Reusable presentation belongs in `components/`, `theme/`, or `widgets/`.
 
-`chat/` owns transcript rows, composer controls, model selection, tool cards, markdown, image rendering, TeX rendering, syntax highlighting, and thinking disclosure. `screens/runtime_screen.dart` owns runtime capability/status; `screens/runtime_jobs_screen.dart` owns current-session job inspection and controls. Keep persistence, provider calls, and runtime execution outside widgets.
+`chat/` owns transcript rows, composer controls, persistent active-todo presentation, model selection, tool cards, markdown, image rendering, TeX rendering, syntax highlighting, and thinking disclosure. `onboarding/steps/provider_step.dart` owns user-visible provider connection choices, including native DeepSeek setup. `screens/runtime_screen.dart` owns runtime capability/status; `screens/runtime_jobs_screen.dart` owns current-session job inspection and controls. Keep persistence, provider calls, and runtime execution outside widgets.
 
 ## Rules
 

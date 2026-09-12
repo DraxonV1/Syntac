@@ -7,6 +7,8 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 
 import '../core/cancellation.dart';
+import '../models.dart' show maxPersistedTextCharacters;
+import 'deepseek_chat_policy.dart';
 import 'ai_provider.dart';
 import 'provider_diagnostics.dart';
 
@@ -15,15 +17,20 @@ class OpenAICompatibleProvider extends AIProvider {
     required String baseUrl,
     http.Client? client,
     String providerName = 'provider',
+    String providerKey = '',
   }) : _baseUri = _parseBaseUri(baseUrl),
        _client = client ?? http.Client(),
        _ownsClient = client == null,
-       _providerName = providerName;
+       _providerName = providerName,
+       _isDeepSeek =
+           providerKey == 'deepseek' ||
+           Uri.tryParse(baseUrl)?.host == 'api.deepseek.com';
 
   final Uri _baseUri;
   final http.Client _client;
   final bool _ownsClient;
   final String _providerName;
+  final bool _isDeepSeek;
 
   Uri get resolvedChatCompletionsUri => _chatCompletionsUri;
   Uri get resolvedModelsUri => _modelsUri;
@@ -120,17 +127,31 @@ class OpenAICompatibleProvider extends AIProvider {
 
     try {
       cancellationToken?.throwIfCancelled();
+      if (_isDeepSeek) validateDeepSeekReasoningReplay(request);
       final requestBody = <String, Object?>{
         'model': request.model,
         'messages': request.messages
-            .map((message) => message.toJson())
+            .map(
+              (message) => _isDeepSeek
+                  ? deepSeekMessage(message)
+                  : (message.toJson()..remove('provider_metadata')),
+            )
             .toList(),
         if (request.tools.isNotEmpty) 'tools': _wireTools(request.tools),
-        if (request.tools.isNotEmpty) 'tool_choice': 'auto',
-        if (request.temperature != null) 'temperature': request.temperature,
+        if (request.tools.isNotEmpty && !_isDeepSeek) 'tool_choice': 'auto',
+        if (request.temperature != null &&
+            !(_isDeepSeek && request.includeThinking))
+          'temperature': request.temperature,
         if (request.maxOutputTokens != null)
           'max_tokens': request.maxOutputTokens,
-        if (request.supportsReasoning &&
+        if (_isDeepSeek)
+          'thinking': {
+            'type': request.includeThinking ? 'enabled' : 'disabled',
+          },
+        if (_isDeepSeek && request.includeThinking)
+          'reasoning_effort': deepSeekEffort(request.reasoningEffort),
+        if (!_isDeepSeek &&
+            request.supportsReasoning &&
             request.includeThinking &&
             request.reasoningEffort != null)
           'reasoning_effort': _wireReasoningEffort(request.reasoningEffort!),
@@ -158,6 +179,7 @@ class OpenAICompatibleProvider extends AIProvider {
       }
 
       final toolAccumulators = <int, _ToolAccumulator>{};
+      final reasoningBuffer = StringBuffer();
       String? finishReason;
       await for (final line
           in response.stream
@@ -198,6 +220,16 @@ class OpenAICompatibleProvider extends AIProvider {
             delta['reasoning_content'] ??
             delta['reasoning'] ??
             delta['thinking'];
+        if (_isDeepSeek && reasoning is String) {
+          if (reasoningBuffer.length + reasoning.length >
+              maxPersistedTextCharacters) {
+            throw const AIProviderException(
+              'DeepSeek reasoning exceeds the local history limit; continuation stopped rather than replaying truncated reasoning.',
+              kind: 'context_limit',
+            );
+          }
+          reasoningBuffer.write(reasoning);
+        }
         if (request.includeThinking &&
             reasoning is String &&
             reasoning.isNotEmpty) {
@@ -260,6 +292,12 @@ class OpenAICompatibleProvider extends AIProvider {
             )
             .toList(),
         finishReason: finishReason,
+        providerMetadata: _isDeepSeek
+            ? {
+                'provider': 'deepseek',
+                'reasoning_content': reasoningBuffer.toString(),
+              }
+            : const {},
       );
     } on TimeoutException {
       throw const AIProviderException(

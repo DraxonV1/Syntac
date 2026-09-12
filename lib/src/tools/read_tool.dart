@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import 'tool_context.dart';
+import 'file_snapshot.dart';
 
 mixin ReadTool on ToolContext {
   Future<Map<String, Object?>> readFile(
@@ -43,6 +44,10 @@ mixin ReadTool on ToolContext {
         includeImage: includeImage,
       );
     }
+    final snapshotBytes = length <= maxPatchFileBytes
+        ? await readPatchBytes(file)
+        : null;
+    final snapshot = snapshotBytes == null ? null : fileSnapshot(snapshotBytes);
     final readUnit = (unit ?? 'line').toLowerCase();
     if (readUnit == 'byte') {
       final start = (offset ?? 0).clamp(0, length).toInt();
@@ -52,12 +57,18 @@ mixin ReadTool on ToolContext {
       final raf = await file.open();
       try {
         await raf.setPosition(start);
-        final bytes = await raf.read(end - start);
+        final bytes = snapshotBytes == null
+            ? await raf.read(end - start)
+            : snapshotBytes.sublist(
+                start.clamp(0, snapshotBytes.length),
+                end.clamp(0, snapshotBytes.length),
+              );
         if (!raw && looksBinary(bytes)) {
           throw ToolFailure('Byte range appears to be binary: $inputPath');
         }
         return {
           'path': inputPath,
+          'snapshot': ?snapshot,
           'bytes': length,
           'unit': 'byte',
           'startByte': start,
@@ -86,8 +97,9 @@ mixin ReadTool on ToolContext {
     var selectedBytes = 0;
     var truncated = false;
     await for (final line
-        in file
-            .openRead()
+        in (snapshotBytes == null
+                ? file.openRead()
+                : Stream<List<int>>.value(snapshotBytes))
             .transform(utf8.decoder)
             .transform(const LineSplitter())) {
       totalLines++;
@@ -107,6 +119,7 @@ mixin ReadTool on ToolContext {
     final hasMore = end < totalLines;
     return {
       'path': inputPath,
+      'snapshot': ?snapshot,
       'bytes': length,
       'unit': 'line',
       'startLine': start,

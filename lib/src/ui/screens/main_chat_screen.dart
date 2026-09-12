@@ -14,6 +14,7 @@ import '../chat/chat_message_list.dart';
 import '../chat/composer_view.dart';
 import '../chat/empty_chat_view.dart';
 import '../chat/model_selector_sheet.dart';
+import '../chat/tool_call_card.dart';
 import '../components/animated_hamburger.dart';
 import '../navigation/central_navigation_overlay.dart';
 import '../theme/app_colors.dart';
@@ -277,6 +278,7 @@ class _MainChatScreenState extends State<MainChatScreen> {
                   onSuggestionTap: (prompt) => _handleSendMessage(prompt),
                 ),
         ),
+        TodoProgressPanel(state: widget.controller.chatTodo),
 
         // Floating Glass Composer
         ComposerView(

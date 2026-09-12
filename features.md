@@ -342,14 +342,14 @@ Host desktop `computer` control is not part of Android Syntac.
 
 ## Reference source
 
-Latest OMP checkout: `reference/omp`, upstream `main`, commit `2e6b5b7`.
+Latest OMP compatibility audit: upstream `main`, commit `e24466515dae616f4027170027245c6222f28ab2`. Source inspected in detached external worktree; provenance recorded in `assets/models/catalog-source.json`.
 
 Key source/docs reviewed:
 
+- `packages/catalog/src/compat/rules/providers/deepseek.kdl`
+- `packages/catalog/src/provider-models/descriptors.ts`
+- `packages/coding-agent/src/edit/`
+- `packages/coding-agent/src/tools/todo.ts`
 - `packages/coding-agent/src/tools/builtin-names.ts`
-- `packages/coding-agent/src/tools/index.ts`
 - `docs/bash-tool-runtime.md`
-- `docs/context-files.md`
-- `docs/skills.md`
-- `docs/session-operations-export-share-fork-resume.md`
-- `README.md`
+- DeepSeek official thinking-mode and tool-call documentation

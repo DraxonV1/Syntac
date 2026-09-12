@@ -25,7 +25,7 @@
 - Brand strings should come from `AppIdentity` where possible.
 - No emoji icons; use `AppIcons`/vector icons.
 - Keep portrait and landscape usable.
-- Tool cards must show intent before bounded output. Edit cards use line numbers, changed-line colors, compact paths, and delta badges.
+- Tool cards must show intent before bounded output. Apply-patch cards use line numbers, changed-line colors, compact paths, and delta badges; todo cards show operation target and completion count.
 - Shell command cards use monospace bordered command blocks; normal output containers stay transparent, while diffs/code retain intentional surfaces.
 - `MarkdownContent` uses `flutter_math_fork` for TeX and supports remote/data-URI images. `SyntaxHighlightedCode` follows active light/dark palette. Never replace TeX with hardcoded symbol substitution.
 - Large tool output must use bounded previews and maximizable surfaces.
