@@ -12,6 +12,8 @@
 - Preserve assistant tool-call metadata before matching tool messages.
 - Stop active tools on cancellation; never resume model generation afterward.
 - Persist partial streamed text before provider/tool failure.
+- Coalesce assistant and live tool UI updates to at most one refresh per 33 ms; persist less often so rendering cannot backpressure provider streams.
+- Create running tool executions from streamed arguments before model completion, then reuse those executions for final arguments and results.
 - Keep tool execution and messages scoped to owning chat.
 - Keep provider credentials and raw transport errors out of messages and diagnostics.
 - Bound every context section and preserve instruction precedence.

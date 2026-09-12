@@ -94,7 +94,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (_checkedOnboarding ||
         _checkingOnboarding ||
         widget.controller.loading ||
-        widget.controller.lastError != null) {
+        widget.controller.startupError != null) {
       return;
     }
     _checkingOnboarding = true;
@@ -205,9 +205,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.controller.lastError != null) {
+    if (widget.controller.startupError != null) {
       return _StartupErrorView(
-        message: widget.controller.lastError!,
+        message: widget.controller.startupError!,
         onRetry: () {
           setState(() {
             _checkedOnboarding = false;

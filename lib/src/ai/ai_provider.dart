@@ -171,6 +171,18 @@ class AIStreamEvent {
        networkChunkAt = networkChunkAt ?? DateTime.now(),
        providerEventAt = providerEventAt ?? networkChunkAt ?? DateTime.now();
 
+  AIStreamEvent.toolCalls(
+    this.toolCalls, {
+    DateTime? networkChunkAt,
+    DateTime? providerEventAt,
+  }) : textDelta = '',
+       thinkingDelta = '',
+       finishReason = null,
+       providerMetadata = const <String, Object?>{},
+       done = false,
+       networkChunkAt = networkChunkAt ?? DateTime.now(),
+       providerEventAt = providerEventAt ?? networkChunkAt ?? DateTime.now();
+
   AIStreamEvent.done({
     required this.toolCalls,
     this.finishReason,

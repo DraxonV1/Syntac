@@ -69,6 +69,10 @@ String describeAIErrorForUser(
   }
 
   final details = _safeErrorText(error.toString());
+  final transportKind = _transportErrorKindFromText(details);
+  if (transportKind != null) {
+    return _displayProviderError(transportKind, providerName: name);
+  }
   if (details.contains('Missing API key')) {
     return 'missing_credentials: Missing API key for $name.';
   }
@@ -81,33 +85,36 @@ String describeAIErrorForUser(
   return 'internal_exception: ${error.runtimeType}: $details';
 }
 
-String? _transportErrorKind(AIProviderException error) {
-  final raw = [
-    error.kind,
-    error.message,
-    error.details?.exceptionMessage ?? '',
-  ].join(' ').toLowerCase();
-  if (error.kind == 'dns_failure' ||
+String? _transportErrorKind(AIProviderException error) =>
+    _transportErrorKindFromText(
+      [
+        error.kind,
+        error.message,
+        error.details?.exceptionMessage ?? '',
+      ].join(' '),
+    );
+
+String? _transportErrorKindFromText(String value) {
+  final raw = value.toLowerCase();
+  if (raw.contains('dns_failure') ||
       raw.contains('failed host lookup') ||
       raw.contains('no address associated with hostname') ||
       raw.contains('nodename nor servname') ||
       raw.contains('name or service not known')) {
     return 'dns_failure';
   }
-  if (error.kind == 'tls_failure' || raw.contains('handshakeexception')) {
+  if (raw.contains('tls_failure') || raw.contains('handshakeexception')) {
     return 'tls_failure';
   }
-  if (error.kind == 'timeout' ||
-      raw.contains('timeout') ||
-      raw.contains('timed out')) {
+  if (raw.contains('timeout') || raw.contains('timed out')) {
     return 'timeout';
   }
-  if (error.kind == 'no_network' ||
+  if (raw.contains('no_network') ||
       raw.contains('network is unreachable') ||
       raw.contains('no route to host')) {
     return 'no_network';
   }
-  if (error.kind == 'network_error' ||
+  if (raw.contains('network_error') ||
       raw.contains('socketexception') ||
       raw.contains('clientexception') ||
       raw.contains('connection refused') ||

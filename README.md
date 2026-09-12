@@ -21,7 +21,7 @@ Open a project folder on your phone, connect an AI provider, chat about code, in
 - Developer: **DraxonV1**
 - Repository: <https://github.com/DraxonV1/Syntac>
 - Android package: `com.syntac`
-- Current version: `0.1.1-beta.5` (`versionCode` 15)
+- Current version: `0.1.1-beta.6` (`versionCode` 16)
 - Default update channel: **beta**
 
 ## Overview
@@ -97,7 +97,7 @@ Channels:
 Current beta APK target:
 
 ```text
-https://github.com/DraxonV1/Syntac/releases/download/v0.1.1-beta.5/syntac-arm64.apk
+https://github.com/DraxonV1/Syntac/releases/download/v0.1.1-beta.6/syntac-arm64.apk
 ```
 
 Current manifest files:
@@ -168,19 +168,19 @@ Contribution and release flow:
 - PR CI runs formatting, analysis, and tests without release secrets.
 - Review and merge PR only after CI passes.
 - Manual Android APK workflow builds signed candidate artifact without creating or moving tags.
-- Push exact version tag, such as `v0.1.1-beta.5`, only after candidate passes physical-phone checks. Tag must match `pubspec.yaml`.
+- Push exact version tag, such as `v0.1.1-beta.6`, only after candidate passes physical-phone checks. Tag must match `pubspec.yaml`.
 - Tag workflow rebuilds, verifies, and publishes only matching channel manifest. It never force-moves tags or overwrites other channels, then opens generated manifest-sync PR for `master`.
 
 Latest beta release:
 
-<https://github.com/DraxonV1/Syntac/releases/tag/v0.1.1-beta.5>
+<https://github.com/DraxonV1/Syntac/releases/tag/v0.1.1-beta.6>
 
 PR builds never receive release signing credentials or provider OAuth secrets.
 
 Release artifacts:
 
 ```text
-https://github.com/DraxonV1/Syntac/releases/download/v0.1.1-beta.5/syntac-arm64.apk
+https://github.com/DraxonV1/Syntac/releases/download/v0.1.1-beta.6/syntac-arm64.apk
 update/beta.json
 ```
 

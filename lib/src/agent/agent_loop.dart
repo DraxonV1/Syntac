@@ -41,6 +41,7 @@ class AgentLoop {
     CommandApprovalHandler? commandApproval,
     Future<void> Function(String chatId)? onMessagesChanged,
     FutureOr<void> Function(ChatMessage message)? onStreamingMessageChanged,
+    FutureOr<void> Function(ToolExecution execution)? onToolExecutionChanged,
   }) : _modelsDevCatalog = modelsDevCatalog ?? ModelsDevCatalog.empty(),
        _googleOAuthRefresh =
            googleOAuthRefresh ??
@@ -55,6 +56,7 @@ class AgentLoop {
        _repository = repository,
        _onMessagesChanged = onMessagesChanged,
        _onStreamingMessageChanged = onStreamingMessageChanged,
+       _onToolExecutionChanged = onToolExecutionChanged,
        _shellExecutorFactory =
            shellExecutorFactory ??
            ((project) async => ProjectToolsShellExecutor()),
@@ -92,6 +94,8 @@ class AgentLoop {
   final Future<void> Function(String chatId)? _onMessagesChanged;
   final FutureOr<void> Function(ChatMessage message)?
   _onStreamingMessageChanged;
+  final FutureOr<void> Function(ToolExecution execution)?
+  _onToolExecutionChanged;
   final Future<OAuthCredential> Function(OAuthCredential credential)
   _googleOAuthRefresh;
   final Future<OAuthCredential> Function(OAuthCredential credential)
@@ -257,6 +261,7 @@ class AgentLoop {
           timeout: const Duration(seconds: 90),
         );
         lastRequest = request;
+        final previewExecutions = <String, ToolExecution>{};
         final response = await _streamAssistantMessage(
           ai,
           request,
@@ -264,6 +269,7 @@ class AgentLoop {
           refreshApiKey: refreshOAuthCredential,
           chatId: chat.id,
           cancellationToken: token,
+          previewExecutions: previewExecutions,
         );
         if (response.toolCalls.isEmpty) {
           await _finish(
@@ -292,12 +298,19 @@ class AgentLoop {
         for (final call in response.toolCalls) {
           token.throwIfCancelled();
           final args = _decodeToolArguments(call);
-          final execution = ToolExecution.start(
-            chatId: chat.id,
-            name: call.name,
-            arguments: args,
-          );
-          await _repository.addToolExecution(execution);
+          final preview = previewExecutions.remove(call.id);
+          final execution =
+              preview?.updateArguments(args) ??
+              ToolExecution.start(
+                chatId: chat.id,
+                name: call.name,
+                arguments: args,
+              );
+          if (preview == null) {
+            await _repository.addToolExecution(execution);
+          } else {
+            await _repository.updateToolExecution(execution);
+          }
           startedToolCalls.add((call: call, args: args, execution: execution));
         }
         await _onMessagesChanged?.call(chat.id);
@@ -305,6 +318,7 @@ class AgentLoop {
           startedToolCalls.map((started) async {
             token.throwIfCancelled();
             var lastPreview = DateTime.fromMillisecondsSinceEpoch(0);
+            var lastUiPreview = DateTime.fromMillisecondsSinceEpoch(0);
             final toolResult = await tools.execute(
               started.call.name,
               started.args,
@@ -312,15 +326,17 @@ class AgentLoop {
               commandTimeout: Duration(seconds: limits.commandTimeoutSeconds),
               onUpdate: (partialResult) async {
                 final now = DateTime.now();
+                final updated = started.execution.runningResult({
+                  'ok': true,
+                  'result': partialResult,
+                });
+                if (now.difference(lastUiPreview).inMilliseconds >= 33) {
+                  lastUiPreview = now;
+                  await _onToolExecutionChanged?.call(updated);
+                }
                 if (now.difference(lastPreview).inMilliseconds < 250) return;
                 lastPreview = now;
-                await _repository.updateToolExecution(
-                  started.execution.runningResult({
-                    'ok': true,
-                    'result': partialResult,
-                  }),
-                );
-                await _onMessagesChanged?.call(chat.id);
+                await _repository.updateToolExecution(updated);
               },
             );
             return (started: started, toolResult: toolResult);
@@ -467,6 +483,7 @@ class AgentLoop {
     required Future<String?> Function() refreshApiKey,
     required String chatId,
     required CancellationToken cancellationToken,
+    required Map<String, ToolExecution> previewExecutions,
   }) async {
     final requestStartedAt = DateTime.now();
     final buffer = StringBuffer();
@@ -490,6 +507,7 @@ class AgentLoop {
     var lastPersistedLength = 0;
     var lastPersistedThinkingLength = 0;
     var lastPersistedAt = DateTime.now();
+    var lastUiAt = DateTime.fromMillisecondsSinceEpoch(0);
 
     Future<void> persist({bool force = false}) async {
       final now = DateTime.now();
@@ -498,6 +516,9 @@ class AgentLoop {
           buffer.length - lastPersistedLength >= 24 ||
           thinkingBuffer.length - lastPersistedThinkingLength >= 24 ||
           now.difference(lastPersistedAt) >= const Duration(milliseconds: 120);
+      final shouldRefreshUi =
+          force || now.difference(lastUiAt) >= const Duration(milliseconds: 33);
+      if (!shouldPersist && !shouldRefreshUi) return;
       assistant = assistant.copyWith(
         content: buffer.toString(),
         metadataJson: jsonEncode(<String, Object?>{
@@ -506,8 +527,9 @@ class AgentLoop {
         }),
       );
       final streamingCallback = _onStreamingMessageChanged;
-      if (streamingCallback != null) {
+      if (streamingCallback != null && shouldRefreshUi) {
         await streamingCallback(assistant);
+        lastUiAt = now;
         if (buffer.isNotEmpty && firstUiDeltaAt == null) {
           firstUiDeltaAt = DateTime.now();
         }
@@ -517,12 +539,47 @@ class AgentLoop {
       lastPersistedLength = buffer.length;
       lastPersistedThinkingLength = thinkingBuffer.length;
       lastPersistedAt = now;
-      if (_onStreamingMessageChanged == null) {
+      if (streamingCallback == null) {
         await _onMessagesChanged?.call(chatId);
         if (buffer.isNotEmpty && firstUiDeltaAt == null) {
           firstUiDeltaAt = DateTime.now();
         }
       }
+    }
+
+    var lastToolPreviewAt = DateTime.fromMillisecondsSinceEpoch(0);
+    Future<void> updateToolPreviews(
+      List<AIToolCall> previews, {
+      bool force = false,
+    }) async {
+      final now = DateTime.now();
+      if (!force &&
+          now.difference(lastToolPreviewAt).inMilliseconds < 33 &&
+          previewExecutions.isNotEmpty) {
+        return;
+      }
+      lastToolPreviewAt = now;
+      var added = false;
+      for (final call in previews) {
+        if (call.name.isEmpty) continue;
+        final arguments = _decodePartialToolArguments(call.argumentsJson);
+        final previous = previewExecutions[call.id];
+        if (previous == null) {
+          final execution = ToolExecution.start(
+            chatId: chatId,
+            name: call.name,
+            arguments: arguments,
+          );
+          previewExecutions[call.id] = execution;
+          await _repository.addToolExecution(execution);
+          added = true;
+        } else {
+          final execution = previous.updateArguments(arguments);
+          previewExecutions[call.id] = execution;
+          await _onToolExecutionChanged?.call(execution);
+        }
+      }
+      if (added) await _onMessagesChanged?.call(chatId);
     }
 
     var currentApiKey = apiKey;
@@ -542,7 +599,11 @@ class AgentLoop {
             calls = event.toolCalls;
             finishReason = event.finishReason;
             responseProviderMetadata = event.providerMetadata;
+            await updateToolPreviews(calls, force: true);
           } else {
+            if (event.toolCalls.isNotEmpty) {
+              await updateToolPreviews(event.toolCalls);
+            }
             if (event.thinkingDelta.isNotEmpty) {
               thinkingBuffer.write(event.thinkingDelta);
             }
@@ -803,6 +864,73 @@ class AgentLoop {
         // Missing or unreadable instructions do not block agent startup.
       }
     }
+    return null;
+  }
+}
+
+Map<String, Object?> _decodePartialToolArguments(String raw) {
+  if (raw.trim().isEmpty) return <String, Object?>{};
+  try {
+    final decoded = jsonDecode(raw);
+    if (decoded is Map) return Map<String, Object?>.from(decoded);
+  } catch (_) {}
+
+  final result = <String, Object?>{};
+  final keyPattern = RegExp(r'"((?:\\.|[^"\\])*)"\s*:\s*');
+  final matches = keyPattern.allMatches(raw).toList(growable: false);
+  for (var index = 0; index < matches.length; index++) {
+    final match = matches[index];
+    final key = _decodePartialJsonString('"${match.group(1)!}"');
+    if (key == null) continue;
+    final valueStart = match.end;
+    if (valueStart >= raw.length || raw.codeUnitAt(valueStart) != 0x22) {
+      continue;
+    }
+    var escaped = false;
+    var valueEnd = valueStart + 1;
+    for (; valueEnd < raw.length; valueEnd++) {
+      final code = raw.codeUnitAt(valueEnd);
+      if (escaped) {
+        escaped = false;
+      } else if (code == 0x5c) {
+        escaped = true;
+      } else if (code == 0x22) {
+        valueEnd += 1;
+        break;
+      }
+    }
+    final encoded = valueEnd <= raw.length
+        ? raw.substring(valueStart, valueEnd)
+        : raw.substring(valueStart);
+    final value = _decodePartialJsonString(encoded);
+    if (value != null) result[key] = value;
+  }
+  return result;
+}
+
+String? _decodePartialJsonString(String encoded) {
+  var candidate = encoded;
+  var escaped = false;
+  var closed = false;
+  for (var index = 1; index < candidate.length; index++) {
+    final code = candidate.codeUnitAt(index);
+    if (escaped) {
+      escaped = false;
+    } else if (code == 0x5c) {
+      escaped = true;
+    } else if (code == 0x22) {
+      closed = true;
+      break;
+    }
+  }
+  if (!closed) {
+    if (escaped) candidate = candidate.substring(0, candidate.length - 1);
+    candidate = '$candidate"';
+  }
+  try {
+    final decoded = jsonDecode(candidate);
+    return decoded is String ? decoded : null;
+  } catch (_) {
     return null;
   }
 }

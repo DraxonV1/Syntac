@@ -7,7 +7,9 @@
   "mandatory": false,
   "minSupportedVersionCode": 10,
   "notes": [
-    "Durable runtime jobs with live logs and cancellation",
-    "Apply patch, glob, and bounded systemwide diagnostics"
+    "Google Antigravity tool-schema compatibility aligned with OMP",
+    "DeepSeek provider setup and native thinking/tool replay",
+    "Persistent user-readable chat todo progress",
+    "Safer snapshot-based patches and provider error handling"
   ]
 }

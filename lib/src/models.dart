@@ -26,7 +26,6 @@ T enumByName<T extends Enum>(List<T> values, Object? raw, T fallback) {
 const int maxPersistedTextCharacters = 64000;
 const int maxPersistedRawJsonCharacters = 256000;
 const int maxLoadedChatTextCharacters = maxPersistedTextCharacters;
-const int maxToolCardJsonPreviewCharacters = 12000;
 const String persistenceTruncationNotice =
     '[stored output truncated to keep chat responsive]';
 
@@ -498,6 +497,18 @@ class ToolExecution {
     finishedAt: DateTime.now(),
     resultJson: encodeJson(result),
     error: error == null ? null : truncatePersistedText(error),
+  );
+
+  ToolExecution updateArguments(Object? arguments) => ToolExecution(
+    id: id,
+    chatId: chatId,
+    name: name,
+    argumentsJson: encodeJson(arguments) ?? '{}',
+    status: status,
+    startedAt: startedAt,
+    finishedAt: finishedAt,
+    resultJson: resultJson,
+    error: error,
   );
 
   ToolExecution runningResult(Object? result) => ToolExecution(

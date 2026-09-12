@@ -9,8 +9,11 @@ Screens coordinate visible state through `AppController`. Reusable presentation 
 ## Rules
 
 - Render state from controller inputs; do not open databases, call providers, or execute commands from build methods.
+- Keep provider/auth failures inside provider surfaces; only initialization and onboarding-state failures may replace the app with the startup error view.
 - Keep streamed and tool output bounded before creating widget trees.
 - Preserve copy, maximize, expand/collapse, error, loading, and cancellation affordances.
+- Show at most the first 300 persisted code/content lines inline. Copy and maximize must retain complete persisted value, including large write arguments.
+- Keep running tool cards mounted while streamed arguments and partial execution output replace their visible state.
 - Use semantic labels, readable contrast, touch targets, keyboard-safe layouts, and dynamic light/dark tokens from `theme/`.
 - Keep code in `SyntaxHighlightedCode`, math in `flutter_math_fork`, and images behind bounded/failing widgets; never hardcode symbol substitutions.
 - Keep screen navigation and modal ownership at screen level.

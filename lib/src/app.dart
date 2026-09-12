@@ -115,6 +115,7 @@ class AppController extends ChangeNotifier {
   String? backgroundWorkDetails;
   bool loading = true;
   String? lastError;
+  String? startupError;
   List<ProjectSummary> projects = <ProjectSummary>[];
   List<Chat> chats = <Chat>[];
   List<ChatMessage> messages = <ChatMessage>[];
@@ -147,6 +148,7 @@ class AppController extends ChangeNotifier {
   Future<void> initialize() async {
     loading = true;
     lastError = null;
+    startupError = null;
     try {
       final db = await _openDatabase();
       _repository = AppRepository(
@@ -163,6 +165,7 @@ class AppController extends ChangeNotifier {
         commandApproval: _commandApprovalHandler,
         onMessagesChanged: _refreshChatMessages,
         onStreamingMessageChanged: _updateStreamingMessage,
+        onToolExecutionChanged: _updateToolExecution,
       );
       await repository.reconcileStaleRunningJobs();
       await refreshAll();
@@ -173,7 +176,8 @@ class AppController extends ChangeNotifier {
         stackTrace,
         context: 'App initialization failed',
       );
-      lastError = 'App failed to start. Check development logs for details.';
+      startupError = 'App failed to start. Check development logs for details.';
+      lastError = startupError;
     } finally {
       loading = false;
       notifyListeners();
@@ -190,6 +194,7 @@ class AppController extends ChangeNotifier {
   }) {
     logDetailedAIError(error, stackTrace, context: context);
     lastError = message;
+    startupError = message;
     loading = false;
     notifyListeners();
   }
@@ -212,6 +217,16 @@ class AppController extends ChangeNotifier {
     final updated = List<ChatMessage>.of(messages);
     updated[index] = message;
     messages = updated;
+    notifyListeners();
+  }
+
+  void _updateToolExecution(ToolExecution execution) {
+    if (selectedChat?.id != execution.chatId) return;
+    final index = toolExecutions.indexWhere((item) => item.id == execution.id);
+    if (index < 0) return;
+    final updated = List<ToolExecution>.of(toolExecutions);
+    updated[index] = execution;
+    toolExecutions = updated;
     notifyListeners();
   }
 

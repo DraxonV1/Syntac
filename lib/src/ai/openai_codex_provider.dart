@@ -239,13 +239,25 @@ class OpenAICodexProvider extends AIProvider {
               id: (item['call_id'] ?? item['id'] ?? key).toString(),
               name: (item['name'] ?? '').toString(),
             );
+            yield AIStreamEvent.toolCalls(
+              _finishToolCalls(toolCalls),
+              networkChunkAt: eventAt,
+              providerEventAt: eventAt,
+            );
           }
         } else if (type == 'response.function_call_arguments.delta') {
           final key = (decoded['item_id'] ?? decoded['call_id'] ?? '')
               .toString();
           final call = toolCalls[key];
           final delta = decoded['delta'];
-          if (call != null && delta is String) call.arguments += delta;
+          if (call != null && delta is String) {
+            call.arguments += delta;
+            yield AIStreamEvent.toolCalls(
+              _finishToolCalls(toolCalls),
+              networkChunkAt: eventAt,
+              providerEventAt: eventAt,
+            );
+          }
         } else if (type == 'response.function_call_arguments.done') {
           final key = (decoded['item_id'] ?? decoded['call_id'] ?? '')
               .toString();
@@ -253,6 +265,13 @@ class OpenAICodexProvider extends AIProvider {
           final arguments = decoded['arguments'];
           if (call != null && arguments is String) {
             call.arguments = arguments;
+          }
+          if (call != null) {
+            yield AIStreamEvent.toolCalls(
+              _finishToolCalls(toolCalls),
+              networkChunkAt: eventAt,
+              providerEventAt: eventAt,
+            );
           }
         } else if (type == 'response.output_item.done') {
           final item = decoded['item'];
@@ -267,6 +286,11 @@ class OpenAICodexProvider extends AIProvider {
             );
             final arguments = item['arguments'];
             if (arguments is String) call.arguments = arguments;
+            yield AIStreamEvent.toolCalls(
+              _finishToolCalls(toolCalls),
+              networkChunkAt: eventAt,
+              providerEventAt: eventAt,
+            );
           }
         } else if (type == 'response.completed' ||
             type == 'response.done' ||
