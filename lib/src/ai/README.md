@@ -13,10 +13,13 @@
 - Keep API keys, OAuth tokens, refresh tokens, authorization codes, and cookies out of logs, diagnostics, persistence, and tests.
 - Convert malformed streams and HTTP failures into sanitized provider errors, never uncaught UI failures.
 - Preserve tool-call ordering, reasoning metadata, cancellation, and replay fields.
+- Emit cumulative tool-call snapshots while arguments stream; `AgentLoop` owns preview persistence and execution lifecycle.
+- For Antigravity schemas, normalize schema-key positions only. Names inside `properties` maps are user-defined and must survive unchanged; every `required` entry must name a retained property.
 - Emit provider reasoning configuration only for transports/models that support it; map effort to each wire protocol's bounded values.
 - DeepSeek tool conversations replay exact provider reasoning from every assistant turn. Truncated reasoning fails clearly instead of sending invalid synthetic data.
 - Filter unsupported discovered models before persistence; preserve manual models during refresh merges.
 - Validate OAuth callback port/path and state before exchanging codes.
+- Map raw HTTP/DNS/socket failures into retryable provider messages; never expose transport exception internals.
 - Keep provider-specific JSON mapping inside provider files; do not leak transport details into UI or `AgentLoop`.
 
 ## Change workflow

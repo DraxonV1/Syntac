@@ -14,6 +14,7 @@ import 'package:syntac/src/ui/widgets/badge_chip.dart';
 import 'package:syntac/src/ui/widgets/status_indicator.dart';
 import 'package:syntac/src/ui/screens/home_screen.dart';
 import 'package:syntac/src/ui/theme/app_colors.dart';
+import 'package:syntac/src/ui/theme/app_icons.dart';
 import 'package:syntac/src/ui/theme/app_theme.dart';
 import 'package:syntac/src/core/app_identity.dart';
 import 'package:syntac/src/ui/onboarding/steps/welcome_step.dart';
@@ -385,6 +386,48 @@ void main() {
     expect(find.text('CONTENT'), findsOneWidget);
     expect(find.textContaining('first line'), findsOneWidget);
     expect(find.textContaining('+first line'), findsNothing);
+  });
+
+  testWidgets('write card previews 300 lines and maximizes full content', (
+    tester,
+  ) async {
+    final suffix = List<String>.filled(48, 'x').join();
+    final content = List<String>.generate(
+      350,
+      (index) => 'line ${index + 1}: $suffix',
+    ).join('\n');
+    final execution = ToolExecution(
+      id: 'tool_large_write',
+      chatId: 'chat_1',
+      name: 'write',
+      argumentsJson: jsonEncode({'path': 'lib/large.txt', 'content': content}),
+      status: ToolExecutionStatus.success,
+      startedAt: DateTime.now(),
+      finishedAt: DateTime.now(),
+      resultJson: jsonEncode({
+        'ok': true,
+        'result': {'path': 'lib/large.txt', 'bytes': content.length},
+      }),
+    );
+
+    await tester.pumpWidget(
+      _wrap(ToolCallCard(execution: execution, initiallyExpanded: true)),
+    );
+
+    expect(find.textContaining('line 300:'), findsOneWidget);
+    expect(find.textContaining('line 301:'), findsNothing);
+    expect(
+      find.textContaining(
+        '[preview truncated 50 lines; maximize shows full value]',
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byIcon(AppIcons.maximize).last);
+    await tester.pumpAndSettle();
+
+    expect(find.text(content), findsOneWidget);
+    expect(find.textContaining('line 350:'), findsOneWidget);
   });
 
   testWidgets('ToolCallCard renders apply patch diff preview', (tester) async {

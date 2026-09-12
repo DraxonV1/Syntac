@@ -1088,6 +1088,22 @@ void main() {
   });
 
   group('provider', () {
+    test('maps raw DNS client failures to readable provider errors', () {
+      final message = describeAIErrorForUser(
+        http.ClientException(
+          "ClientException with SocketException: Failed host lookup: 'oauth2.googleapis.com' "
+          '(OS Error: No address associated with hostname, errno = 7)',
+          Uri.parse(GoogleAntigravityOAuthFlow.tokenUrl),
+        ),
+        providerName: 'Google Antigravity',
+      );
+
+      expect(
+        message,
+        "Couldn't find Google Antigravity. Check your internet connection and provider URL.",
+      );
+      expect(message, isNot(contains('internal_exception')));
+    });
     test('maps OpenAI-compatible HTTP errors', () async {
       final provider = OpenAICompatibleProvider(
         baseUrl: 'https://example.test',
@@ -1259,11 +1275,26 @@ void main() {
           'data: [DONE]\n\n',
         ]),
       );
-      final response = await provider.completeChat(
-        const AIChatRequest(model: 'model', messages: [], tools: []),
-        apiKey: 'k',
+      final events = await provider
+          .streamChat(
+            const AIChatRequest(model: 'model', messages: [], tools: []),
+            apiKey: 'k',
+          )
+          .toList();
+      expect(
+        events.where((event) => !event.done && event.toolCalls.isNotEmpty),
+        hasLength(2),
       );
-      expect(response.text, 'hi');
+      expect(
+        events
+            .firstWhere((event) => event.toolCalls.isNotEmpty)
+            .toolCalls
+            .single
+            .argumentsJson,
+        '{"path":',
+      );
+      final response = events.last;
+      expect(events.map((event) => event.textDelta).join(), 'hi');
       expect(response.toolCalls.single.name, 'read');
       expect(
         response.toolCalls.single.argumentsJson,
@@ -2629,6 +2660,57 @@ void main() {
     });
   });
 
+  test('streamed tool arguments appear before execution starts', () async {
+    final repo = await repository();
+    final dir = await Directory.systemTemp.createTemp(
+      'syntac_stream_tool_test_',
+    );
+    final project = await repo.createProject(name: 'Bot', folderPath: dir.path);
+    final provider = await repo.saveProvider(
+      name: 'OpenRouter',
+      baseUrl: 'https://openrouter.ai/api/v1',
+      apiKey: 'key',
+      models: ['openai/gpt-4o-mini'],
+    );
+    final model = (await repo.listProviderModels(provider.id)).single;
+    final chat = await repo.createChat(
+      projectId: project.id,
+      title: 'New chat',
+      providerId: provider.id,
+      modelId: model.id,
+    );
+    final visibleContents = <String>[];
+    void capture(ToolExecution execution) {
+      final arguments =
+          jsonDecode(execution.argumentsJson) as Map<String, Object?>;
+      final content = arguments['content']?.toString();
+      if (content != null) visibleContents.add(content);
+    }
+
+    final loop = AgentLoop(
+      repository: repo,
+      providerFactory: (_) => StreamingToolProvider(),
+      onMessagesChanged: (chatId) async {
+        for (final execution in await repo.listToolExecutions(chatId)) {
+          capture(execution);
+        }
+      },
+      onToolExecutionChanged: capture,
+    );
+
+    await loop.send(project: project, chat: chat, userText: 'write file');
+
+    expect(visibleContents, contains('first line'));
+    expect(visibleContents, contains('first line\nsecond line'));
+    expect(
+      await File(
+        '${dir.path}${Platform.pathSeparator}stream.txt',
+      ).readAsString(),
+      'first line\nsecond line',
+    );
+    await dir.delete(recursive: true);
+  });
+
   test('streaming chunks update assistant message incrementally', () async {
     final repo = await repository();
     final dir = await Directory.systemTemp.createTemp('syntac_stream_test_');
@@ -2666,8 +2748,9 @@ void main() {
 
     await loop.send(project: project, chat: chat, userText: 'hello');
 
-    expect(directSnapshots, containsAll(<String>['H', 'He', 'Hello']));
-    expect(snapshots, contains('Hello'));
+    expect(directSnapshots.first, 'H');
+    expect(directSnapshots, contains('Hello'));
+    expect(directSnapshots.length, lessThanOrEqualTo(4));
     expect(snapshots.last, 'Hello');
     final assistant = (await repo.listMessages(
       chat.id,
@@ -3933,8 +4016,10 @@ void main() {
                 'additionalProperties': false,
                 'properties': {
                   'path': {'type': 'string', 'format': 'uri'},
+                  'pattern': {'type': 'string'},
                   'optional': true,
                 },
+                'required': ['pattern'],
               },
             },
           },
@@ -3948,6 +4033,8 @@ void main() {
         (declarations.single as Map)['functionDeclarations'] as List;
     final parameters = (declaration.single as Map)['parameters'] as Map;
     expect(parameters['additionalProperties'], isNull);
+    expect((parameters['properties'] as Map)['pattern'], isA<Map>());
+    expect(parameters['required'], ['pattern']);
     expect((parameters['properties'] as Map)['path']['format'], isNull);
     expect((parameters['properties'] as Map)['optional'], isA<Map>());
   });
@@ -4012,8 +4099,24 @@ void main() {
             as List;
     expect(declarations, hasLength(tools.length));
     for (final declaration in declarations) {
-      expect((declaration as Map)['parameters'], isA<Map>());
+      final function = declaration as Map;
+      final parameters = function['parameters'] as Map;
+      final properties = parameters['properties'] as Map? ?? const {};
+      for (final name in parameters['required'] as List? ?? const []) {
+        expect(
+          properties.containsKey(name),
+          isTrue,
+          reason:
+              '${function['name']} requires undefined property ${name.toString()}',
+        );
+      }
     }
+    final glob = declarations.cast<Map>().singleWhere(
+      (declaration) => declaration['name'] == 'glob',
+    );
+    final globParameters = glob['parameters'] as Map;
+    expect((globParameters['properties'] as Map), contains('pattern'));
+    expect(globParameters['required'], contains('pattern'));
   });
 }
 
@@ -4076,6 +4179,51 @@ class QueueProvider extends AIProvider {
     yield AIStreamEvent.done(
       toolCalls: response.toolCalls,
       finishReason: response.finishReason,
+    );
+  }
+}
+
+class StreamingToolProvider extends AIProvider {
+  var requestCount = 0;
+
+  @override
+  Stream<AIStreamEvent> streamChat(
+    AIChatRequest request, {
+    required String apiKey,
+    CancellationToken? cancellationToken,
+  }) async* {
+    requestCount += 1;
+    if (requestCount > 1) {
+      yield AIStreamEvent.text('done');
+      yield AIStreamEvent.done(toolCalls: const [], finishReason: 'stop');
+      return;
+    }
+    yield AIStreamEvent.toolCalls(const [
+      AIToolCall(
+        id: 'stream_write',
+        name: 'write',
+        argumentsJson: '{"path":"stream.txt","content":"first line',
+      ),
+    ]);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    yield AIStreamEvent.toolCalls(const [
+      AIToolCall(
+        id: 'stream_write',
+        name: 'write',
+        argumentsJson:
+            '{"path":"stream.txt","content":"first line\\nsecond line',
+      ),
+    ]);
+    yield AIStreamEvent.done(
+      toolCalls: const [
+        AIToolCall(
+          id: 'stream_write',
+          name: 'write',
+          argumentsJson:
+              '{"path":"stream.txt","content":"first line\\nsecond line"}',
+        ),
+      ],
+      finishReason: 'tool_calls',
     );
   }
 }

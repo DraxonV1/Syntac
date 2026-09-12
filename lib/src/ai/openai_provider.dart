@@ -268,6 +268,14 @@ class OpenAICompatibleProvider extends AIProvider {
               if (arguments is String) accumulator.arguments.write(arguments);
             }
           }
+          final previews = _toolCallSnapshots(toolAccumulators);
+          if (previews.isNotEmpty) {
+            yield AIStreamEvent.toolCalls(
+              previews,
+              networkChunkAt: eventAt,
+              providerEventAt: eventAt,
+            );
+          }
         }
       }
       if (finishReason == null) {
@@ -276,21 +284,9 @@ class OpenAICompatibleProvider extends AIProvider {
           kind: 'incomplete_stream',
         );
       }
-      final calls = toolAccumulators.entries.toList()
-        ..sort((a, b) => a.key.compareTo(b.key));
+      final calls = _toolCallSnapshots(toolAccumulators);
       yield AIStreamEvent.done(
-        toolCalls: calls
-            .where((entry) => entry.value.name.isNotEmpty)
-            .map(
-              (entry) => AIToolCall(
-                id: entry.value.id.isEmpty
-                    ? 'tool_${entry.key}'
-                    : entry.value.id,
-                name: entry.value.name,
-                argumentsJson: entry.value.arguments.toString(),
-              ),
-            )
-            .toList(),
+        toolCalls: calls,
         finishReason: finishReason,
         providerMetadata: _isDeepSeek
             ? {
@@ -459,6 +455,23 @@ class OpenAICompatibleProvider extends AIProvider {
       return build('Network request failed for $host', 'network_error');
     }
     return build('Provider request failed for $host', 'provider_error');
+  }
+
+  static List<AIToolCall> _toolCallSnapshots(
+    Map<int, _ToolAccumulator> accumulators,
+  ) {
+    final entries = accumulators.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+    return entries
+        .where((entry) => entry.value.name.isNotEmpty)
+        .map(
+          (entry) => AIToolCall(
+            id: entry.value.id.isEmpty ? 'tool_${entry.key}' : entry.value.id,
+            name: entry.value.name,
+            argumentsJson: entry.value.arguments.toString(),
+          ),
+        )
+        .toList(growable: false);
   }
 
   static String _openAIPath(String base, String resource) {

@@ -220,7 +220,7 @@ class ToolCallCard extends StatefulWidget {
 class _ToolCallCardState extends State<ToolCallCard>
     with SingleTickerProviderStateMixin {
   late bool _expanded;
-  static const int _codePreviewCharacters = 4000;
+  static const int _codePreviewLines = 300;
 
   @override
   void initState() {
@@ -243,16 +243,6 @@ class _ToolCallCardState extends State<ToolCallCard>
 
   Map<String, Object?> _decode(String? json) {
     if (json == null || json.isEmpty) return <String, Object?>{};
-    if (json.length > maxToolCardJsonPreviewCharacters) {
-      return <String, Object?>{
-        'recovered': true,
-        'originalLength': json.length,
-        'raw': truncatePersistedText(
-          json,
-          maxLength: maxToolCardJsonPreviewCharacters,
-        ),
-      };
-    }
     try {
       final decoded = jsonDecode(json);
       return decoded is Map
@@ -849,14 +839,11 @@ class _ToolCallCardState extends State<ToolCallCard>
         ], copyValue: path),
         if (content != null) ...[
           const SizedBox(height: 6),
-          Text(
-            'CONTENT',
-            style: AppTypography.caption.copyWith(color: AppColors.textMuted),
-          ),
-          const SizedBox(height: 4),
-          _buildPlainOutputBox(
-            content,
+          _buildCodeBox(
+            title: 'CONTENT',
+            content: content,
             copyContent: content,
+            copyable: true,
             language: _languageForPath(path),
             maxHeight: 220,
           ),
@@ -1193,10 +1180,11 @@ class _ToolCallCardState extends State<ToolCallCard>
   }
 
   String _previewText(String content) {
-    if (content.length <= _codePreviewCharacters) return content;
-    final omitted = content.length - _codePreviewCharacters;
-    return '${content.substring(0, _codePreviewCharacters)}\n'
-        '[preview truncated $omitted characters; copy gets full value]';
+    final lines = content.split('\n');
+    if (lines.length <= _codePreviewLines) return content;
+    final omitted = lines.length - _codePreviewLines;
+    return '${lines.take(_codePreviewLines).join('\n')}\n'
+        '[preview truncated $omitted lines; maximize shows full value]';
   }
 
   TextStyle _diffLineStyle(String line) {
@@ -1333,6 +1321,7 @@ class _ToolCallCardState extends State<ToolCallCard>
     bool copyable = false,
     bool isError = false,
     double? maxHeight,
+    String? language,
   }) {
     final visibleContent = _previewText(content);
     return Column(
@@ -1409,7 +1398,7 @@ class _ToolCallCardState extends State<ToolCallCard>
             scrollDirection: Axis.vertical,
             child: SyntaxHighlightedCode(
               text: visibleContent,
-              language: title.toLowerCase(),
+              language: language ?? title.toLowerCase(),
             ),
           ),
         ),

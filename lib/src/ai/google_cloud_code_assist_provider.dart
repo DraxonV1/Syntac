@@ -196,6 +196,11 @@ class GoogleCloudCodeAssistProvider extends AIProvider {
                 },
               ),
             );
+            yield AIStreamEvent.toolCalls(
+              List<AIToolCall>.unmodifiable(toolCalls),
+              networkChunkAt: eventAt,
+              providerEventAt: eventAt,
+            );
           }
         }
       }
@@ -817,17 +822,107 @@ const _cloudCodeUnsupportedSchemaFields = <String>{
   r'$comment',
 };
 
-Object? _normalizeCloudCodeSchema(Object? value) {
-  if (value is bool) return <String, Object?>{};
+const _cloudCodeSchemaMapFields = <String>{
+  'properties',
+  'patternProperties',
+  'dependencies',
+  'dependentSchemas',
+  r'$defs',
+  'definitions',
+};
+
+const _cloudCodeSchemaValueFields = <String>{
+  'items',
+  'additionalItems',
+  'unevaluatedItems',
+  'not',
+  'if',
+  'then',
+  'else',
+  'contains',
+  'propertyNames',
+  'contentSchema',
+};
+
+const _cloudCodeSchemaArrayFields = <String>{
+  'anyOf',
+  'oneOf',
+  'allOf',
+  'prefixItems',
+};
+
+const _cloudCodeBooleanOrSchemaFields = <String>{
+  'additionalProperties',
+  'unevaluatedProperties',
+};
+
+const _cloudCodeSchemaFieldRenames = <String, String>{
+  'additional_properties': 'additionalProperties',
+  'any_of': 'anyOf',
+  'prefix_items': 'prefixItems',
+  'property_ordering': 'propertyOrdering',
+};
+
+Object? _normalizeCloudCodeSchema(
+  Object? value, {
+  bool insideSchemaMap = false,
+  bool booleanIsSubschema = true,
+}) {
+  if (value is bool) return booleanIsSubschema ? <String, Object?>{} : value;
   if (value is List) {
-    return value.map(_normalizeCloudCodeSchema).toList(growable: false);
+    return value
+        .map(
+          (entry) => _normalizeCloudCodeSchema(
+            entry,
+            booleanIsSubschema: booleanIsSubschema,
+          ),
+        )
+        .toList(growable: false);
   }
   if (value is! Map) return value;
+
   final result = <String, Object?>{};
   value.forEach((key, raw) {
-    final name = key.toString();
+    final originalName = key.toString();
+    if (insideSchemaMap) {
+      result[originalName] = _normalizeCloudCodeSchema(raw);
+      return;
+    }
+
+    final name = _cloudCodeSchemaFieldRenames[originalName] ?? originalName;
     if (_cloudCodeUnsupportedSchemaFields.contains(name)) return;
-    result[name] = _normalizeCloudCodeSchema(raw);
+    if (_cloudCodeSchemaMapFields.contains(name)) {
+      result[name] = _normalizeCloudCodeSchema(
+        raw,
+        insideSchemaMap: true,
+        booleanIsSubschema: false,
+      );
+    } else if (_cloudCodeSchemaValueFields.contains(name) ||
+        _cloudCodeSchemaArrayFields.contains(name)) {
+      result[name] = _normalizeCloudCodeSchema(raw);
+    } else if (_cloudCodeBooleanOrSchemaFields.contains(name) && raw is Map) {
+      result[name] = _normalizeCloudCodeSchema(raw);
+    } else {
+      result[name] = raw;
+    }
   });
+
+  final properties = result['properties'];
+  final required = result['required'];
+  if (properties is Map && required is List) {
+    final defined = properties.keys.map((key) => key.toString()).toSet();
+    final validRequired = required
+        .whereType<String>()
+        .where(defined.contains)
+        .toList(growable: false);
+    if (validRequired.isEmpty) {
+      result.remove('required');
+    } else {
+      result['required'] = validRequired;
+    }
+  }
+  if (result['type'] == 'object' && result['properties'] == null) {
+    result['properties'] = <String, Object?>{};
+  }
   return result;
 }
