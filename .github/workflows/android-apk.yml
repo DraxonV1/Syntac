@@ -156,6 +156,7 @@ jobs:
               "size": apk.stat().st_size,
           })
           output = Path("build/release") / f"{channel}.json"
+          output.parent.mkdir(parents=True, exist_ok=True)
           rendered = json.dumps(data, indent=2) + "\n"
           output.write_text(rendered)
           template.write_text(rendered)
