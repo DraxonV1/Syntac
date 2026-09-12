@@ -21,7 +21,7 @@ Open a project folder on your phone, connect an AI provider, chat about code, in
 - Developer: **DraxonV1**
 - Repository: <https://github.com/DraxonV1/Syntac>
 - Android package: `com.syntac`
-- Current version: `0.1.1-beta.4` (`versionCode` 14)
+- Current version: `0.1.1-beta.5` (`versionCode` 15)
 - Default update channel: **beta**
 
 ## Overview
@@ -97,7 +97,7 @@ Channels:
 Current beta APK target:
 
 ```text
-https://github.com/DraxonV1/Syntac/releases/download/v0.1.1-beta.4/syntac-arm64.apk
+https://github.com/DraxonV1/Syntac/releases/download/v0.1.1-beta.5/syntac-arm64.apk
 ```
 
 Current manifest files:
@@ -162,41 +162,39 @@ build/app/outputs/flutter-apk/app-release.apk
 
 `com.syntac` is public Android package identity. Keep it stable so updates install over existing beta builds.
 
-Contribution flow:
+Contribution and release flow:
 
-- Open PR with source changes.
-- CI runs formatting, analysis, and tests.
-- Pushing a version tag like `v0.1.1-beta.4` builds signed `syntac-arm64.apk`.
-- Release workflow publishes APK and update manifests to GitHub Releases.
-- GitHub Release notes come from `CHANGELOG.md`.
+- Make source changes on a branch and open PR into `master`.
+- PR CI runs formatting, analysis, and tests without release secrets.
+- Review and merge PR only after CI passes.
+- Manual Android APK workflow builds signed candidate artifact without creating or moving tags.
+- Push exact version tag, such as `v0.1.1-beta.5`, only after candidate passes physical-phone checks. Tag must match `pubspec.yaml`.
+- Tag workflow rebuilds, verifies, and publishes only matching channel manifest. It never force-moves tags or overwrites other channels, then opens generated manifest-sync PR for `master`.
 
 Latest beta release:
 
-<https://github.com/DraxonV1/Syntac/releases/tag/v0.1.1-beta.4>
+<https://github.com/DraxonV1/Syntac/releases/tag/v0.1.1-beta.5>
 
 PR builds never receive release signing credentials or provider OAuth secrets.
 
 Release artifacts:
 
 ```text
-https://github.com/DraxonV1/Syntac/releases/download/v0.1.1-beta.4/syntac-arm64.apk
-update/stable.json
+https://github.com/DraxonV1/Syntac/releases/download/v0.1.1-beta.5/syntac-arm64.apk
 update/beta.json
-update/nightly.json
 ```
 
 ## Reference and attribution
 
-Thanks to [oh-my-pi](https://github.com/can1357/oh-my-pi) for giving much reference code. The pinned checkout lives at `reference/omp`.
+Thanks to [oh-my-pi](https://github.com/can1357/oh-my-pi) for protocol and agent-tool references. Current compatibility audit pins upstream commit `e24466515dae616f4027170027245c6222f28ab2` in `assets/models/catalog-source.json`; upstream source is not vendored.
 
-Runtime source repositories live under `reference/`:
+Runtime sources live under:
 
-- `reference/omp`: oh-my-pi
-- `reference/proot`: proot
-- `reference/termux`: Termux proot fork
+- `third_party/proot`: PRoot
+- `third_party/termux-proot`: Termux PRoot fork
 
 Provider and model icons use the official [Lobe Icons](https://github.com/lobehub/lobe-icons) unpkg CDN:
 `https://unpkg.com/@lobehub/icons-static-svg@latest/icons/{slug}.svg`.
-Provider and model metadata comes from the bundled [Models.dev](https://models.dev) snapshot.
+Provider and model metadata comes from bundled [Models.dev](https://models.dev) snapshot. Refresh with `python scripts/update_model_catalog.py`; recorded SHA-256 preserves provenance.
 
 ## License

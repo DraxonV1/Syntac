@@ -335,6 +335,47 @@ void main() {
       },
     );
 
+    test('chat todo persists transitions and rejects deleted chats', () async {
+      final chatDir = await Directory.systemTemp.createTemp('syntac_todo_');
+      final store = ChatJsonlStore(chatDir);
+      final chat = Chat.create(projectId: 'project', title: 'Tasks');
+      await store.addChat(chat);
+
+      final initial = await store.executeTodo(chat.id, {
+        'op': 'init',
+        'list': [
+          {
+            'phase': 'Build',
+            'items': ['Add provider', 'Verify provider'],
+          },
+        ],
+      });
+      final initialItems =
+          ((initial['phases'] as List).single as Map)['items'] as List;
+      expect((initialItems.first as Map)['status'], 'in_progress');
+      expect((initialItems.last as Map)['status'], 'pending');
+
+      final advanced = await store.executeTodo(chat.id, {
+        'op': 'done',
+        'task': 'Add provider',
+      });
+      final advancedItems =
+          ((advanced['phases'] as List).single as Map)['items'] as List;
+      expect((advancedItems.first as Map)['status'], 'completed');
+      expect((advancedItems.last as Map)['status'], 'in_progress');
+      expect(
+        (await store.executeTodo(chat.id, {'op': 'view'}))['completed'],
+        1,
+      );
+
+      await store.deleteChat(chat.id);
+      await expectLater(
+        store.executeTodo(chat.id, {'op': 'view'}),
+        throwsA(isA<StateError>()),
+      );
+      await chatDir.delete(recursive: true);
+    });
+
     test('recovers orphaned JSONL temp files on startup', () async {
       final chatDir = await Directory.systemTemp.createTemp(
         'syntac_jsonl_tmp_',
@@ -639,12 +680,15 @@ void main() {
         expect(byteRange['content'], 'world');
         expect(byteRange['startByte'], 6);
 
-        final firstPatch = await tools.applyPatch('''*** Begin Patch
+        final firstPatch = await tools.applyPatch(
+          '''*** Begin Patch
 *** Update File: lib/main.txt
 @@
 -hello world
 +hi world
-*** End Patch''');
+*** End Patch''',
+          expectedSnapshots: {'lib/main.txt': rangedRead['snapshot']!},
+        );
         expect(firstPatch['changedFiles'], hasLength(1));
         expect(
           (await File(
@@ -653,14 +697,37 @@ void main() {
           isTrue,
         );
 
-        await tools.applyPatch('''*** Begin Patch
+        final firstChangedFile =
+            (firstPatch['changedFiles'] as List).single as Map;
+        await tools.applyPatch(
+          '''*** Begin Patch
 *** Update File: lib/main.txt
 @@
 -hi world
 -second line
 +hI world
 +second lIne
-*** End Patch''');
+*** End Patch''',
+          expectedSnapshots: {'lib/main.txt': firstChangedFile['snapshot']!},
+        );
+        expect(
+          await File(
+            '${dir.path}${Platform.pathSeparator}lib${Platform.pathSeparator}main.txt',
+          ).readAsString(),
+          'hI world\nsecond lIne',
+        );
+
+        final stalePatch = await tools.execute('apply_patch', {
+          'patch': '''*** Begin Patch
+*** Update File: lib/main.txt
+@@
+-hI world
++stale
+*** End Patch''',
+          'expectedSnapshots': {'lib/main.txt': rangedRead['snapshot']!},
+        });
+        expect(stalePatch['ok'], isFalse);
+        expect(stalePatch['error'], contains('stale snapshot'));
         expect(
           await File(
             '${dir.path}${Platform.pathSeparator}lib${Platform.pathSeparator}main.txt',
@@ -1024,6 +1091,97 @@ void main() {
       },
     );
 
+    test('DeepSeek replays reasoning and uses native thinking policy', () async {
+      Map<String, Object?>? captured;
+      final provider = OpenAICompatibleProvider(
+        baseUrl: 'https://proxy.example.test',
+        providerKey: 'deepseek',
+        client: MockClient((request) async {
+          captured = jsonDecode(request.body) as Map<String, Object?>;
+          return http.Response(
+            'data: {"choices":[{"delta":{"reasoning_content":"plan"},"finish_reason":"stop"}]}\n\n'
+            'data: [DONE]\n\n',
+            200,
+            headers: {'content-type': 'text/event-stream'},
+          );
+        }),
+      );
+      final response = await provider.completeChat(
+        const AIChatRequest(
+          model: 'deepseek-flash',
+          messages: [
+            AIChatMessage(role: 'user', content: 'first'),
+            AIChatMessage(
+              role: 'assistant',
+              content: 'answer',
+              providerMetadata: {
+                'provider': 'deepseek',
+                'reasoning_content': 'prior plan',
+              },
+            ),
+            AIChatMessage(role: 'user', content: 'continue'),
+          ],
+          tools: [
+            {
+              'type': 'function',
+              'function': {'name': 'read'},
+            },
+          ],
+          temperature: 0.4,
+          reasoningEffort: AIReasoningEffort.max,
+          supportsReasoning: true,
+        ),
+        apiKey: 'k',
+      );
+
+      expect(captured!['thinking'], {'type': 'enabled'});
+      expect(captured!['reasoning_effort'], 'max');
+      expect(captured!.containsKey('temperature'), isFalse);
+      expect(captured!.containsKey('tool_choice'), isFalse);
+      expect(
+        (captured!['messages'] as List)[1],
+        containsPair('reasoning_content', 'prior plan'),
+      );
+      expect(captured.toString(), isNot(contains('provider_metadata')));
+      expect(response.providerMetadata, {
+        'provider': 'deepseek',
+        'reasoning_content': 'plan',
+      });
+    });
+
+    test('DeepSeek rejects tool replay without exact stored reasoning', () {
+      final provider = OpenAICompatibleProvider(
+        baseUrl: 'https://api.deepseek.com',
+        client: MockClient((_) async => http.Response('{}', 200)),
+      );
+
+      expect(
+        provider.completeChat(
+          const AIChatRequest(
+            model: 'deepseek-flash',
+            messages: [
+              AIChatMessage(role: 'assistant', content: 'legacy answer'),
+            ],
+            tools: [
+              {
+                'type': 'function',
+                'function': {'name': 'read'},
+              },
+            ],
+            supportsReasoning: true,
+          ),
+          apiKey: 'k',
+        ),
+        throwsA(
+          isA<AIProviderException>().having(
+            (error) => error.kind,
+            'kind',
+            'context_limit',
+          ),
+        ),
+      );
+    });
+
     test(
       'normalizes OpenAI-compatible base paths without duplicating v1',
       () async {
@@ -1370,6 +1528,14 @@ void main() {
       expect(model!.contextWindow, greaterThan(0));
       expect(model.outputLimit, greaterThan(0));
       expect(model.toolCall, isTrue);
+      final deepSeek = catalog.lookup(
+        providerKey: 'deepseek',
+        modelId: 'deepseek-flash',
+      );
+      expect(deepSeek?.contextWindow, 1000000);
+      expect(deepSeek?.outputLimit, 384000);
+      expect(deepSeek?.reasoning, isTrue);
+      expect(deepSeek?.toolCall, isTrue);
     });
     test('builds ChatGPT Codex PKCE authorization URL', () {
       final flow = OpenAICodexOAuthFlow();
@@ -3224,6 +3390,10 @@ void main() {
                       '-Hello\n'
                       '+Hello World\n'
                       '*** End Patch',
+                  'expectedSnapshots': {
+                    'hello.txt':
+                        '185f8db32271fe25f561a6fc938b2e264306ec304eda518007d1764826381969',
+                  },
                 },
               },
               'thoughtSignature': 'sig_3',
@@ -3539,50 +3709,48 @@ void main() {
     );
   });
 
-  test(
-    'update service returns newer beta manifest from fallback endpoint',
-    () async {
-      final calls = <Uri>[];
-      final service = UpdateService(
-        client: MockClient((request) async {
-          calls.add(request.url);
-          if (calls.length == 1) return http.Response('missing', 404);
-          return http.Response(
-            jsonEncode({
-              'version': '0.1.2-beta.1',
-              'versionCode': 13,
-              'apkUrl':
-                  'https://github.com/DraxonV1/Syntac/releases/download/v0.1.2-beta.1/syntac-arm64.apk',
-              'sha256': 'abc123',
-              'size': 151433720,
-              'mandatory': false,
-              'minSupportedVersionCode': 10,
-              'notes': ['Update banner copy', 'Runtime diagnostics'],
-            }),
-            200,
-          );
-        }),
-        endpoints: [
-          Uri.parse('https://syntac.com/download/beta.json'),
-          Uri.parse(
-            'https://raw.githubusercontent.com/DraxonV1/Syntac/main/update/beta.json',
-          ),
-        ],
-      );
+  test('update service returns newer beta manifest from fallback endpoint', () async {
+    final calls = <Uri>[];
+    final service = UpdateService(
+      client: MockClient((request) async {
+        calls.add(request.url);
+        if (calls.length == 1) return http.Response('missing', 404);
+        return http.Response(
+          jsonEncode({
+            'version': '0.1.2-beta.1',
+            'versionCode': 13,
+            'apkUrl':
+                'https://github.com/DraxonV1/Syntac/releases/download/v0.1.2-beta.1/syntac-arm64.apk',
+            'sha256':
+                'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            'size': 151433720,
+            'mandatory': false,
+            'minSupportedVersionCode': 10,
+            'notes': ['Update banner copy', 'Runtime diagnostics'],
+          }),
+          200,
+        );
+      }),
+      endpoints: [
+        Uri.parse('https://syntac.com/download/beta.json'),
+        Uri.parse(
+          'https://raw.githubusercontent.com/DraxonV1/Syntac/master/update/beta.json',
+        ),
+      ],
+    );
 
-      final update = await service.check(
-        channel: UpdateChannel.beta,
-        currentVersionCode: 12,
-      );
+    final update = await service.check(
+      channel: UpdateChannel.beta,
+      currentVersionCode: 12,
+    );
 
-      expect(calls, hasLength(2));
-      expect(update?.version, '0.1.2-beta.1');
-      expect(update?.versionCode, 13);
-      expect(update?.channel, UpdateChannel.beta);
-      expect(update?.downloadUrl, contains('syntac-arm64.apk'));
-      expect(update?.notes, contains('Update banner copy'));
-    },
-  );
+    expect(calls, hasLength(2));
+    expect(update?.version, '0.1.2-beta.1');
+    expect(update?.versionCode, 13);
+    expect(update?.channel, UpdateChannel.beta);
+    expect(update?.downloadUrl, contains('syntac-arm64.apk'));
+    expect(update?.notes, contains('Update banner copy'));
+  });
 
   test('update service ignores current or older manifests', () async {
     final service = UpdateService(
@@ -3593,7 +3761,8 @@ void main() {
             'versionCode': 12,
             'apkUrl':
                 'https://github.com/DraxonV1/Syntac/releases/download/v0.1.1-beta.2/syntac-arm64.apk',
-            'sha256': 'abc123',
+            'sha256':
+                'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
             'size': 151433720,
             'mandatory': false,
             'minSupportedVersionCode': 10,
@@ -3607,6 +3776,42 @@ void main() {
 
     expect(
       await service.check(channel: UpdateChannel.beta, currentVersionCode: 12),
+      isNull,
+    );
+  });
+
+  test('stable updater rejects prereleases and unsafe manifests', () async {
+    final manifests = Queue<Map<String, Object?>>.from([
+      {
+        'version': '1.0.0-beta.1',
+        'versionCode': 100,
+        'apkUrl':
+            'https://github.com/DraxonV1/Syntac/releases/download/v1/app.apk',
+        'sha256':
+            'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        'size': 100,
+      },
+      {
+        'version': '1.0.0',
+        'versionCode': 100,
+        'apkUrl': 'http://example.test/app.apk',
+        'sha256':
+            'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        'size': 100,
+      },
+    ]);
+    final service = UpdateService(
+      client: MockClient(
+        (_) async => http.Response(jsonEncode(manifests.removeFirst()), 200),
+      ),
+      endpoints: [
+        Uri.parse('https://example.test/first.json'),
+        Uri.parse('https://example.test/second.json'),
+      ],
+    );
+
+    expect(
+      await service.check(channel: UpdateChannel.stable, currentVersionCode: 1),
       isNull,
     );
   });

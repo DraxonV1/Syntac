@@ -115,6 +115,7 @@ class _ToolCallCardState extends State<ToolCallCard>
       'jobs.wait' => 'Wait for job',
       'jobs.cancel' => 'Cancel job',
       'copy' => 'Copy',
+      'todo' => 'Todo',
       _ => name,
     };
   }
@@ -136,6 +137,7 @@ class _ToolCallCardState extends State<ToolCallCard>
       'jobs.wait' ||
       'jobs.cancel' => Icons.work_history_outlined,
       'copy' => Icons.content_copy_outlined,
+      'todo' => Icons.checklist_outlined,
       _ => Icons.build_outlined,
     };
   }
@@ -291,6 +293,10 @@ class _ToolCallCardState extends State<ToolCallCard>
       'jobs.logs' ||
       'jobs.wait' ||
       'jobs.cancel' => args['jobId']?.toString() ?? '',
+      'todo' => [
+        args['op']?.toString() ?? 'view',
+        args['task']?.toString() ?? args['phase']?.toString() ?? '',
+      ].where((value) => value.isNotEmpty).join(' · '),
       _ => args.entries.map((e) => '${e.key}: ${e.value}').take(2).join(', '),
     };
   }
@@ -327,6 +333,13 @@ class _ToolCallCardState extends State<ToolCallCard>
           return BadgeChip.neutral(label: '${files.length} files');
         }
         return null;
+      }(),
+      'todo' => () {
+        final completed = _intValue(result['completed']);
+        final total = _intValue(result['total']);
+        return completed == null || total == null
+            ? null
+            : BadgeChip.neutral(label: '$completed/$total done');
       }(),
       'glob' => () {
         final count = _intValue(result['count']);

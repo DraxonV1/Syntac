@@ -1,13 +1,12 @@
 {
-  "version": "0.1.1-beta.5",
-  "versionCode": 15,
-  "apkUrl": "https://github.com/DraxonV1/Syntac/releases/download/v0.1.1-beta.5/syntac-arm64.apk",
-  "sha256": "50ddadcc3cb30b2fea40c27692448dcda6ac608c0340524fb9c2308a00aeddae",
-  "size": 157144395,
+  "version": "",
+  "versionCode": 0,
+  "apkUrl": "",
+  "sha256": "",
+  "size": 0,
   "mandatory": false,
-  "minSupportedVersionCode": 10,
+  "minSupportedVersionCode": 0,
   "notes": [
-    "Durable runtime jobs with live logs and cancellation",
-    "Apply patch, glob, and bounded systemwide diagnostics"
+    "Nightly channel has not been published yet"
   ]
 }

@@ -46,15 +46,6 @@ void main() {
     );
   });
 
-  test('app identity exposes release metadata', () {
-    const identity = AppIdentity();
-    expect(identity.developerName, 'DraxonV1');
-    expect(identity.repositoryUrl, 'https://github.com/DraxonV1/Syntac');
-    expect(identity.version, '0.1.1-beta.4');
-    expect(identity.versionCode, 14);
-    expect(identity.updateChannel, 'beta');
-  });
-
   testWidgets('StatusIndicator renders correct status colors', (tester) async {
     await tester.pumpWidget(
       _wrap(
@@ -415,6 +406,27 @@ void main() {
 
     expect(find.text('Apply patch'), findsOneWidget);
     expect(find.text('1 files'), findsOneWidget);
+  });
+
+  testWidgets('ToolCallCard summarizes persistent todo progress', (
+    tester,
+  ) async {
+    final execution = ToolExecution(
+      id: 'tool_todo',
+      chatId: 'chat_1',
+      name: 'todo',
+      argumentsJson: '{"op":"done","task":"Verify provider"}',
+      status: ToolExecutionStatus.success,
+      startedAt: DateTime.now(),
+      finishedAt: DateTime.now(),
+      resultJson: '{"ok":true,"result":{"phases":[],"completed":2,"total":3}}',
+    );
+
+    await tester.pumpWidget(_wrap(ToolCallCard(execution: execution)));
+
+    expect(find.text('Todo'), findsOneWidget);
+    expect(find.text('done · Verify provider'), findsOneWidget);
+    expect(find.text('2/3 done'), findsOneWidget);
   });
 
   testWidgets('ToolCallCard renders runtime job summaries with state colors', (

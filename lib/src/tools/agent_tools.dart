@@ -36,7 +36,11 @@ class ProjectTools extends ToolContext
     super.maxReadBytes,
     super.maxSearchResults,
     super.maxCommandOutputCharacters,
+    this.todoHandler,
   });
+
+  final Future<Map<String, Object?>> Function(Map<String, Object?>)?
+  todoHandler;
 
   List<Map<String, Object?>> get specs => [
     _spec(
@@ -92,9 +96,17 @@ class ProjectTools extends ToolContext
     ),
     _spec(
       'apply_patch',
-      'Apply a bounded multi-file patch inside the project.',
-      {'patch': _string('Patch using *** Begin Patch / *** End Patch syntax')},
-      ['patch'],
+      'Apply bounded multi-file patch. Read every updated/deleted file first, then pass exact path-to-snapshot map. Stale snapshots reject whole patch before writes.',
+      {
+        'patch': _string('Patch using *** Begin Patch / *** End Patch syntax'),
+        'expectedSnapshots': {
+          'type': 'object',
+          'additionalProperties': {'type': 'string'},
+          'description':
+              'Map updated/deleted paths to snapshots returned by read',
+        },
+      },
+      ['patch', 'expectedSnapshots'],
     ),
     _spec(
       'delete',
@@ -215,6 +227,49 @@ class ProjectTools extends ToolContext
       {'jobId': _string('Durable runtime job id')},
       ['jobId'],
     ),
+    if (todoHandler != null)
+      _spec(
+        'todo',
+        'Manage persistent tasks for this chat. Use exact task text; one active task. Blocked tasks require unblock. Limits: 8 phases, 40 tasks, 120 characters per label.',
+        {
+          'op': {
+            'type': 'string',
+            'enum': [
+              'init',
+              'start',
+              'done',
+              'rm',
+              'drop',
+              'block',
+              'unblock',
+              'append',
+              'view',
+            ],
+          },
+          'task': _string('Exact task text'),
+          'phase': _string('Exact phase name'),
+          'reason': _string('Why task is blocked'),
+          'items': {
+            'type': 'array',
+            'items': {'type': 'string'},
+          },
+          'list': {
+            'type': 'array',
+            'items': {
+              'type': 'object',
+              'properties': {
+                'phase': {'type': 'string'},
+                'items': {
+                  'type': 'array',
+                  'items': {'type': 'string'},
+                },
+              },
+              'required': ['phase', 'items'],
+            },
+          },
+        },
+        ['op'],
+      ),
   ];
 
   static Map<String, Object?> _string(String description) => {
@@ -254,6 +309,7 @@ class ProjectTools extends ToolContext
     try {
       cancellationToken?.throwIfCancelled();
       final result = switch (name) {
+        'todo' when todoHandler != null => await todoHandler!(args),
         'read' => await readFile(
           args['path'] as String? ?? '',
           offset: args['offset'] as int?,
@@ -272,7 +328,14 @@ class ProjectTools extends ToolContext
           args['path'] as String? ?? '',
           args['content'] as String? ?? '',
         ),
-        'apply_patch' => await applyPatch(args['patch'] as String? ?? ''),
+        'apply_patch' => await applyPatch(
+          args['patch'] as String? ?? '',
+          expectedSnapshots: args['expectedSnapshots'] is Map
+              ? (args['expectedSnapshots'] as Map).map(
+                  (key, value) => MapEntry(key.toString(), value),
+                )
+              : const {},
+        ),
         'delete' => await deletePath(
           args['path'] as String? ?? '',
           recursive: args['recursive'] as bool? ?? false,
@@ -355,6 +418,12 @@ class ProjectTools extends ToolContext
         'error': 'Tool execution cancelled',
       };
     } on ToolFailure catch (error) {
+      return {
+        'ok': false,
+        'category': 'validation_error',
+        'error': error.message,
+      };
+    } on FormatException catch (error) {
       return {
         'ok': false,
         'category': 'validation_error',

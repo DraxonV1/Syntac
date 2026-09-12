@@ -104,15 +104,30 @@ flutter build apk --release
 
 Release build needs `android/key.properties`. See `README.md` for local signing setup.
 
-## How to make a good change
+## First pull request
+
+PR means pull request: branch diff proposed for review before `master` changes.
+
+1. Fork repository on GitHub if you lack write access.
+2. Clone your fork, then create branch: `git switch -c fix/short-description`.
+3. Make one focused change. Commit it: `git add <files>` then `git commit -m "fix: short description"`.
+4. Push branch: `git push -u origin fix/short-description`.
+5. Open GitHub URL printed by push, or select **Compare & pull request**. Base must be `DraxonV1/Syntac:master`; compare must be your branch.
+6. Fill summary, tests, and risk. PR does not release or change `master`.
+7. CI checks formatting, analysis, and tests. Fix failures on same branch and push again; PR updates automatically.
+8. Reviewer may request changes. Reply after pushing fixes. Maintainer merges only approved, green PR.
+9. Delete branch after merge. Merged commit remains in `master`.
+
+Repository collaborators can skip fork but still use branch. Never commit feature work directly to `master`.
+
+## How to make good change
 
 1. Find owning files in `PROJECT_STRUCTURE.md`.
-2. Read the nearest scoped `AGENTS.md`.
-3. Make the smallest complete change.
+2. Read nearest scoped `AGENTS.md`.
+3. Make smallest complete change.
 4. Add or update tests for observable behavior.
-5. Run focused tests.
-6. Run `flutter analyze`.
-7. Open a PR with a clear summary and test output.
+5. Run focused tests, `flutter analyze`, then full tests.
+6. Open PR using checklist below.
 
 ## Safety rules
 
@@ -191,11 +206,9 @@ Include this in your PR description:
 
 ## GitHub Actions
 
-PRs run CI for formatting, analysis, and tests.
+PRs run CI for formatting, analysis, and tests. PRs never receive signing credentials.
 
-Release APK workflow runs after merges to `master` and for version tags. Maintainers configure production signing and optional OAuth credentials in repository secrets.
-
-PRs never receive signing credentials. Accepted PRs are built and released by the trusted `master` workflow.
+Manual Android workflow builds signed candidate artifact for maintainer testing but does not create or move Git tags. Release only after candidate passes physical Android checks. Maintainer updates `pubspec.yaml`, channel notes, and changelog through PR; merged commit gets immutable matching tag. Tag workflow rejects version mismatch, builds arm64 APK, publishes only matching stable/beta/nightly manifest, then opens generated manifest-sync PR containing exact APK SHA-256 and size. Repository setting **Allow GitHub Actions to create and approve pull requests** must allow PR creation.
 
 ## Style
 

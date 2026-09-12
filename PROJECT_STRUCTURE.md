@@ -77,6 +77,9 @@ Generated/ignored folders such as `build/`, `.dart_tool/`, `.gradle/`, and local
 │                   ├── values/
 │                   └── values-night/
 ├── assets/
+│   ├── models/
+│   │   ├── models.dev.api.json
+│   │   └── catalog-source.json
 │   └── runtime/
 │       └── arch-linux-rootfs-v1.bundle
 ├── lib/
@@ -97,6 +100,8 @@ Generated/ignored folders such as `build/`, `.dart_tool/`, `.gradle/`, and local
 │       │   ├── AGENTS.md
 │       │   ├── README.md
 │       │   ├── ai_error_messages.dart
+│       │   ├── deepseek_chat_policy.dart
+│       │   ├── models_dev_catalog.dart
 │       │   ├── ai_provider.dart
 │       │   ├── google_cloud_code_assist_provider.dart
 │       │   ├── openai_codex_provider.dart
@@ -129,6 +134,7 @@ Generated/ignored folders such as `build/`, `.dart_tool/`, `.gradle/`, and local
 │       │   ├── README.md
 │       │   ├── app_repository.dart
 │       │   ├── chat_jsonl_store.dart
+│       │   ├── chat_todo.dart
 │       │   ├── local_database.dart
 │       │   └── storage_stats.dart
 │       ├── tools/
@@ -136,6 +142,7 @@ Generated/ignored folders such as `build/`, `.dart_tool/`, `.gradle/`, and local
 │       │   ├── README.md
 │       │   ├── agent_tools.dart
 │       │   ├── apply_patch_tool.dart
+│       │   ├── file_snapshot.dart
 │       │   ├── glob_tool.dart
 │       │   ├── runtime_jobs_tool.dart
 │       │   ├── copy_tool.dart
@@ -205,7 +212,8 @@ Generated/ignored folders such as `build/`, `.dart_tool/`, `.gradle/`, and local
 │   ├── README.md
 │   ├── build_android_proot.py
 │   ├── build_android_proot.ps1
-│   └── prepare_arch_rootfs.py
+│   ├── prepare_arch_rootfs.py
+│   └── update_model_catalog.py
 ├── test/
 │   ├── AGENTS.md
 │   ├── README.md
@@ -261,6 +269,8 @@ Generated/ignored folders such as `build/`, `.dart_tool/`, `.gradle/`, and local
 
 - `lib/src/ai/ai_provider.dart`: common provider request/response/event interfaces.
 - `lib/src/ai/openai_provider.dart`: OpenAI-compatible chat completions and model listing.
+- `lib/src/ai/deepseek_chat_policy.dart`: DeepSeek native thinking, effort, and required reasoning replay policy.
+- `lib/src/ai/models_dev_catalog.dart`: bundled Models.dev capabilities with strict provider aliases; live discovery owns availability.
 - `lib/src/ai/openai_codex_provider.dart`: ChatGPT Codex OAuth Responses streaming transport.
 - `lib/src/ai/google_cloud_code_assist_provider.dart`: Google Antigravity / Cloud Code Assist transport.
 - `lib/src/ai/ai_error_messages.dart`: safe user-facing error classification and bounded response display.
@@ -277,13 +287,15 @@ Generated/ignored folders such as `build/`, `.dart_tool/`, `.gradle/`, and local
 - `lib/src/storage/local_database.dart`: SQLite metadata schema and migrations. Android prefers `/storage/emulated/0/.syntac/syntac.sqlite`, then falls back to app-private storage when shared access is unavailable.
 - `lib/src/storage/app_repository.dart`: storage facade used by app, agent, and UI; initializes shared `.syntac/agent/config.yml`, `.syntac/agent/SYSTEM.md`, `.syntac/agent/blobs/`, and `.syntac/agent/sessions/` paths.
 - `lib/src/storage/chat_jsonl_store.dart`: JSONL chat index, messages, tool executions, jobs, attachments, migration, recovery. Android stores this under `/storage/emulated/0/.syntac/agent/sessions/`, matching OMP's `agent/sessions` layout under Syntac's shared root. Completed/cancelled runtime jobs are not persisted here.
+- `lib/src/storage/chat_todo.dart`: bounded, atomic per-chat todo state transitions persisted in session JSONL.
 - `lib/src/storage/storage_stats.dart`: storage breakdown shown in settings.
 - `lib/src/security/secret_store.dart`: secure storage boundary for secrets; credentials never move to shared storage.
 
 ### Tools
 
-- `lib/src/tools/agent_tools.dart`: model-callable `read`, `write`, `apply_patch`, `delete`, `list`, `glob`, `search`, `bash`, `jobs.*`, and `copy` tools. Owns path sandboxing, output caps, persisted truncation notices, and tool result shape.
-- `lib/src/tools/apply_patch_tool.dart`: bounded multi-file patch parser and project-root writes.
+- `lib/src/tools/agent_tools.dart`: model-callable `read`, `write`, `apply_patch`, `delete`, `list`, `glob`, `search`, `bash`, `jobs.*`, `copy`, and optional per-chat `todo`. Owns result schemas and dispatch.
+- `lib/src/tools/apply_patch_tool.dart`: bounded multi-file patch parser with read-snapshot preconditions and in-process rollback.
+- `lib/src/tools/file_snapshot.dart`: SHA-256 snapshots and patch/file/diff limits.
 - `lib/src/tools/glob_tool.dart`: bounded project-relative file/directory discovery.
 - `lib/src/tools/runtime_jobs_tool.dart`: runtime job list/status/log-follow/wait/cancel calls for active and current-session records.
 
@@ -322,6 +334,7 @@ Generated/ignored folders such as `build/`, `.dart_tool/`, `.gradle/`, and local
 - `scripts/prepare_arch_rootfs.py`: builds/prepares rootfs bundle inputs.
 - `scripts/build_android_proot.py`: builds/copies Android PRoot assets.
 - `scripts/build_android_proot.ps1`: Windows helper wrapper.
+- `scripts/update_model_catalog.py`: validates and refreshes bundled Models.dev snapshot and provenance.
 - `native/talloc_compat/`: native compatibility support.
 - `third_party/proot/`, `third_party/termux-proot/`: PRoot source trees used for native runtime work.
 

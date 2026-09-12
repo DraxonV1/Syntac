@@ -75,6 +75,14 @@ class AppRepository implements CredentialStore {
   final Directory _ompAgentDirectory;
   Future<void>? _chatMigration;
 
+  Future<Map<String, Object?>> executeTodo(
+    String chatId,
+    Map<String, Object?> arguments,
+  ) async {
+    await _ensureChatsMigrated();
+    return _chatStore.executeTodo(chatId, arguments);
+  }
+
   String get localDatabasePath => _localDatabasePath;
   String get chatStoragePath => _chatStore.rootDirectory.path;
   String get ompAgentDirectoryPath => _ompAgentDirectory.path;

@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
 import '../models.dart';
+import 'chat_todo.dart';
 
 class ChatJsonlStore {
   ChatJsonlStore(
@@ -176,6 +177,25 @@ class ChatJsonlStore {
       await _writeJsonlUnlocked(_chatsFile, chats.map((chat) => chat.toMap()));
     });
   }
+
+  Future<Map<String, Object?>> executeTodo(
+    String chatId,
+    Map<String, Object?> arguments,
+  ) => _withFileLock(_chatsFile, () async {
+    if (!await _chatExists(chatId)) {
+      throw StateError('Cannot update todo for deleted chat: $chatId');
+    }
+    final file = _chatFile(chatId, 'todo.jsonl');
+    if (await file.exists() && await file.length() > 40000) {
+      throw const FormatException('Stored todo exceeds size limit');
+    }
+    final rows = await _readJsonl(file, (map) => map);
+    final next = transitionChatTodo(rows.isEmpty ? {} : rows.last, arguments);
+    if (arguments['op'] != 'view') {
+      await _withFileLock(file, () => _writeJsonlUnlocked(file, [next]));
+    }
+    return next;
+  });
 
   Future<void> deleteChat(String chatId) async {
     final messages = await listMessages(chatId);

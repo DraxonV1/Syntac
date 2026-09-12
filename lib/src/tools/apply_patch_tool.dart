@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'tool_context.dart';
+import 'file_snapshot.dart';
 
 class _PreparedPatch {
   const _PreparedPatch({
@@ -11,16 +12,26 @@ class _PreparedPatch {
     required this.operation,
     required this.file,
     required this.content,
+    this.original,
   });
 
   final String path;
   final String operation;
   final File file;
   final String? content;
+  final List<int>? original;
 }
 
 mixin ApplyPatchTool on ToolContext {
-  Future<Map<String, Object?>> applyPatch(String patch) async {
+  Future<Map<String, Object?>> applyPatch(
+    String patch, {
+    Map<String, Object?> expectedSnapshots = const {},
+  }) async {
+    if (patch.length > maxPatchCharacters) {
+      throw ToolFailure(
+        'Patch exceeds $maxPatchCharacters characters; split it',
+      );
+    }
     final normalized = patch.replaceAll('\r\n', '\n');
     final lines = normalized.split('\n');
     if (lines.isEmpty || lines.first.trim() != '*** Begin Patch') {
@@ -46,7 +57,9 @@ mixin ApplyPatchTool on ToolContext {
         if (!await file.exists()) {
           throw ToolFailure('File does not exist: $path');
         }
-        final original = await file.readAsString();
+        final originalBytes = await readPatchBytes(file);
+        _checkSnapshot(path, originalBytes, expectedSnapshots);
+        final original = utf8.decode(originalBytes).replaceAll('\r\n', '\n');
         final updated = _applyUpdate(path, original, lines, index + 1);
         prepared.add(
           _PreparedPatch(
@@ -54,6 +67,7 @@ mixin ApplyPatchTool on ToolContext {
             operation: 'update',
             file: file,
             content: updated.content,
+            original: originalBytes,
           ),
         );
         index = updated.nextIndex;
@@ -85,12 +99,15 @@ mixin ApplyPatchTool on ToolContext {
         if (!await file.exists()) {
           throw ToolFailure('File does not exist: $path');
         }
+        final originalBytes = await readPatchBytes(file);
+        _checkSnapshot(path, originalBytes, expectedSnapshots);
         prepared.add(
           _PreparedPatch(
             path: path,
             operation: 'delete',
             file: file,
             content: null,
+            original: originalBytes,
           ),
         );
         index++;
@@ -100,14 +117,82 @@ mixin ApplyPatchTool on ToolContext {
     }
     if (!sawEnd) throw ToolFailure('Patch must end with *** End Patch');
     if (prepared.isEmpty) throw ToolFailure('Patch contains no file changes');
-
+    if (lines.skip(index + 1).any((line) => line.trim().isNotEmpty)) {
+      throw ToolFailure('Unexpected content after *** End Patch');
+    }
+    final paths = <String>{};
+    var originalSize = 0;
     for (final change in prepared) {
-      if (change.operation == 'delete') {
-        await change.file.delete();
-      } else {
-        await change.file.parent.create(recursive: true);
-        await atomicWriteString(change.file, change.content ?? '');
+      final key = Platform.isWindows
+          ? change.file.path.toLowerCase()
+          : change.file.path;
+      if (!paths.add(key)) {
+        throw ToolFailure('Duplicate patch path: ${change.path}');
       }
+      originalSize += change.original?.length ?? 0;
+      if (prepared.length > 32 || originalSize > 8 * 1024 * 1024) {
+        throw ToolFailure('Patch exceeds 32 files or 8 MiB of originals');
+      }
+      if (change.content != null &&
+          utf8.encode(change.content!).length > maxPatchFileBytes) {
+        throw ToolFailure(
+          'Patched file exceeds $maxPatchFileBytes bytes: ${change.path}',
+        );
+      }
+    }
+
+    // Validate every precondition again before first mutation. In-process rollback
+    // protects against write errors; external writers/crashes are not a transaction.
+    for (final change in prepared) {
+      final resolved = await resolvePath(
+        change.path,
+        forWrite: change.original == null,
+      );
+      if (resolved != change.file.path) {
+        throw ToolFailure('Patch path changed: ${change.path}');
+      }
+      if (change.original == null) {
+        if (await change.file.exists()) {
+          throw ToolFailure('File already exists: ${change.path}');
+        }
+      } else {
+        _checkSnapshot(
+          change.path,
+          await readPatchBytes(change.file),
+          expectedSnapshots,
+        );
+      }
+    }
+    final applied = <_PreparedPatch>[];
+    try {
+      for (final change in prepared) {
+        applied.add(change);
+        if (change.operation == 'delete') {
+          await change.file.delete();
+        } else {
+          await change.file.parent.create(recursive: true);
+          await atomicWriteString(change.file, change.content!);
+        }
+      }
+    } catch (error) {
+      final failedRollbacks = <String>[];
+      for (final change in applied.reversed) {
+        try {
+          if (change.original != null) {
+            await change.file.writeAsBytes(change.original!, flush: true);
+          } else if (await change.file.exists()) {
+            await change.file.delete();
+          }
+        } catch (_) {
+          failedRollbacks.add(change.path);
+        }
+      }
+      if (failedRollbacks.isNotEmpty) {
+        throw ToolFailure(
+          'Patch failed; rollback also failed for: ${failedRollbacks.join(', ')}. Inspect files before retrying.',
+        );
+      }
+      throw ToolFailure('Patch failed; file contents restored: $error');
     }
     final files = prepared
         .map(
@@ -116,6 +201,8 @@ mixin ApplyPatchTool on ToolContext {
             'operation': change.operation,
             if (change.content != null)
               'bytes': utf8.encode(change.content!).length,
+            if (change.content != null)
+              'snapshot': fileSnapshot(utf8.encode(change.content!)),
           },
         )
         .toList(growable: false);
@@ -123,8 +210,24 @@ mixin ApplyPatchTool on ToolContext {
       'files': files,
       'changedFiles': files,
       'fileCount': files.length,
-      'diff': normalized,
+      'diff': normalized.length <= maxPatchDiffCharacters
+          ? normalized
+          : normalized.substring(0, maxPatchDiffCharacters),
+      'diffTruncated': normalized.length > maxPatchDiffCharacters,
     };
+  }
+
+  void _checkSnapshot(
+    String path,
+    List<int> bytes,
+    Map<String, Object?> expected,
+  ) {
+    final snapshot = expected[path];
+    if (snapshot is! String || snapshot != fileSnapshot(bytes)) {
+      throw ToolFailure(
+        'Missing or stale snapshot for $path. Read file again and pass its snapshot in expectedSnapshots.',
+      );
+    }
   }
 
   ({String content, int nextIndex}) _applyUpdate(

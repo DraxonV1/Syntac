@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Current bundled Models.dev catalog with reproducible source SHA-256 and OMP compatibility reference.
+- Complete direct DeepSeek thinking/tool protocol: native effort mapping and exact reasoning replay.
+- Persistent per-chat `todo` tool with bounded phases, tasks, and deleted-chat guards.
+
+### Changed
+
+- `read` returns SHA-256 snapshots; `apply_patch` rejects stale/duplicate inputs before writes, bounds diffs/files, and rolls back earlier changes after in-process write failure.
+- Stable update channel rejects prereleases and malformed or insecure manifests.
+- Release workflow validates source and exact tag/version match, builds arm64 candidate artifacts, never force-moves tags, publishes only matching channel manifest, and opens generated manifest-sync PR.
+
 ## 0.1.1-beta.5
 
 Android Early Access tooling release.

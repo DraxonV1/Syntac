@@ -1,17 +1,19 @@
 # Project Tools
 
-`agent_tools.dart` exposes sandboxed `read`, `write`, `apply_patch`, `delete`, `list`, `glob`, `search`, `bash`, `jobs.*`, and `copy` operations.
+`agent_tools.dart` exposes sandboxed `read`, `write`, `apply_patch`, `delete`, `list`, `glob`, `search`, `bash`, `jobs.*`, `copy`, and per-chat `todo` operations.
 
 ## Rules
 
 - Resolve normal file paths inside selected project root after lexical, realpath, and symlink checks.
 - `read` with `systemwide: true` accepts absolute paths for read-only diagnostics, blocks sensitive path patterns, and never expands write scope.
 - Keep file reads at 500 lines or `maxReadBytes`; use `startLine`/`nextStartLine` for continuation.
+- Text reads up to 2 MiB return SHA-256 `snapshot`. `apply_patch` requires matching snapshots for every update/delete, rejects duplicate or stale paths before writes, limits patch/file/diff size, and restores earlier changes after in-process write failure. External writers and process crashes remain outside transaction guarantees.
 - Keep glob results bounded, project-relative, and symlink-safe.
 - Keep search results page-sized and report skipped files or additional matches.
 - Keep Bash output at 50 preview lines and bounded characters. Persist full bounded output under project `.syntac/agent/blobs/` and return `local://` reference when preview truncates.
 - Background Arch commands return durable `jobId`; use `jobs.status`, `jobs.logs`, `jobs.wait`, and `jobs.cancel`. `jobs.logs` follows running output by default and sends bounded live updates.
 - Attachment paths are temporary `local://attachment-N` handles. Use `copy` with an explicit destination to retain a user attachment before editing it.
+- `todo` persists at most 8 phases and 40 unique tasks in owning chat, keeps one active task, and rejects writes after chat deletion.
 - Keep running updates bounded; final result must preserve exit code, timeout, cancellation, runtime failure, truncation, and artifact metadata.
 - Never leak raw stack traces or secrets into model-visible results.
 
