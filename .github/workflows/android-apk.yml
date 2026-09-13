@@ -126,6 +126,20 @@ jobs:
             echo "prerelease=$prerelease"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Build release notes
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ steps.release_meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p build/release
+          awk -v version="$RELEASE_VERSION" '
+            $0 == "## " version { printing = 1 }
+            printing && $0 ~ /^## / && $0 != "## " version { exit }
+            printing { print }
+          ' CHANGELOG.md > build/release/release-notes.md
+          test -s build/release/release-notes.md
+
       - name: Build channel manifest
         shell: bash
         env:
@@ -178,7 +192,7 @@ jobs:
           target_commitish: ${{ github.sha }}
           prerelease: ${{ steps.release_meta.outputs.prerelease }}
           name: Syntac ${{ github.ref_name }}
-          body_path: CHANGELOG.md
+          body_path: build/release/release-notes.md
           files: |
             build/app/outputs/flutter-apk/syntac-arm64.apk
             build/release/${{ steps.release_meta.outputs.channel }}.json
