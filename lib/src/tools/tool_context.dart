@@ -122,7 +122,8 @@ class ToolContext {
   static const maxInlineImageBytes = 3 * 1024 * 1024;
 
   Future<String> resolveLocalPath(String inputPath) async {
-    if (inputPath.startsWith('local://attachment-')) {
+    if (inputPath.startsWith('local://attachment-') ||
+        inputPath.startsWith('local://attachment/')) {
       return _resolveLocalAttachment(inputPath);
     }
     final raw = inputPath.substring('local://'.length).replaceAll('\\', '/');
@@ -132,6 +133,18 @@ class ToolContext {
         ? raw
         : p.join('.syntac', 'agent', 'blobs', raw);
     return resolvePath(relative);
+  }
+
+  Future<String?> resolveAttachedAbsolutePath(String inputPath) async {
+    final raw = inputPath.trim();
+    if (!p.isAbsolute(raw)) return null;
+    final requested = p.normalize(p.absolute(raw));
+    for (final attachment in attachments) {
+      final attachmentPath = p.normalize(p.absolute(attachment.path));
+      if (!p.equals(requested, attachmentPath)) continue;
+      return _validatedAttachmentPath(attachment);
+    }
+    return null;
   }
 
   Future<String> resolvePath(String inputPath, {bool forWrite = false}) async {
@@ -244,14 +257,31 @@ class ToolContext {
 
   Future<String> _resolveLocalAttachment(String inputPath) async {
     final raw = inputPath.substring('local://'.length).replaceAll('\\', '/');
-    final slash = raw.indexOf('/');
-    final id = slash < 0 ? raw : raw.substring(0, slash);
-    final match = RegExp(r'^attachment-(\d+)$').firstMatch(id);
-    final index = int.tryParse(match?.group(1) ?? '') ?? 0;
-    if (index < 1 || index > attachments.length) {
-      throw ToolFailure('Attached file is no longer available: $inputPath');
+    Attachment? attachment;
+    if (raw.startsWith('attachment/')) {
+      final id = raw.substring('attachment/'.length).split('/').first;
+      for (final candidate in attachments) {
+        if (candidate.id == id) {
+          attachment = candidate;
+          break;
+        }
+      }
+    } else {
+      final slash = raw.indexOf('/');
+      final legacyId = slash < 0 ? raw : raw.substring(0, slash);
+      final match = RegExp(r'^attachment-(\d+)$').firstMatch(legacyId);
+      final index = int.tryParse(match?.group(1) ?? '') ?? 0;
+      if (index >= 1 && index <= attachments.length) {
+        attachment = attachments[index - 1];
+      }
     }
-    final attachment = attachments[index - 1];
+    if (attachment == null) {
+      throw ToolFailure('Attached file is not available: $inputPath');
+    }
+    return _validatedAttachmentPath(attachment);
+  }
+
+  Future<String> _validatedAttachmentPath(Attachment attachment) async {
     final path = p.normalize(p.absolute(attachment.path));
     final type = await FileSystemEntity.type(path, followLinks: false);
     if (type != FileSystemEntityType.file) {

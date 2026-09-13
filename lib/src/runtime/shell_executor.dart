@@ -276,6 +276,34 @@ abstract interface class RuntimeJobExecutor {
   Future<Map<Object?, Object?>> cancelJob(String id);
 }
 
+class CommandDetachmentController {
+  DateTime? _startedAt;
+  String? _jobId;
+  final Completer<void> _requested = Completer<void>();
+
+  String? get jobId => _jobId;
+  bool get isAttached => _jobId != null;
+  bool get isRequested => _requested.isCompleted;
+  Future<void> get whenRequested => _requested.future;
+
+  void attach(String jobId) {
+    if (_jobId != null) return;
+    _jobId = jobId;
+    _startedAt = DateTime.now();
+  }
+
+  bool request({Duration minimumRuntime = const Duration(seconds: 30)}) {
+    final startedAt = _startedAt;
+    if (_jobId == null ||
+        startedAt == null ||
+        DateTime.now().difference(startedAt) < minimumRuntime) {
+      return false;
+    }
+    if (!_requested.isCompleted) _requested.complete();
+    return true;
+  }
+}
+
 class PlatformShellExecutor implements ShellExecutor {
   PlatformShellExecutor({MethodChannel? channel})
     : _channel = channel ?? const MethodChannel('syntac/runtime') {

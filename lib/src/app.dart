@@ -103,6 +103,10 @@ class AppController extends ChangeNotifier {
   final Set<String> _directCommandChats = <String>{};
   final Map<String, CancellationToken> _directCommandTokens =
       <String, CancellationToken>{};
+  final Map<String, CommandDetachmentController> _directCommandDetachments =
+      <String, CommandDetachmentController>{};
+  final Map<String, Completer<void>> _directCommandDone =
+      <String, Completer<void>>{};
   ModelsDevCatalog modelsDevCatalog = ModelsDevCatalog.empty();
   ShellRuntimeSettings shellRuntimeSettings = const ShellRuntimeSettings();
   CommandApprovalHandler? _commandApprovalHandler;
@@ -458,7 +462,7 @@ class AppController extends ChangeNotifier {
     }
   }
 
-  Future<void> sendMessage(
+  Future<bool> sendMessage(
     String text,
     List<Attachment> attachments, {
     AIReasoningEffort? reasoningEffort = AIReasoningEffort.medium,
@@ -466,7 +470,24 @@ class AppController extends ChangeNotifier {
   }) async {
     final project = selectedProject;
     var chat = selectedChat;
-    if (project == null) return;
+    if (project == null) return false;
+    if (chat != null && isChatRunning(chat.id)) {
+      final backgrounded = await _backgroundLongCommand(chat.id);
+      if (!backgrounded) {
+        await repository.addMessage(
+          ChatMessage.create(
+            chatId: chat.id,
+            role: MessageRole.internal,
+            content:
+                'Current operation is still running. Long ARCH Linux commands can move to background after 30 seconds; otherwise stop current operation first.',
+          ),
+        );
+        await _refreshChatMessages(chat.id);
+        return false;
+      }
+      chat = await repository.getChat(chat.id);
+      selectedChat = chat;
+    }
     final directCommand = _directBashCommand(text);
     if (directCommand != null) {
       unawaited(
@@ -479,7 +500,7 @@ class AppController extends ChangeNotifier {
         ),
       );
       await refreshAll();
-      return;
+      return true;
     }
     final prompt = await _prepareUserText(text, project.folderPath);
     if (chat == null) {
@@ -523,24 +544,21 @@ class AppController extends ChangeNotifier {
           )
           .catchError((Object error, StackTrace stackTrace) {
             logDetailedAIError(error, stackTrace, context: 'Agent run failed');
-            var providerName = 'provider';
-            final providerId = selectedChat?.providerId;
-            if (providerId != null) {
-              for (final provider in providers) {
-                if (provider.id == providerId) {
-                  providerName = provider.name;
-                  break;
-                }
-              }
-            }
-            lastError = describeAIErrorForUser(
-              error,
-              providerName: providerName,
-            );
           })
           .whenComplete(refreshAll),
     );
     await refreshAll();
+    return true;
+  }
+
+  Future<bool> _backgroundLongCommand(String chatId) async {
+    final direct = _directCommandDetachments[chatId];
+    if (direct?.request() == true) {
+      final done = _directCommandDone[chatId];
+      if (done != null) await done.future;
+      return true;
+    }
+    return agentLoop.backgroundLongCommand(chatId);
   }
 
   ProviderConfig? get defaultProvider {
@@ -1294,38 +1312,52 @@ class AppController extends ChangeNotifier {
       selectedChat = chat;
     }
     if (isChatRunning(chat.id)) {
-      lastError = 'This chat already has a running operation.';
-      notifyListeners();
+      await repository.addMessage(
+        ChatMessage.create(
+          chatId: chat.id,
+          role: MessageRole.internal,
+          content: 'Current operation is still running.',
+        ),
+      );
+      await _refreshChatMessages(chat.id);
       return;
     }
 
     final directToken = CancellationToken();
+    final directDetachment = CommandDetachmentController();
+    final directDone = Completer<void>();
     _directCommandChats.add(chat.id);
     _directCommandTokens[chat.id] = directToken;
+    _directCommandDetachments[chat.id] = directDetachment;
+    _directCommandDone[chat.id] = directDone;
     lastError = null;
     notifyListeners();
     ToolExecution? execution;
     try {
-      final firstMessage = ChatMessage.create(
+      var firstMessage = ChatMessage.create(
         chatId: chat.id,
         role: MessageRole.user,
         content: userText,
-        metadata: attachments
-            .map((attachment) => attachment.toMap())
-            .toList(growable: false),
       );
       await repository.addMessage(firstMessage);
-      for (final attachment in attachments) {
-        await repository.addAttachment(
-          Attachment.create(
-            messageId: firstMessage.id,
-            path: attachment.path,
-            kind: attachment.kind,
-            name: attachment.name,
-            mimeType: attachment.mimeType,
+      final storedAttachments = await repository.importAttachments(
+        chatId: chat.id,
+        messageId: firstMessage.id,
+        sources: attachments,
+      );
+      if (storedAttachments.isNotEmpty) {
+        firstMessage = firstMessage.copyWith(
+          metadataJson: jsonEncode(
+            storedAttachments
+                .map((attachment) => attachment.toMap())
+                .toList(growable: false),
           ),
         );
+        await repository.updateMessage(firstMessage);
       }
+      final availableAttachments = await repository.listChatAttachments(
+        chat.id,
+      );
       execution = ToolExecution.start(
         chatId: chat.id,
         name: 'bash',
@@ -1343,7 +1375,7 @@ class AppController extends ChangeNotifier {
         projectRoot: project.folderPath,
         shellExecutor: shellExecutor,
         commandApproval: _commandApprovalHandler,
-        attachments: attachments,
+        attachments: availableAttachments,
       );
       var lastPreview = DateTime.fromMillisecondsSinceEpoch(0);
       final result = await tools.execute(
@@ -1351,6 +1383,7 @@ class AppController extends ChangeNotifier {
         <String, Object?>{'command': command},
         cancellationToken: directToken,
         commandTimeout: Duration(seconds: limits.commandTimeoutSeconds),
+        commandDetachment: directDetachment,
         onUpdate: (partialResult) async {
           final now = DateTime.now();
           if (now.difference(lastPreview).inMilliseconds < 250) return;
@@ -1420,11 +1453,28 @@ class AppController extends ChangeNotifier {
         );
         await _refreshChatMessages(chat.id);
       }
-      lastError = error.toString();
-      notifyListeners();
+      if (execution == null) {
+        const message = 'Command failed before it could start.';
+        await repository.addMessage(
+          ChatMessage.create(
+            chatId: chat.id,
+            role: MessageRole.internal,
+            content: message,
+          ),
+        );
+        await repository.setChatStatus(
+          chat.id,
+          ChatStatus.error,
+          error: message,
+        );
+        await _refreshChatMessages(chat.id);
+      }
     } finally {
       _directCommandChats.remove(chat.id);
       _directCommandTokens.remove(chat.id);
+      _directCommandDetachments.remove(chat.id);
+      final done = _directCommandDone.remove(chat.id);
+      if (done != null && !done.isCompleted) done.complete();
       notifyListeners();
     }
   }

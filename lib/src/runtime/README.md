@@ -6,7 +6,7 @@
 
 - Arch PRoot install, validation, package commands, workspace mounts, cancellation.
 - `RuntimeJobSupervisor` owns current-session Arch processes, job registry, bounded logs, restart, status, wait polling, and process-tree stop. Only active records survive process-owner restart; terminal records remain memory-only.
-- `RuntimeJobExecutor` exposes Dart-side `listJobs`, `jobStatus`, `jobLogs`, and `cancelJob` capability without coupling tools to Android channels.
+- `RuntimeJobExecutor` exposes Dart-side `listJobs`, `jobStatus`, `jobLogs`, and `cancelJob` capability without coupling tools to Android channels. Foreground Arch commands also use durable jobs so they can detach safely.
 - Termux `RUN_COMMAND` bridge and callback handling.
 - Local process executor for tests and development.
 
@@ -18,6 +18,7 @@
 - Python is installed inside Arch with `pacman`; package installs must pass storage preflight and clear package cache after success.
 - Termux uses its external-command bridge and callback service; durable background jobs are Arch-only.
 - Command timeout `0` means no deadline; cancellation still kills active process trees.
+- User submission may detach Arch command after 30 seconds; process continues under job supervisor and prior model turn must not resume.
 - Native runtime output is capped at 2,000,000 characters per stream and includes truncation metadata.
 - Runtime environment preserves executable paths, home/temp directories, locale, terminal, proxy values, and CA paths.
 

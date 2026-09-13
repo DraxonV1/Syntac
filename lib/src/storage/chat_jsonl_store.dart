@@ -347,6 +347,51 @@ class ChatJsonlStore {
     });
   }
 
+  Future<Attachment> importAttachment({
+    required String chatId,
+    required String messageId,
+    required Attachment source,
+  }) async {
+    await ensureReady();
+    if (!await _chatExists(chatId)) {
+      throw StateError('Cannot add attachment to deleted chat: $chatId');
+    }
+    final sourceFile = File(source.path);
+    if (!await sourceFile.exists()) {
+      throw StateError('Selected attachment is no longer available.');
+    }
+    final cleanName = p
+        .basename(source.name)
+        .replaceAll(RegExp(r'[^A-Za-z0-9._ -]'), '_');
+    final fileName = cleanName.isEmpty ? source.id : cleanName;
+    final directory = Directory(
+      p.join(_chatDirectory(chatId).path, 'attachments', _safeId(source.id)),
+    );
+    await directory.create(recursive: true);
+    final target = File(p.join(directory.path, fileName));
+    final sourcePath = p.normalize(sourceFile.absolute.path);
+    final targetPath = p.normalize(target.absolute.path);
+    if (sourcePath != targetPath) {
+      final temporary = File(
+        '$targetPath.${DateTime.now().microsecondsSinceEpoch}.tmp',
+      );
+      await sourceFile.copy(temporary.path);
+      if (await target.exists()) await target.delete();
+      await temporary.rename(target.path);
+    }
+    return addAttachment(
+      Attachment(
+        id: source.id,
+        messageId: messageId,
+        path: target.path,
+        kind: source.kind,
+        name: source.name,
+        mimeType: source.mimeType,
+        createdAt: source.createdAt,
+      ),
+    );
+  }
+
   Future<ToolExecution> addToolExecution(ToolExecution execution) async {
     final file = _chatFile(execution.chatId, 'tool_executions.jsonl');
     if (!await _chatExists(execution.chatId)) {

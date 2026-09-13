@@ -304,6 +304,9 @@ class GoogleCloudCodeAssistProvider extends AIProvider {
             parts.add(_functionCallPart(call));
           }
         }
+        if (wireModel.startsWith('gemini-3')) {
+          _addMissingFirstFunctionCallSignature(parts);
+        }
         for (final part in parts) {
           final functionCall = part['functionCall'];
           if (functionCall is Map) {
@@ -450,6 +453,20 @@ class GoogleCloudCodeAssistProvider extends AIProvider {
       };
     }
     return spec;
+  }
+
+  static const _skipThoughtSignature = 'skip_thought_signature_validator';
+
+  static void _addMissingFirstFunctionCallSignature(
+    List<Map<String, Object?>> parts,
+  ) {
+    for (final part in parts) {
+      if (part['functionCall'] is! Map) continue;
+      if (!_hasThoughtSignature(part)) {
+        part['thoughtSignature'] = _skipThoughtSignature;
+      }
+      return;
+    }
   }
 
   static Map<String, Object?> _functionCallPart(AIToolCall call) {

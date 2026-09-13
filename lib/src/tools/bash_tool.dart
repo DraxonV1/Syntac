@@ -3,6 +3,7 @@
 import 'dart:async';
 
 import '../core/cancellation.dart';
+import '../runtime/shell_executor.dart';
 import 'tool_context.dart';
 
 mixin BashTool on ToolContext {
@@ -12,6 +13,7 @@ mixin BashTool on ToolContext {
     bool background = false,
     CancellationToken? cancellationToken,
     ToolUpdateCallback? onUpdate,
+    CommandDetachmentController? detachmentController,
   }) async {
     if (command.trim().isEmpty) throw ToolFailure('Command is required');
     final risk = assessCommandRisk(command, background: background);
@@ -59,47 +61,60 @@ mixin BashTool on ToolContext {
     var liveStderrTruncated = false;
     int? liveStdoutOriginalLength;
     int? liveStderrOriginalLength;
-    final result = await shellExecutor.run(
-      command: command,
-      workingDirectory: projectRoot,
-      timeout: timeout,
-      background: background,
-      cancellationToken: cancellationToken,
-      onOutput: onUpdate == null
-          ? null
-          : (update) async {
-              if (update.stdout != null) {
-                liveStdout = update.stdout!;
-                liveStdoutTruncated = update.stdoutTruncated;
-                liveStdoutOriginalLength = update.stdoutOriginalLength;
-              }
-              if (update.stderr != null) {
-                liveStderr = update.stderr!;
-                liveStderrTruncated = update.stderrTruncated;
-                liveStderrOriginalLength = update.stderrOriginalLength;
-              }
-              final output = boundedOutputPair(liveStdout, liveStderr);
-              await onUpdate({
-                'command': command,
-                'workingDirectory': projectRoot,
-                'success': false,
-                'runtime': shellExecutor.runtimeId,
-                'category': 'running',
-                'stdout': output.stdout,
-                'stderr': output.stderr,
-                if (output.stdoutTruncated || liveStdoutTruncated)
-                  'stdoutTruncated': true,
-                if (output.stderrTruncated || liveStderrTruncated)
-                  'stderrTruncated': true,
-                ...?liveStdoutOriginalLength == null
-                    ? null
-                    : {'stdoutOriginalLength': liveStdoutOriginalLength},
-                ...?liveStderrOriginalLength == null
-                    ? null
-                    : {'stderrOriginalLength': liveStderrOriginalLength},
-              });
-            },
-    );
+    Future<void> handleOutput(CommandOutputUpdate update) async {
+      if (update.stdout != null) {
+        liveStdout = update.stdout!;
+        liveStdoutTruncated = update.stdoutTruncated;
+        liveStdoutOriginalLength = update.stdoutOriginalLength;
+      }
+      if (update.stderr != null) {
+        liveStderr = update.stderr!;
+        liveStderrTruncated = update.stderrTruncated;
+        liveStderrOriginalLength = update.stderrOriginalLength;
+      }
+      if (onUpdate == null) return;
+      final output = boundedOutputPair(liveStdout, liveStderr);
+      await onUpdate({
+        'command': command,
+        'workingDirectory': projectRoot,
+        'success': false,
+        'runtime': shellExecutor.runtimeId,
+        'category': 'running',
+        'stdout': output.stdout,
+        'stderr': output.stderr,
+        if (output.stdoutTruncated || liveStdoutTruncated)
+          'stdoutTruncated': true,
+        if (output.stderrTruncated || liveStderrTruncated)
+          'stderrTruncated': true,
+        ...?liveStdoutOriginalLength == null
+            ? null
+            : {'stdoutOriginalLength': liveStdoutOriginalLength},
+        ...?liveStderrOriginalLength == null
+            ? null
+            : {'stderrOriginalLength': liveStderrOriginalLength},
+      });
+    }
+
+    final canDetach =
+        !background &&
+        detachmentController != null &&
+        shellExecutor is RuntimeJobExecutor;
+    final result = canDetach
+        ? await _runDetachableCommand(
+            command,
+            timeout: timeout,
+            cancellationToken: cancellationToken,
+            onOutput: onUpdate == null ? null : handleOutput,
+            controller: detachmentController,
+          )
+        : await shellExecutor.run(
+            command: command,
+            workingDirectory: projectRoot,
+            timeout: timeout,
+            background: background,
+            cancellationToken: cancellationToken,
+            onOutput: onUpdate == null ? null : handleOutput,
+          );
     final json = result.toJson();
     final output = boundedOutputPair(result.stdout, result.stderr);
     final artifactUri = output.stdoutTruncated || output.stderrTruncated
@@ -165,5 +180,118 @@ mixin BashTool on ToolContext {
             'Android blocked starting a Termux command while Syntac was in the background.',
       ...json,
     };
+  }
+
+  Future<CommandResult> _runDetachableCommand(
+    String command, {
+    required Duration timeout,
+    required CommandDetachmentController controller,
+    CancellationToken? cancellationToken,
+    CommandOutputCallback? onOutput,
+  }) async {
+    final jobs = shellExecutor as RuntimeJobExecutor;
+    final startedAt = DateTime.now();
+    final launched = await shellExecutor.run(
+      command: command,
+      workingDirectory: projectRoot,
+      timeout: timeout,
+      background: true,
+      cancellationToken: cancellationToken,
+      onOutput: onOutput,
+    );
+    final jobId = launched.jobId;
+    if (!launched.success || jobId == null || jobId.isEmpty) return launched;
+    controller.attach(jobId);
+    var stdout = launched.stdout;
+    var stderr = launched.stderr;
+
+    while (true) {
+      final elapsed = DateTime.now().difference(startedAt);
+      if (controller.isRequested) {
+        return CommandResult(
+          stdout: stdout,
+          stderr: stderr,
+          exitCode: 0,
+          duration: elapsed,
+          jobId: jobId,
+          background: true,
+          timedOut: false,
+          cancelled: false,
+        );
+      }
+      if (cancellationToken?.isCancelled == true) {
+        await jobs.cancelJob(jobId);
+        return CommandResult(
+          stdout: stdout,
+          stderr: stderr,
+          exitCode: -1,
+          duration: elapsed,
+          jobId: jobId,
+          failureKind: 'Cancelled',
+          timedOut: false,
+          cancelled: true,
+        );
+      }
+      if (timeout != Duration.zero && elapsed >= timeout) {
+        await jobs.cancelJob(jobId);
+        return CommandResult(
+          stdout: stdout,
+          stderr: stderr,
+          exitCode: -1,
+          duration: elapsed,
+          jobId: jobId,
+          failureKind: 'command_timeout',
+          timedOut: true,
+          cancelled: false,
+        );
+      }
+
+      final status = await jobs.jobStatus(jobId);
+      final logs = await jobs.jobLogs(jobId);
+      final nextStdout = logs['stdout']?.toString() ?? stdout;
+      final nextStderr = logs['stderr']?.toString() ?? stderr;
+      if ((nextStdout != stdout || nextStderr != stderr) && onOutput != null) {
+        stdout = nextStdout;
+        stderr = nextStderr;
+        await onOutput(
+          CommandOutputUpdate(
+            stream: 'status',
+            text: '',
+            stdout: stdout,
+            stderr: stderr,
+            stdoutTruncated: logs['stdoutTruncated'] == true,
+            stderrTruncated: logs['stderrTruncated'] == true,
+            stdoutOriginalLength: int.tryParse(
+              logs['stdoutOriginalLength']?.toString() ?? '',
+            ),
+            stderrOriginalLength: int.tryParse(
+              logs['stderrOriginalLength']?.toString() ?? '',
+            ),
+          ),
+        );
+      } else {
+        stdout = nextStdout;
+        stderr = nextStderr;
+      }
+      final state = status['state']?.toString();
+      final running = status['running'] == true || state == 'running';
+      if (!running) {
+        return CommandResult.fromMap(<Object?, Object?>{
+          ...logs,
+          ...status,
+          'stdout': stdout,
+          'stderr': stderr,
+          'jobId': jobId,
+          'background': false,
+        }, elapsed);
+      }
+
+      final wakeups = <Future<void>>[
+        Future<void>.delayed(const Duration(milliseconds: 250)),
+        controller.whenRequested,
+        if (cancellationToken != null) cancellationToken.whenCancelled,
+      ];
+      await Future.any(wakeups);
+    }
   }
 }

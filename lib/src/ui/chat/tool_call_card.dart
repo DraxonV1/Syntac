@@ -419,14 +419,6 @@ class _ToolCallCardState extends State<ToolCallCard>
                     const SizedBox(height: 6),
                     Container(
                       padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppColors.errorSubtle,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: AppColors.error.withValues(alpha: 0.3),
-                          width: 1,
-                        ),
-                      ),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -1251,11 +1243,6 @@ class _ToolCallCardState extends State<ToolCallCard>
           constraints: BoxConstraints(maxHeight: maxHeight),
           width: double.infinity,
           padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: AppColors.codeBackground,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: AppColors.codeBorder, width: 1),
-          ),
           child: SingleChildScrollView(
             scrollDirection: Axis.vertical,
             child: SelectableText.rich(TextSpan(children: spans)),
@@ -1287,15 +1274,6 @@ class _ToolCallCardState extends State<ToolCallCard>
       constraints: BoxConstraints(maxHeight: maxHeight),
       width: double.infinity,
       padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: isError ? AppColors.errorSubtle : Colors.transparent,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: isError
-              ? AppColors.error.withValues(alpha: 0.35)
-              : Colors.transparent,
-        ),
-      ),
       child: SingleChildScrollView(
         scrollDirection: Axis.vertical,
         child: GestureDetector(
@@ -1382,23 +1360,12 @@ class _ToolCallCardState extends State<ToolCallCard>
               : null,
           width: double.infinity,
           padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: isError
-                ? AppColors.errorSubtle.withValues(alpha: 0.5)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-              color: isError
-                  ? AppColors.error.withValues(alpha: 0.3)
-                  : Colors.transparent,
-              width: 1,
-            ),
-          ),
           child: SingleChildScrollView(
             scrollDirection: Axis.vertical,
             child: SyntaxHighlightedCode(
               text: visibleContent,
               language: language ?? title.toLowerCase(),
+              backgroundColor: Colors.transparent,
             ),
           ),
         ),
@@ -1433,11 +1400,6 @@ class _ToolCallCardState extends State<ToolCallCard>
                 width: double.infinity,
                 height: double.infinity,
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.codeBackground,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.codeBorder),
-                ),
                 child: SingleChildScrollView(
                   child: SelectableText(content, style: AppTypography.code),
                 ),

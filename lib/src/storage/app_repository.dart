@@ -373,6 +373,36 @@ class AppRepository implements CredentialStore {
     return _chatStore.addAttachment(attachment);
   }
 
+  Future<List<Attachment>> importAttachments({
+    required String chatId,
+    required String messageId,
+    required List<Attachment> sources,
+  }) async {
+    await _ensureChatsMigrated();
+    final stored = <Attachment>[];
+    for (final source in sources) {
+      stored.add(
+        await _chatStore.importAttachment(
+          chatId: chatId,
+          messageId: messageId,
+          source: source,
+        ),
+      );
+    }
+    return stored;
+  }
+
+  Future<List<Attachment>> listChatAttachments(String chatId) async {
+    await _ensureChatsMigrated();
+    final messageIds = (await _chatStore.listMessages(
+      chatId,
+    )).map((message) => message.id).toSet();
+    if (messageIds.isEmpty) return <Attachment>[];
+    return (await _chatStore.listAllAttachments())
+        .where((attachment) => messageIds.contains(attachment.messageId))
+        .toList(growable: false);
+  }
+
   Future<List<Attachment>> listAllAttachments() async {
     await _ensureChatsMigrated();
     return _chatStore.listAllAttachments();

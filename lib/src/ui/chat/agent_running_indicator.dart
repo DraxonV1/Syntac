@@ -49,32 +49,23 @@ class AgentRunningIndicator extends StatelessWidget {
             ),
           ),
           if (onStop != null) ...[
-            const SizedBox(width: 10),
-            InkWell(
-              onTap: onStop,
-              borderRadius: BorderRadius.circular(4),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 7,
-                      height: 7,
-                      decoration: const BoxDecoration(
-                        color: AppColors.error,
-                        borderRadius: BorderRadius.all(Radius.circular(1.5)),
-                      ),
+            const SizedBox(width: 6),
+            Tooltip(
+              message: 'Stop',
+              child: Semantics(
+                button: true,
+                label: 'Stop current operation',
+                child: InkWell(
+                  onTap: onStop,
+                  borderRadius: BorderRadius.circular(8),
+                  child: const SizedBox.square(
+                    dimension: 40,
+                    child: Icon(
+                      Icons.stop_rounded,
+                      size: 20,
+                      color: AppColors.errorText,
                     ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Stop',
-                      style: AppTypography.monoSmall.copyWith(
-                        color: AppColors.errorText,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),

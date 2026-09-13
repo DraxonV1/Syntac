@@ -386,6 +386,10 @@ void main() {
     expect(find.text('CONTENT'), findsOneWidget);
     expect(find.textContaining('first line'), findsOneWidget);
     expect(find.textContaining('+first line'), findsNothing);
+    final highlight = tester.widget<HighlightView>(
+      find.byType(HighlightView).last,
+    );
+    expect(highlight.theme['root']?.backgroundColor, Colors.transparent);
   });
 
   testWidgets('write card previews 300 lines and maximizes full content', (
@@ -632,7 +636,10 @@ void main() {
     await tester.pumpWidget(
       _wrap(
         ComposerView(
-          onSend: (text) => sentText = text,
+          onSend: (text) async {
+            sentText = text;
+            return true;
+          },
           onStop: () {},
           onPickAttachment: () {},
           onSelectModel: () {},
@@ -667,7 +674,7 @@ void main() {
           SizedBox(
             width: 320,
             child: ComposerView(
-              onSend: (_) {},
+              onSend: (_) async => true,
               onStop: () {},
               onPickAttachment: () {},
               onSelectModel: () {},
@@ -690,29 +697,64 @@ void main() {
     );
   });
 
-  testWidgets('ComposerView shows Stop button when agent is running', (
+  testWidgets(
+    'ComposerView keeps icon-only stop and send controls while running',
+    (tester) async {
+      var stopped = false;
+      String? sentText;
+
+      await tester.pumpWidget(
+        _wrap(
+          ComposerView(
+            onSend: (text) async {
+              sentText = text;
+              return true;
+            },
+            onStop: () => stopped = true,
+            onPickAttachment: () {},
+            onSelectModel: () {},
+            isRunning: true,
+            selectedModelName: 'OpenRouter GPT-4o Mini',
+          ),
+        ),
+      );
+
+      expect(find.text('Stop'), findsNothing);
+      expect(find.byIcon(Icons.stop_rounded), findsOneWidget);
+      await tester.enterText(find.byType(TextField), 'Queue after command');
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.arrow_upward_rounded));
+      await tester.pump();
+      expect(sentText, 'Queue after command');
+
+      await tester.tap(find.byIcon(Icons.stop_rounded));
+      await tester.pump();
+      expect(stopped, isTrue);
+    },
+  );
+
+  testWidgets('ComposerView retains message when controller rejects send', (
     tester,
   ) async {
-    var stopped = false;
-
     await tester.pumpWidget(
       _wrap(
         ComposerView(
-          onSend: (_) {},
-          onStop: () => stopped = true,
+          onSend: (_) async => false,
+          onStop: () {},
           onPickAttachment: () {},
           onSelectModel: () {},
           isRunning: true,
-          selectedModelName: 'OpenRouter GPT-4o Mini',
         ),
       ),
     );
 
-    expect(find.text('Stop'), findsOneWidget);
-    await tester.tap(find.text('Stop'));
+    await tester.enterText(find.byType(TextField), 'Keep pending message');
+    await tester.pump();
+    await tester.tap(find.byIcon(Icons.arrow_upward_rounded));
     await tester.pump();
 
-    expect(stopped, isTrue);
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.controller!.text, 'Keep pending message');
   });
 
   testWidgets('EmptyChatView renders suggestions and prompts', (tester) async {

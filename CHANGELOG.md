@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.1.1-beta.7
+
+Android Early Access chat, command, and attachment reliability update.
+
+### Added
+
+- Persistent chat-owned attachment copies with stable `local://attachment/<id>` references and exact read-only stored paths available on later prompts.
+- Safe Arch command detachment when user sends another message after 30 seconds; command continues as durable runtime job.
+
+### Changed
+
+- Tool output, code, diff, error, and maximized viewer surfaces now use transparent backgrounds.
+- Composer keeps send and attachment actions available during running work; stop actions are icon-only.
+- Provider failures appear once in chat transcript instead of duplicate error banners.
+
+### Fixed
+
+- Gemini 3 Antigravity replay now supplies validator bypass signature on first unsigned function call, preventing older model HTTP 400 `INVALID_ARGUMENT` failures.
+
+### Release metadata
+
+- Android package: `com.syntac`
+- Version: `0.1.1-beta.7`
+- Version code: `17`
+- Default update channel: `beta`
+
 ## 0.1.1-beta.6
 
 Android Early Access provider, agent-tool, and release-safety update.

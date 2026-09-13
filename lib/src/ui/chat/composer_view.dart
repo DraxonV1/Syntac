@@ -25,7 +25,7 @@ class ComposerView extends StatefulWidget {
     this.onRemoveAttachment,
   });
 
-  final void Function(String text) onSend;
+  final Future<bool> Function(String text) onSend;
   final VoidCallback onStop;
   final VoidCallback onPickAttachment;
   final VoidCallback onSelectModel;
@@ -46,6 +46,7 @@ class ComposerViewState extends State<ComposerView> {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   bool _hasText = false;
+  bool _submitting = false;
 
   @override
   void initState() {
@@ -96,11 +97,16 @@ class ComposerViewState extends State<ComposerView> {
     );
   }
 
-  void _handleSubmit() {
+  Future<void> _handleSubmit() async {
     final text = _controller.text.trim();
-    if (text.isEmpty && widget.attachments.isEmpty) return;
-    _controller.clear();
-    widget.onSend(text);
+    if (_submitting || (text.isEmpty && widget.attachments.isEmpty)) return;
+    setState(() => _submitting = true);
+    try {
+      final accepted = await widget.onSend(text);
+      if (mounted && accepted) _controller.clear();
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
   Widget _buildAttachmentButton() {
@@ -109,7 +115,7 @@ class ComposerViewState extends State<ComposerView> {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: widget.isRunning ? null : widget.onPickAttachment,
+          onTap: widget.onPickAttachment,
           borderRadius: BorderRadius.circular(8),
           child: ConstrainedBox(
             constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
@@ -120,13 +126,7 @@ class ComposerViewState extends State<ComposerView> {
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: AppColors.border, width: 0.8),
               ),
-              child: Icon(
-                Icons.add,
-                size: 16,
-                color: widget.isRunning
-                    ? AppColors.textMuted
-                    : AppColors.textSecondary,
-              ),
+              child: Icon(Icons.add, size: 16, color: AppColors.textSecondary),
             ),
           ),
         ),
@@ -229,18 +229,19 @@ class ComposerViewState extends State<ComposerView> {
     );
   }
 
-  Widget _buildSendButton(bool canSend) {
-    if (widget.isRunning) {
-      return Tooltip(
-        message: 'Stop',
+  Widget _buildStopButton() {
+    return Tooltip(
+      message: 'Stop',
+      child: Semantics(
+        button: true,
+        label: 'Stop current operation',
         child: Material(
           color: Colors.transparent,
           child: InkWell(
             onTap: widget.onStop,
             borderRadius: BorderRadius.circular(8),
             child: Container(
-              constraints: const BoxConstraints(minWidth: 64, minHeight: 40),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
               decoration: BoxDecoration(
                 color: AppColors.errorSubtle,
                 borderRadius: BorderRadius.circular(8),
@@ -248,35 +249,19 @@ class ComposerViewState extends State<ComposerView> {
                   color: AppColors.error.withValues(alpha: 0.4),
                 ),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: AppColors.error,
-                      borderRadius: BorderRadius.all(Radius.circular(1.5)),
-                    ),
-                  ),
-                  const SizedBox(width: 5),
-                  Text(
-                    'Stop',
-                    style: AppTypography.monoSmall.copyWith(
-                      color: AppColors.errorText,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 11.5,
-                    ),
-                  ),
-                ],
+              child: const Icon(
+                Icons.stop_rounded,
+                size: 20,
+                color: AppColors.errorText,
               ),
             ),
           ),
         ),
-      );
-    }
+      ),
+    );
+  }
 
+  Widget _buildSendButton(bool canSend) {
     return Tooltip(
       message: canSend ? 'Send message' : 'Enter a message',
       child: Material(
@@ -317,8 +302,7 @@ class ComposerViewState extends State<ComposerView> {
 
   @override
   Widget build(BuildContext context) {
-    final canSend =
-        (_hasText || widget.attachments.isNotEmpty) && !widget.isRunning;
+    final canSend = (_hasText || widget.attachments.isNotEmpty) && !_submitting;
     final modelLabel = widget.selectedModelName ?? 'Select Model';
 
     return Container(
@@ -426,6 +410,10 @@ class ComposerViewState extends State<ComposerView> {
                     const SizedBox(width: 8),
                     Expanded(child: _buildModelButton(modelLabel)),
                     const SizedBox(width: 8),
+                    if (widget.isRunning) ...[
+                      _buildStopButton(),
+                      const SizedBox(width: 8),
+                    ],
                     _buildSendButton(canSend),
                   ],
                 ),

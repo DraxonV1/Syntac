@@ -26,9 +26,11 @@
 - No emoji icons; use `AppIcons`/vector icons.
 - Keep portrait and landscape usable.
 - Tool cards must show intent before bounded output. Apply-patch cards use line numbers, changed-line colors, compact paths, and delta badges; todo cards show operation target and completion count.
-- Shell command cards use monospace bordered command blocks; normal output containers stay transparent, while diffs/code retain intentional surfaces.
+- Shell command cards use monospace bordered command blocks; all nested output, code, diff, and error containers stay transparent.
 - `MarkdownContent` uses `flutter_math_fork` for TeX and supports remote/data-URI images. `SyntaxHighlightedCode` follows active light/dark palette. Never replace TeX with hardcoded symbol substitution.
 - Large tool output must use bounded previews and maximizable surfaces.
+- Stop actions use icon-only controls with tooltip and semantic label; composer keeps send available while work runs.
+- Provider failures render once in transcript, never as duplicate chat banners.
 - Startup must show progress or retry, not blank/hanging UI.
 
 ## Tests
