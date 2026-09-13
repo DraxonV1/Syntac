@@ -136,8 +136,10 @@ jobs:
         run: |
           set -euo pipefail
           apk=build/app/outputs/flutter-apk/syntac-arm64.apk
-          actual_version="$(apkanalyzer manifest version-name "$apk")"
-          actual_version_code="$(apkanalyzer manifest version-code "$apk")"
+          analyzer="$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer"
+          test -x "$analyzer"
+          actual_version="$("$analyzer" manifest version-name "$apk")"
+          actual_version_code="$("$analyzer" manifest version-code "$apk")"
           test "$actual_version" = "$RELEASE_VERSION"
           test "$actual_version_code" = "$RELEASE_VERSION_CODE"
 
