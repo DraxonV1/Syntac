@@ -836,6 +836,7 @@ void main() {
           toolNames,
           containsAll(<Object?>[
             'apply_patch',
+            'copy',
             'glob',
             'jobs.list',
             'jobs.status',
@@ -1720,6 +1721,49 @@ void main() {
 
       expect(response.text, 'hi');
       expect(response.finishReason, 'completed');
+    });
+    test('streams Responses tool arguments before call completion', () async {
+      final provider = OpenAICodexProvider(
+        baseUrl: OpenAICodexOAuthFlow.defaultBaseUrl,
+        client: StreamingClient([
+          'data: ${jsonEncode({
+            'type': 'response.output_item.added',
+            'item': {'id': 'fc_1', 'call_id': 'call_1', 'type': 'function_call', 'name': 'write'},
+          })}\n\n',
+          'data: ${jsonEncode({'type': 'response.function_call_arguments.delta', 'item_id': 'fc_1', 'delta': '{"path":"stream.txt","content":"first'})}\n\n',
+          'data: ${jsonEncode({'type': 'response.function_call_arguments.done', 'item_id': 'fc_1', 'arguments': '{"path":"stream.txt","content":"first line"}'})}\n\n',
+          'data: ${jsonEncode({
+            'type': 'response.completed',
+            'response': {'status': 'completed'},
+          })}\n\n',
+        ]),
+      );
+
+      final events = await provider
+          .streamChat(
+            const AIChatRequest(
+              model: 'gpt-5.3-codex',
+              messages: [],
+              tools: [],
+            ),
+            apiKey: 'codex-token',
+          )
+          .toList();
+
+      final previews = events
+          .where((event) => !event.done && event.toolCalls.isNotEmpty)
+          .map((event) => event.toolCalls.single)
+          .toList(growable: false);
+      expect(previews.first.argumentsJson, isEmpty);
+      expect(
+        previews.any(
+          (call) =>
+              call.id == 'call_1' &&
+              call.argumentsJson.contains('"content":"first'),
+        ),
+        isTrue,
+      );
+      expect(previews.last.argumentsJson, contains('first line'));
     });
     test('Codex Responses disables server-side response storage', () async {
       http.Request? captured;
@@ -4346,6 +4390,7 @@ void main() {
 
     expect(AppIdentity.instance.version, '0.1.1-beta.8');
     expect(AppIdentity.instance.versionCode, 18);
+    expect(AppIdentity.instance.updateChannel, 'beta');
 
     final updateService = UpdateService(
       client: MockClient(
@@ -4374,6 +4419,23 @@ void main() {
       ),
       isNull,
     );
+  });
+  test('stable installed version selects stable update channel', () async {
+    final previousIdentity = AppIdentity.instance;
+    addTearDown(() => AppIdentity.instance = previousIdentity);
+    PackageInfo.setMockInitialValues(
+      appName: 'Syntac',
+      packageName: 'com.syntac',
+      version: '0.1.1',
+      buildNumber: '19',
+      buildSignature: 'test',
+    );
+
+    await AppIdentity.initializeFromPlatform();
+
+    expect(AppIdentity.instance.version, '0.1.1');
+    expect(AppIdentity.instance.versionCode, 19);
+    expect(AppIdentity.instance.updateChannel, 'stable');
   });
 
   test('update service returns newer beta manifest from fallback endpoint', () async {

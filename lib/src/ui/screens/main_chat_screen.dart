@@ -249,6 +249,7 @@ class _MainChatScreenState extends State<MainChatScreen> {
                   attachments: widget.controller.attachments,
                   onAttachmentTap: (attachment) =>
                       showAttachmentViewer(context, attachment),
+                  onOpenLink: widget.controller.openExternalUrl,
                   autoExpandThinking: _showThinkingAutomatically,
                 )
               : EmptyChatView(

@@ -19,12 +19,14 @@ class ChatMessageView extends StatelessWidget {
     required this.message,
     this.attachments = const <Attachment>[],
     this.onAttachmentTap,
+    this.onOpenLink,
     this.autoExpandThinking = true,
   });
 
   final ChatMessage message;
   final List<Attachment> attachments;
   final ValueChanged<Attachment>? onAttachmentTap;
+  final ValueChanged<String>? onOpenLink;
   final bool autoExpandThinking;
   @override
   Widget build(BuildContext context) {
@@ -193,6 +195,7 @@ class ChatMessageView extends StatelessWidget {
                           height: 1.4,
                         ),
                         monochrome: true,
+                        onOpenLink: onOpenLink,
                         streaming: _isStreaming(),
                       ),
                     ),
@@ -207,6 +210,7 @@ class ChatMessageView extends StatelessWidget {
                 color: AppColors.textPrimary,
                 height: 1.55,
               ),
+              onOpenLink: onOpenLink,
               streaming: _isStreaming(),
             ),
           if (message.content.trim().isNotEmpty)

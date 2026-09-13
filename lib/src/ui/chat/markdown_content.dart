@@ -1,15 +1,18 @@
-// Lightweight markdown renderer for code blocks, images, Unicode, and inline math.
-
-import 'dart:convert';
+// Bounded GitHub-flavored Markdown with code, links, images, and real TeX.
 
 import 'package:flutter/material.dart';
-import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
+import 'package:flutter_markdown_plus_latex/flutter_markdown_plus_latex.dart';
+import 'package:flutter_math_fork/flutter_math.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:markdown/markdown.dart' as md;
+
 import '../theme/app_colors.dart';
 import '../theme/app_typography.dart';
 import 'syntax_highlighted_code.dart';
 
-/// Renders bounded agent markdown with code, image, and math support.
+/// Renders bounded agent Markdown with GFM, code, link, image, and TeX support.
 class MarkdownContent extends StatelessWidget {
   const MarkdownContent({
     super.key,
@@ -17,253 +20,294 @@ class MarkdownContent extends StatelessWidget {
     this.textStyle,
     this.monochrome = false,
     this.streaming = false,
+    this.onOpenLink,
   });
 
   final String content;
   final TextStyle? textStyle;
   final bool monochrome;
   final bool streaming;
-  static final _blockCache = <String, List<_MarkdownBlock>>{};
+  final ValueChanged<String>? onOpenLink;
+
   static const maxRichCharacters = 100000;
   static const maxBlocks = 400;
+  static const _maxImageSourceCharacters = 4200000;
+  static final _blockMarker = RegExp(
+    r'^(?:\s{0,3}(?:#{1,6}\s|>|[-+*]\s|\d+[.)]\s|```|~~~|\|)|\s*$)',
+    multiLine: true,
+  );
+  static final _extensionSet = md.ExtensionSet(
+    <md.BlockSyntax>[
+      LatexBlockSyntax(),
+      ...md.ExtensionSet.gitHubWeb.blockSyntaxes,
+    ],
+    <md.InlineSyntax>[
+      LatexInlineSyntax(),
+      ...md.ExtensionSet.gitHubWeb.inlineSyntaxes,
+    ],
+  );
 
   @override
   Widget build(BuildContext context) {
     if (content.isEmpty) return const SizedBox.shrink();
-    final displayContent = content.length <= maxRichCharacters
-        ? content
-        : '${content.substring(0, maxRichCharacters)}\n\n'
-              '[content truncated for display; full message remains available]';
-    final baseStyle = textStyle ?? AppTypography.bodyMedium;
-    if (streaming || content.length > maxRichCharacters) {
+    final wasTruncated = content.length > maxRichCharacters;
+    final displayContent = wasTruncated
+        ? '${content.substring(0, maxRichCharacters)}\n\n'
+              '[content truncated for display; full message remains available]'
+        : content;
+    final baseStyle = (textStyle ?? AppTypography.bodyMedium).copyWith(
+      color: monochrome
+          ? AppColors.textMuted
+          : textStyle?.color ?? AppColors.textPrimary,
+    );
+    if (wasTruncated || _exceedsBlockLimit(displayContent)) {
       return SelectableText(displayContent, style: baseStyle);
     }
 
-    final blocks = _blockCache[displayContent] ??= _parseBlocks(displayContent);
-    if (_blockCache.length > 32) {
-      _blockCache.remove(_blockCache.keys.first);
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (var i = 0; i < blocks.length; i++) ...[
-          if (i > 0) const SizedBox(height: 10),
-          _renderBlock(context, blocks[i]),
-        ],
-      ],
-    );
-  }
-
-  Widget _renderBlock(BuildContext context, _MarkdownBlock block) {
-    return switch (block) {
-      _CodeBlock(:final language, :final code) => _CodeBlockWidget(
-        language: language,
-        code: code,
-        monochrome: monochrome,
+    final headingColor = monochrome
+        ? AppColors.textMuted
+        : AppColors.textPrimary;
+    final secondaryColor = monochrome
+        ? AppColors.textMuted
+        : AppColors.textSecondary;
+    final styleSheet = MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
+      a: baseStyle.copyWith(
+        color: monochrome ? AppColors.textMuted : AppColors.accentText,
+        decoration: TextDecoration.underline,
+        decorationColor: monochrome
+            ? AppColors.textMuted
+            : AppColors.accentText,
       ),
-      _HeadingBlock(:final level, :final text) => _renderHeading(level, text),
-      _ListBlock(:final items, :final isOrdered) => _renderList(
-        items,
-        isOrdered,
+      p: baseStyle,
+      pPadding: EdgeInsets.zero,
+      code: AppTypography.codeInline.copyWith(
+        color: monochrome ? AppColors.textMuted : AppColors.textPrimary,
+        backgroundColor: AppColors.surfaceHigh,
       ),
-      _QuoteBlock(:final text) => _renderQuote(text),
-      _ParagraphBlock(:final text) => _renderParagraph(text),
-    };
-  }
-
-  Widget _renderHeading(int level, String text) {
-    final style = switch (level) {
-      1 => AppTypography.displayMedium.copyWith(fontSize: 18),
-      2 => AppTypography.titleLarge.copyWith(fontSize: 16),
-      3 => AppTypography.titleMedium.copyWith(fontSize: 14),
-      _ => AppTypography.titleSmall,
-    };
-    return Padding(
-      padding: const EdgeInsets.only(top: 6, bottom: 2),
-      child: _InlineMarkdownText(
-        text: text,
-        baseStyle: style.copyWith(
-          color: monochrome ? AppColors.textMuted : AppColors.textPrimary,
-        ),
-        monochrome: monochrome,
+      h1: AppTypography.displayMedium.copyWith(
+        color: headingColor,
+        fontSize: 20,
       ),
-    );
-  }
-
-  Widget _renderList(List<String> items, bool isOrdered) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          for (var i = 0; i < items.length; i++) ...[
-            if (i > 0) const SizedBox(height: 4),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  width: isOrdered ? 20 : 14,
-                  child: Text(
-                    isOrdered ? '${i + 1}.' : '•',
-                    style: AppTypography.bodyMedium.copyWith(
-                      color: AppColors.textMuted,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: _InlineMarkdownText(
-                    text: items[i],
-                    baseStyle: textStyle ?? AppTypography.bodyMedium,
-                    monochrome: monochrome,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ],
+      h2: AppTypography.titleLarge.copyWith(color: headingColor, fontSize: 17),
+      h3: AppTypography.titleMedium.copyWith(color: headingColor, fontSize: 15),
+      h4: AppTypography.titleSmall.copyWith(color: headingColor),
+      h5: AppTypography.titleSmall.copyWith(color: headingColor),
+      h6: AppTypography.label.copyWith(color: headingColor),
+      h1Padding: const EdgeInsets.only(top: 6, bottom: 2),
+      h2Padding: const EdgeInsets.only(top: 5, bottom: 2),
+      h3Padding: const EdgeInsets.only(top: 4, bottom: 1),
+      strong: baseStyle.copyWith(
+        color: headingColor,
+        fontWeight: FontWeight.w700,
       ),
-    );
-  }
-
-  Widget _renderQuote(String text) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
+      em: baseStyle.copyWith(fontStyle: FontStyle.italic),
+      del: baseStyle.copyWith(
+        color: secondaryColor,
+        decoration: TextDecoration.lineThrough,
+      ),
+      blockquote: baseStyle.copyWith(
+        color: secondaryColor,
+        fontStyle: FontStyle.italic,
+      ),
+      blockquotePadding: const EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: 8,
+      ),
+      blockquoteDecoration: BoxDecoration(
+        color: AppColors.surface.withValues(alpha: 0.55),
         borderRadius: const BorderRadius.only(
           topRight: Radius.circular(6),
           bottomRight: Radius.circular(6),
         ),
         border: Border(left: BorderSide(color: AppColors.accent, width: 3)),
       ),
-      child: _InlineMarkdownText(
-        text: text,
-        baseStyle: (textStyle ?? AppTypography.bodyMedium).copyWith(
-          color: monochrome ? AppColors.textMuted : AppColors.textSecondary,
-          fontStyle: FontStyle.italic,
-        ),
-        monochrome: monochrome,
+      blockSpacing: 10,
+      listIndent: 24,
+      listBullet: baseStyle.copyWith(
+        color: AppColors.textMuted,
+        fontWeight: FontWeight.w600,
+      ),
+      checkbox: baseStyle.copyWith(color: AppColors.accentText),
+      tableHead: AppTypography.label.copyWith(color: headingColor),
+      tableBody: baseStyle,
+      tableBorder: TableBorder.all(color: AppColors.border, width: 1),
+      tableColumnWidth: const IntrinsicColumnWidth(),
+      tableCellsPadding: const EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: 7,
+      ),
+      tableHeadCellsPadding: const EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: 8,
+      ),
+      tableHeadCellsDecoration: BoxDecoration(color: AppColors.surfaceElevated),
+      codeblockPadding: EdgeInsets.zero,
+      codeblockDecoration: const BoxDecoration(color: Colors.transparent),
+      horizontalRuleDecoration: BoxDecoration(
+        border: Border(top: BorderSide(color: AppColors.borderSoft)),
       ),
     );
-  }
 
-  Widget _renderParagraph(String text) {
-    return _InlineMarkdownText(
-      text: text,
-      baseStyle: textStyle ?? AppTypography.bodyMedium,
-      monochrome: monochrome,
+    return MarkdownBody(
+      data: displayContent,
+      selectable: true,
+      fitContent: false,
+      softLineBreak: true,
+      extensionSet: _extensionSet,
+      styleSheet: styleSheet,
+      listItemCrossAxisAlignment: MarkdownListItemCrossAxisAlignment.start,
+      builders: <String, MarkdownElementBuilder>{
+        'pre': _CodeElementBuilder(monochrome: monochrome),
+        'latex': _SafeLatexElementBuilder(textStyle: baseStyle),
+      },
+      checkboxBuilder: _buildCheckbox,
+      imageBuilder: _buildImage,
+      onTapLink: onOpenLink == null
+          ? null
+          : (text, href, title) {
+              if (href == null) return;
+              final uri = Uri.tryParse(href);
+              if (uri == null ||
+                  (uri.scheme != 'http' && uri.scheme != 'https')) {
+                return;
+              }
+              onOpenLink!(uri.toString());
+            },
     );
   }
 
-  List<_MarkdownBlock> _parseBlocks(String input) {
-    final blocks = <_MarkdownBlock>[];
-    final lines = input.split('\n');
-    var i = 0;
+  bool _exceedsBlockLimit(String value) {
+    var count = 0;
+    for (final _ in _blockMarker.allMatches(value)) {
+      count++;
+      if (count > maxBlocks) return true;
+    }
+    return false;
+  }
 
-    while (i < lines.length) {
-      if (blocks.length >= maxBlocks) {
-        return [_ParagraphBlock(text: input)];
-      }
-      final line = lines[i];
+  Widget _buildCheckbox(bool checked) => Padding(
+    padding: const EdgeInsets.only(right: 5, top: 1),
+    child: Icon(
+      checked ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
+      size: 16,
+      color: checked ? AppColors.accentText : AppColors.textMuted,
+    ),
+  );
 
-      // Code Block start
-      if (line.trim().startsWith('```')) {
-        final language = line.trim().substring(3).trim();
-        final codeLines = <String>[];
-        i++;
-        while (i < lines.length && !lines[i].trim().startsWith('```')) {
-          codeLines.add(lines[i]);
-          i++;
-        }
-        if (i < lines.length) i++; // skip closing ```
-        blocks.add(_CodeBlock(language: language, code: codeLines.join('\n')));
-        continue;
-      }
-
-      // Headings
-      if (line.startsWith('#')) {
-        final match = RegExp(r'^(#{1,6})\s+(.*)$').firstMatch(line);
-        if (match != null) {
-          final level = match.group(1)!.length;
-          final text = match.group(2)!.trim();
-          blocks.add(_HeadingBlock(level: level, text: text));
-          i++;
-          continue;
-        }
-      }
-
-      // Blockquotes
-      if (line.startsWith('>')) {
-        final quoteLines = <String>[];
-        while (i < lines.length &&
-            lines[i].startsWith('>') &&
-            quoteLines.length < 100) {
-          quoteLines.add(lines[i].substring(1).trim());
-          i++;
-        }
-        while (i < lines.length && lines[i].startsWith('>')) {
-          i++;
-        }
-        blocks.add(_QuoteBlock(text: quoteLines.join('\n')));
-        continue;
-      }
-
-      // Unordered list items (- or * or +)
-      if (RegExp(r'^\s*[-*+]\s+').hasMatch(line)) {
-        final listItems = <String>[];
-        while (i < lines.length &&
-            RegExp(r'^\s*[-*+]\s+').hasMatch(lines[i]) &&
-            listItems.length < 200) {
-          final clean = lines[i].replaceFirst(RegExp(r'^\s*[-*+]\s+'), '');
-          listItems.add(clean);
-          i++;
-        }
-        while (i < lines.length && RegExp(r'^\s*[-*+]\s+').hasMatch(lines[i])) {
-          i++;
-        }
-        blocks.add(_ListBlock(items: listItems, isOrdered: false));
-        continue;
-      }
-
-      // Ordered list items (1. 2. etc)
-      if (RegExp(r'^\s*\d+\.\s+').hasMatch(line)) {
-        final listItems = <String>[];
-        while (i < lines.length &&
-            RegExp(r'^\s*\d+\.\s+').hasMatch(lines[i]) &&
-            listItems.length < 200) {
-          final clean = lines[i].replaceFirst(RegExp(r'^\s*\d+\.\s+'), '');
-          listItems.add(clean);
-          i++;
-        }
-        while (i < lines.length && RegExp(r'^\s*\d+\.\s+').hasMatch(lines[i])) {
-          i++;
-        }
-        blocks.add(_ListBlock(items: listItems, isOrdered: true));
-        continue;
-      }
-
-      // Paragraph / Plain text
-      if (line.trim().isNotEmpty) {
-        final paragraphLines = <String>[];
-        while (i < lines.length &&
-            lines[i].trim().isNotEmpty &&
-            !lines[i].trim().startsWith('```') &&
-            !lines[i].startsWith('#') &&
-            !lines[i].startsWith('>') &&
-            !RegExp(r'^\s*[-*+]\s+').hasMatch(lines[i]) &&
-            !RegExp(r'^\s*\d+\.\s+').hasMatch(lines[i])) {
-          paragraphLines.add(lines[i]);
-          i++;
-        }
-        blocks.add(_ParagraphBlock(text: paragraphLines.join('\n')));
-        continue;
-      }
-
-      i++;
+  Widget _buildImage(Uri uri, String? title, String? alt) {
+    final source = uri.toString();
+    if (source.length > _maxImageSourceCharacters) {
+      return _imageFallback('Image too large to preview');
     }
 
-    return blocks;
+    try {
+      final scheme = uri.scheme.toLowerCase();
+      final isSvg =
+          uri.path.toLowerCase().endsWith('.svg') ||
+          (uri.data?.mimeType.toLowerCase().contains('svg') ?? false);
+      final label = (alt?.trim().isNotEmpty ?? false)
+          ? alt!.trim()
+          : title?.trim();
+      late final Widget image;
+      if (scheme == 'data' && uri.data != null) {
+        final bytes = uri.data!.contentAsBytes();
+        image = isSvg
+            ? SvgPicture.memory(
+                bytes,
+                fit: BoxFit.contain,
+                semanticsLabel: label,
+              )
+            : Image.memory(
+                bytes,
+                fit: BoxFit.contain,
+                semanticLabel: label,
+                gaplessPlayback: true,
+                errorBuilder: (context, error, stackTrace) =>
+                    _imageFallback('Invalid image data'),
+              );
+      } else if (scheme == 'http' || scheme == 'https') {
+        image = isSvg
+            ? SvgPicture.network(
+                source,
+                fit: BoxFit.contain,
+                semanticsLabel: label,
+                placeholderBuilder: (context) => const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              )
+            : Image.network(
+                source,
+                fit: BoxFit.contain,
+                semanticLabel: label,
+                gaplessPlayback: true,
+                errorBuilder: (context, error, stackTrace) =>
+                    _imageFallback(source),
+              );
+      } else {
+        return _imageFallback(source);
+      }
+
+      return Container(
+        constraints: const BoxConstraints(maxWidth: 520, maxHeight: 360),
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.border),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: image,
+      );
+    } catch (_) {
+      return _imageFallback('Invalid image');
+    }
+  }
+
+  Widget _imageFallback(String label) => Padding(
+    padding: const EdgeInsets.all(8),
+    child: Text(
+      label,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: AppTypography.caption.copyWith(color: AppColors.textMuted),
+    ),
+  );
+}
+
+class _CodeElementBuilder extends MarkdownElementBuilder {
+  _CodeElementBuilder({required this.monochrome});
+
+  final bool monochrome;
+
+  @override
+  bool isBlockElement() => true;
+
+  @override
+  Widget visitElementAfterWithContext(
+    BuildContext context,
+    md.Element element,
+    TextStyle? preferredStyle,
+    TextStyle? parentStyle,
+  ) {
+    var language = 'text';
+    final children = element.children;
+    if (children != null &&
+        children.isNotEmpty &&
+        children.first is md.Element) {
+      final codeElement = children.first as md.Element;
+      final className = codeElement.attributes['class'] ?? '';
+      if (className.startsWith('language-')) {
+        language = className.substring('language-'.length).trim();
+      }
+    }
+    final code = element.textContent.replaceFirst(RegExp(r'\n$'), '');
+    return _CodeBlockWidget(
+      language: language,
+      code: code,
+      monochrome: monochrome,
+    );
   }
 }
 
@@ -280,33 +324,29 @@ class _CodeBlockWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final langLabel = language.trim().isEmpty ? 'text' : language.trim();
-
+    final label = language.isEmpty ? 'text' : language;
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 4),
       decoration: BoxDecoration(
         color: AppColors.codeBackground,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.codeBorder, width: 1),
+        border: Border.all(color: AppColors.codeBorder),
       ),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Code Header Bar
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
               color: AppColors.codeHeader,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(7)),
-              border: Border(
-                bottom: BorderSide(color: AppColors.codeBorder, width: 1),
-              ),
+              border: Border(bottom: BorderSide(color: AppColors.codeBorder)),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  langLabel,
+                  label,
                   style: AppTypography.monoSmall.copyWith(
                     color: AppColors.textMuted,
                     fontWeight: FontWeight.w600,
@@ -350,19 +390,20 @@ class _CodeBlockWidget extends StatelessWidget {
               ],
             ),
           ),
-          // Code Content
           SingleChildScrollView(
-            scrollDirection: Axis.vertical,
-            padding: const EdgeInsets.all(12),
-            child: monochrome
-                ? SelectableText(
-                    code,
-                    style: AppTypography.monoSmall.copyWith(
-                      color: AppColors.textMuted,
-                      height: 1.35,
-                    ),
-                  )
-                : SyntaxHighlightedCode(text: code, language: langLabel),
+            scrollDirection: Axis.horizontal,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: monochrome
+                  ? SelectableText(
+                      code,
+                      style: AppTypography.monoSmall.copyWith(
+                        color: AppColors.textMuted,
+                        height: 1.35,
+                      ),
+                    )
+                  : SyntaxHighlightedCode(text: code, language: label),
+            ),
           ),
         ],
       ),
@@ -370,249 +411,36 @@ class _CodeBlockWidget extends StatelessWidget {
   }
 }
 
-/// Renders inline markdown formatting: bold, italic, inline `code`.
-class _InlineMarkdownText extends StatelessWidget {
-  const _InlineMarkdownText({
-    required this.text,
-    required this.baseStyle,
-    required this.monochrome,
-  });
+class _SafeLatexElementBuilder extends MarkdownElementBuilder {
+  _SafeLatexElementBuilder({required this.textStyle});
 
-  final String text;
-  final TextStyle baseStyle;
-  final bool monochrome;
+  final TextStyle textStyle;
+
   @override
-  Widget build(BuildContext context) {
-    final spans = _parseInlineSpans(text, baseStyle);
-    return SelectableText.rich(TextSpan(children: spans));
-  }
-
-  List<InlineSpan> _parseInlineSpans(String text, TextStyle base) {
-    if (text.length > 12000) {
-      return [TextSpan(text: text, style: base)];
-    }
-    final spans = <InlineSpan>[];
-    final pattern = RegExp(
-      r'(!\[[^\]]*\]\([^)]+\)|(?:https?://|data:image/)[^\s]+|\$[^$\n]+\$|\\\([^)]+\)|`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*)',
-    );
-    var lastIndex = 0;
-    var matchCount = 0;
-
-    for (final match in pattern.allMatches(text)) {
-      matchCount++;
-      if (matchCount > 200) {
-        return [TextSpan(text: text, style: base)];
-      }
-      if (match.start > lastIndex) {
-        spans.add(
-          TextSpan(text: text.substring(lastIndex, match.start), style: base),
-        );
-      }
-
-      final matchedText = match.group(0)!;
-      final imageUrl = _imageUrlFromMarkdown(matchedText);
-      if (imageUrl != null) {
-        spans.add(
-          WidgetSpan(
-            alignment: PlaceholderAlignment.middle,
-            child: _buildInlineImage(imageUrl),
-          ),
-        );
-      } else if (matchedText.startsWith('\$') ||
-          matchedText.startsWith(r'\(')) {
-        final math = matchedText.startsWith('\$')
-            ? matchedText.substring(1, matchedText.length - 1)
-            : matchedText.substring(2, matchedText.length - 2);
-        spans.add(
-          WidgetSpan(
-            alignment: PlaceholderAlignment.middle,
-            child: _SafeMath(expression: math, style: base),
-          ),
-        );
-      } else if (matchedText.startsWith('`') && matchedText.endsWith('`')) {
-        final code = matchedText.substring(1, matchedText.length - 1);
-        spans.add(
-          WidgetSpan(
-            alignment: PlaceholderAlignment.middle,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-              margin: const EdgeInsets.symmetric(horizontal: 2),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceHigh,
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: AppColors.border, width: 0.8),
-              ),
-              child: Text(
-                code,
-                style: AppTypography.codeInline.copyWith(
-                  color: monochrome
-                      ? (base.color ?? AppColors.textMuted)
-                      : null,
-                ),
-              ),
-            ),
-          ),
-        );
-      } else if (matchedText.startsWith('**') && matchedText.endsWith('**')) {
-        spans.add(
-          TextSpan(
-            text: matchedText.substring(2, matchedText.length - 2),
-            style: base.copyWith(
-              fontWeight: FontWeight.w600,
-              color: monochrome
-                  ? (base.color ?? AppColors.textMuted)
-                  : AppColors.textPrimary,
-            ),
-          ),
-        );
-      } else if (matchedText.startsWith('*') && matchedText.endsWith('*')) {
-        spans.add(
-          TextSpan(
-            text: matchedText.substring(1, matchedText.length - 1),
-            style: base.copyWith(fontStyle: FontStyle.italic),
-          ),
-        );
-      } else {
-        spans.add(TextSpan(text: matchedText, style: base));
-      }
-      lastIndex = match.end;
-    }
-
-    if (lastIndex < text.length) {
-      spans.add(TextSpan(text: text.substring(lastIndex), style: base));
-    }
-    return spans;
-  }
-
-  String? _imageUrlFromMarkdown(String value) {
-    if (value.startsWith('![')) {
-      final match = RegExp(r'^!\[[^\]]*\]\(([^)]+)\)$').firstMatch(value);
-      return match?.group(1);
-    }
-    if (value.startsWith('data:image/')) return value;
-    if (RegExp(
-      r'^https?://[^\s?#]+\.(?:png|jpe?g|gif|webp|bmp|svg|avif|heic|heif|tiff?|ico)(?:[?#].*)?$',
-      caseSensitive: false,
-    ).hasMatch(value)) {
-      return value;
-    }
-    return null;
-  }
-
-  Widget _buildInlineImage(String source) {
-    if (source.length > 4_200_000) {
-      return _imageFallback('Image too large to preview');
-    }
+  Widget visitElementAfterWithContext(
+    BuildContext context,
+    md.Element element,
+    TextStyle? preferredStyle,
+    TextStyle? parentStyle,
+  ) {
+    final expression = element.textContent;
+    if (expression.isEmpty) return const SizedBox.shrink();
+    if (expression.length > 4096) return Text(expression, style: textStyle);
+    final mathStyle = element.attributes['MathStyle'] == 'display'
+        ? MathStyle.display
+        : MathStyle.text;
     try {
-      final image = source.startsWith('data:image/')
-          ? _decodeDataImage(source)
-          : Image.network(
-              source,
-              fit: BoxFit.contain,
-              errorBuilder: (context, error, stackTrace) =>
-                  _imageFallback(source),
-            );
-      return Container(
-        constraints: const BoxConstraints(maxWidth: 260, maxHeight: 200),
-        margin: const EdgeInsets.symmetric(horizontal: 3, vertical: 4),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: AppColors.border),
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Math.tex(
+          expression,
+          mathStyle: mathStyle,
+          textStyle: textStyle,
+          onErrorFallback: (_) => Text(expression, style: textStyle),
         ),
-        clipBehavior: Clip.antiAlias,
-        child: image,
       );
     } catch (_) {
-      return _imageFallback('Invalid image');
+      return Text(expression, style: textStyle);
     }
   }
-
-  Widget _decodeDataImage(String source) {
-    try {
-      final comma = source.indexOf(',');
-      if (comma < 0) return _imageFallback('Invalid image data');
-      final header = source.substring(0, comma);
-      final payload = source.substring(comma + 1);
-      if (!header.endsWith(';base64')) {
-        return _imageFallback('Unsupported image data');
-      }
-      if (payload.length > 4_200_000) {
-        return _imageFallback('Image too large to preview');
-      }
-      return Image.memory(
-        base64Decode(payload),
-        fit: BoxFit.contain,
-        errorBuilder: (context, error, stackTrace) =>
-            _imageFallback('Invalid image data'),
-      );
-    } catch (_) {
-      return _imageFallback('Invalid image data');
-    }
-  }
-
-  Widget _imageFallback(String label) => Padding(
-    padding: const EdgeInsets.all(8),
-    child: Text(
-      label,
-      maxLines: 2,
-      overflow: TextOverflow.ellipsis,
-      style: AppTypography.caption.copyWith(color: AppColors.textMuted),
-    ),
-  );
-}
-
-class _SafeMath extends StatelessWidget {
-  const _SafeMath({required this.expression, required this.style});
-
-  final String expression;
-  final TextStyle style;
-
-  @override
-  Widget build(BuildContext context) {
-    if (expression.length > 4096) {
-      return Text(expression, style: style);
-    }
-    try {
-      return Math.tex(
-        expression,
-        mathStyle: MathStyle.text,
-        textStyle: style,
-        onErrorFallback: (_) => Text(expression, style: style),
-      );
-    } catch (_) {
-      return Text(expression, style: style);
-    }
-  }
-}
-
-// Data classes for markdown blocks
-sealed class _MarkdownBlock {}
-
-class _CodeBlock extends _MarkdownBlock {
-  _CodeBlock({required this.language, required this.code});
-  final String language;
-  final String code;
-}
-
-class _HeadingBlock extends _MarkdownBlock {
-  _HeadingBlock({required this.level, required this.text});
-  final int level;
-  final String text;
-}
-
-class _ListBlock extends _MarkdownBlock {
-  _ListBlock({required this.items, required this.isOrdered});
-  final List<String> items;
-  final bool isOrdered;
-}
-
-class _QuoteBlock extends _MarkdownBlock {
-  _QuoteBlock({required this.text});
-  final String text;
-}
-
-class _ParagraphBlock extends _MarkdownBlock {
-  _ParagraphBlock({required this.text});
-  final String text;
 }

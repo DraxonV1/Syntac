@@ -4,7 +4,7 @@
 
 ## Ownership
 
-- `app_identity.dart` centralizes Syntac brand, repository, developer, and update channel while loading installed version metadata from the platform package.
+- `app_identity.dart` centralizes Syntac brand, repository, developer, and update channel while loading installed version metadata from platform package and deriving stable/beta/nightly channel from installed version.
 - `cancellation.dart` defines shared stop signals for agent, tools, and shell runtimes.
 - `update_service.dart` reads and compares public update manifests.
 

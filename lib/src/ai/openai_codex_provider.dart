@@ -572,7 +572,7 @@ class OpenAICodexProvider extends AIProvider {
   }
 
   static String _toolKey(Map item) =>
-      (item['item_id'] ?? item['call_id'] ?? item['id'] ?? '').toString();
+      (item['item_id'] ?? item['id'] ?? item['call_id'] ?? '').toString();
 
   static List<AIToolCall> _finishToolCalls(Map<String, _CodexToolCall> calls) =>
       calls.values

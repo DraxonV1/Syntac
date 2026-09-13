@@ -1341,8 +1341,11 @@ class _ToolCallCardState extends State<ToolCallCard>
                   const SizedBox(width: 8),
                 ],
                 GestureDetector(
-                  onTap: () =>
-                      _openMaximizedViewer(title, copyContent ?? content),
+                  onTap: () => _openMaximizedViewer(
+                    title,
+                    copyContent ?? content,
+                    language: language ?? title.toLowerCase(),
+                  ),
                   child: Icon(
                     AppIcons.maximize,
                     size: 13,
@@ -1373,7 +1376,11 @@ class _ToolCallCardState extends State<ToolCallCard>
     );
   }
 
-  void _openMaximizedViewer(String title, String content) {
+  void _openMaximizedViewer(
+    String title,
+    String content, {
+    required String language,
+  }) {
     Navigator.of(context).push(
       AppMotion.pageRoute(
         builder: (context) => Scaffold(
@@ -1396,12 +1403,16 @@ class _ToolCallCardState extends State<ToolCallCard>
           body: SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: Container(
-                width: double.infinity,
-                height: double.infinity,
-                padding: const EdgeInsets.all(12),
+              child: SizedBox.expand(
                 child: SingleChildScrollView(
-                  child: SelectableText(content, style: AppTypography.code),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: SyntaxHighlightedCode(
+                      text: content,
+                      language: language,
+                      backgroundColor: Colors.transparent,
+                    ),
+                  ),
                 ),
               ),
             ),

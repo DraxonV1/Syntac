@@ -34,6 +34,7 @@ class ChatMessageList extends StatefulWidget {
     this.chatId,
     this.attachments = const <Attachment>[],
     this.onAttachmentTap,
+    this.onOpenLink,
     this.autoExpandThinking = true,
     this.padding = const EdgeInsets.fromLTRB(16, 12, 16, 12),
   });
@@ -43,6 +44,7 @@ class ChatMessageList extends StatefulWidget {
   final List<ToolExecution> toolExecutions;
   final List<Attachment> attachments;
   final ValueChanged<Attachment>? onAttachmentTap;
+  final ValueChanged<String>? onOpenLink;
   final bool autoExpandThinking;
   final EdgeInsetsGeometry padding;
 
@@ -147,6 +149,7 @@ class ChatMessageListState extends State<ChatMessageList> {
                       .where((a) => a.messageId == message.id)
                       .toList(),
                   onAttachmentTap: widget.onAttachmentTap,
+                  onOpenLink: widget.onOpenLink,
                   autoExpandThinking: widget.autoExpandThinking,
                 ),
               ),
