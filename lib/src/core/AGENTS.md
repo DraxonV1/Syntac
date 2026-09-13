@@ -6,13 +6,13 @@
 
 ## Files
 
-- `app_identity.dart`: brand, developer, repository, version, channel, and display identity.
+- `app_identity.dart`: brand, developer, repository, installed package version, channel, and display identity.
 - `cancellation.dart`: cancellation tokens shared by agent, tool, and runtime flows.
 - `update_service.dart`: stable/beta/nightly manifest lookup and version comparison.
 
 ## Rules
 
-- Keep brand strings centralized in `AppIdentity`; do not duplicate names, URLs, versions, or channels in widgets.
+- Keep brand strings centralized in `AppIdentity`; load version name/code from installed package metadata and do not duplicate names, URLs, versions, or channels in widgets.
 - Cancellation must be cooperative, observable, idempotent, and must not resume model generation after stop.
 - Update checks must validate channel/manifests, sanitize network failures, and never persist credentials or raw responses.
 - Keep platform-specific URL opening in the Android bridge; this layer only requests the action.

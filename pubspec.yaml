@@ -13,7 +13,7 @@ publish_to: 'none'
 # In Android, build-name is used as versionName while build-number used as versionCode.
 # Read more about Android versioning at https://developer.android.com/studio/publish/versioning
 # In Windows, build-name is used as the major, minor, and patch parts
-version: 0.1.1-beta.7+17
+version: 0.1.1-beta.8+18
 
 environment:
   sdk: ^3.11.5
@@ -41,6 +41,7 @@ dependencies:
   flutter_math_fork: ^0.7.4
   flutter_highlight: ^0.7.0
   highlight: ^0.7.0
+  package_info_plus: ^9.0.1
 
 dev_dependencies:
   flutter_test:

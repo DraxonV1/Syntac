@@ -7,6 +7,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -27,6 +28,7 @@ import 'package:syntac/src/ai/models_dev_catalog.dart';
 import 'package:syntac/src/ai/registry/provider_registry.dart';
 import 'package:syntac/src/ai/provider_diagnostics.dart';
 import 'package:syntac/src/ai/provider_error_store.dart';
+import 'package:syntac/src/core/app_identity.dart';
 import 'package:syntac/src/core/cancellation.dart';
 import 'package:syntac/src/core/update_service.dart';
 import 'package:syntac/src/models.dart';
@@ -1845,6 +1847,39 @@ void main() {
     );
   });
 
+  test('Grok Responses omits unsupported reasoning effort', () async {
+    http.Request? captured;
+    final provider = OpenAIResponsesProvider(
+      baseUrl: 'https://api.x.ai/v1',
+      client: MockClient((request) async {
+        captured = request;
+        return http.Response(
+          'data: ${jsonEncode({
+            'type': 'response.completed',
+            'response': {'status': 'completed'},
+          })}\n\n',
+          200,
+          headers: {'content-type': 'text/event-stream'},
+        );
+      }),
+    );
+
+    await provider.completeChat(
+      const AIChatRequest(
+        model: 'grok-4.20-0309-reasoning',
+        messages: [AIChatMessage(role: 'user', content: 'hello')],
+        tools: [],
+        supportsReasoning: true,
+        includeThinking: true,
+        reasoningEffort: AIReasoningEffort.high,
+      ),
+      apiKey: 'xai-key',
+    );
+
+    final body = jsonDecode(captured!.body) as Map<String, Object?>;
+    expect(body.containsKey('reasoning'), isFalse);
+  });
+
   test('converts chat tool specs to Responses tools for Grok', () async {
     http.Request? captured;
     final provider = OpenAIResponsesProvider(
@@ -3373,6 +3408,101 @@ void main() {
     expect((parts[1] as Map).containsKey('thoughtSignature'), isFalse);
   });
 
+  test(
+    'Gemini 3 replaces thought signature when replay model changes',
+    () async {
+      Map<String, Object?>? captured;
+      final provider = GoogleCloudCodeAssistProvider(
+        baseUrl: GoogleAntigravityOAuthFlow.defaultBaseUrl,
+        client: MockClient((request) async {
+          captured = jsonDecode(request.body) as Map<String, Object?>;
+          return http.Response(
+            'data: ${jsonEncode({
+              'response': {
+                'candidates': [
+                  {
+                    'content': {
+                      'parts': [
+                        {'text': 'done'},
+                      ],
+                    },
+                    'finishReason': 'STOP',
+                  },
+                ],
+              },
+            })}\n\n',
+            200,
+            headers: {'content-type': 'text/event-stream'},
+          );
+        }),
+      );
+
+      await provider.completeChat(
+        const AIChatRequest(
+          model: 'gemini-3.1-flash-lite',
+          messages: [
+            AIChatMessage(role: 'user', content: 'show image'),
+            AIChatMessage(
+              role: 'assistant',
+              content: '',
+              toolCalls: [
+                AIToolCall(
+                  id: 'call_display_image',
+                  name: 'display_image',
+                  argumentsJson: '{"path":"image.png"}',
+                ),
+              ],
+              providerMetadata: {
+                'gemini': {
+                  'model': 'gemini-3.1-pro-low',
+                  'parts': [
+                    {
+                      'functionCall': {
+                        'name': 'display_image',
+                        'args': {'path': 'image.png'},
+                      },
+                      'thoughtSignature': 'signature_from_other_model',
+                    },
+                  ],
+                },
+              },
+            ),
+            AIChatMessage(
+              role: 'tool',
+              content: '{"ok":true}',
+              toolCallId: 'call_display_image',
+            ),
+            AIChatMessage(role: 'assistant', content: 'Image shown.'),
+            AIChatMessage(role: 'user', content: 'continue'),
+          ],
+          tools: [],
+        ),
+        apiKey: '{"token":"access-token","projectId":"project-123"}',
+      );
+
+      final request = captured!['request'] as Map;
+      final contents = request['contents'] as List;
+      final modelTurn =
+          contents.firstWhere(
+                (turn) =>
+                    turn is Map &&
+                    (turn['parts'] as List).any(
+                      (part) => part is Map && part['functionCall'] != null,
+                    ),
+              )
+              as Map;
+      final functionCallPart = (modelTurn['parts'] as List).first as Map;
+      expect(
+        functionCallPart['thoughtSignature'],
+        'skip_thought_signature_validator',
+      );
+      expect(
+        jsonEncode(functionCallPart),
+        isNot(contains('signature_from_other_model')),
+      );
+    },
+  );
+
   test('Gemini reasoning config uses provider-native bounded values', () async {
     Map<String, Object?>? captured;
     final provider = GoogleCloudCodeAssistProvider(
@@ -3928,6 +4058,87 @@ void main() {
     }
   });
 
+  test(
+    'sends images for vision providers when model metadata is absent',
+    () async {
+      final repo = await repository();
+      final projectRoot = await Directory.systemTemp.createTemp(
+        'syntac_vision_project_',
+      );
+      final sourceRoot = await Directory.systemTemp.createTemp(
+        'syntac_vision_source_',
+      );
+      try {
+        final image = File(
+          '${sourceRoot.path}${Platform.pathSeparator}pixel.png',
+        );
+        await image.writeAsBytes(
+          base64Decode(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+          ),
+        );
+        final project = await repo.createProject(
+          name: 'Vision',
+          folderPath: projectRoot.path,
+        );
+        final provider = await repo.saveProvider(
+          name: 'Google Antigravity',
+          baseUrl: GoogleAntigravityOAuthFlow.defaultBaseUrl,
+          providerKey: 'google-antigravity',
+          apiKey: 'key',
+          models: ['gemini-3.1-pro'],
+        );
+        final model = (await repo.listProviderModels(provider.id)).single;
+        final chat = await repo.createChat(
+          projectId: project.id,
+          title: 'New chat',
+          providerId: provider.id,
+          modelId: model.id,
+        );
+        final fakeProvider = QueueProvider(
+          Queue<AIChatResponse>.from([
+            const AIChatResponse(
+              text: 'done',
+              toolCalls: [],
+              finishReason: 'stop',
+            ),
+          ]),
+        );
+        final loop = AgentLoop(
+          repository: repo,
+          modelsDevCatalog: const ModelsDevCatalog.empty(),
+          providerFactory: (_) => fakeProvider,
+        );
+
+        await loop.send(
+          project: project,
+          chat: chat,
+          userText: 'describe image',
+          attachments: [
+            Attachment.create(
+              messageId: 'pending',
+              path: image.path,
+              kind: AttachmentKind.image,
+              name: 'pixel.png',
+              mimeType: 'image/png',
+            ),
+          ],
+        );
+
+        final userMessage = fakeProvider.requests.single.messages.lastWhere(
+          (message) => message.role == 'user',
+        );
+        expect(userMessage.images, hasLength(1));
+        expect(userMessage.images.single.mimeType, 'image/png');
+        expect(userMessage.images.single.base64Data, isNotEmpty);
+      } finally {
+        await projectRoot.delete(recursive: true);
+        await sourceRoot.delete(recursive: true);
+        await Directory(repo.chatStoragePath).delete(recursive: true);
+      }
+    },
+  );
+
   test('maps direct user bash results back into user context', () async {
     final chatId = newId();
     final result = ChatMessage.create(
@@ -4117,6 +4328,51 @@ void main() {
     expect(
       describeAIErrorForUser(const FormatException('bad tool json')),
       'invalid_agent_data: bad tool json',
+    );
+  });
+
+  test('app identity loads installed package version metadata', () async {
+    final previousIdentity = AppIdentity.instance;
+    addTearDown(() => AppIdentity.instance = previousIdentity);
+    PackageInfo.setMockInitialValues(
+      appName: 'Syntac',
+      packageName: 'com.syntac',
+      version: '0.1.1-beta.8',
+      buildNumber: '18',
+      buildSignature: 'test',
+    );
+
+    await AppIdentity.initializeFromPlatform();
+
+    expect(AppIdentity.instance.version, '0.1.1-beta.8');
+    expect(AppIdentity.instance.versionCode, 18);
+
+    final updateService = UpdateService(
+      client: MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'version': '0.1.1-beta.8',
+            'versionCode': 18,
+            'apkUrl':
+                'https://github.com/DraxonV1/Syntac/releases/download/v0.1.1-beta.8/syntac-arm64.apk',
+            'sha256':
+                'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            'size': 139232837,
+            'mandatory': false,
+            'minSupportedVersionCode': 10,
+            'notes': ['Current build'],
+          }),
+          200,
+        ),
+      ),
+      endpoints: [Uri.parse('https://example.test/beta.json')],
+    );
+    expect(
+      await updateService.check(
+        channel: UpdateChannel.beta,
+        currentVersionCode: AppIdentity.instance.versionCode,
+      ),
+      isNull,
     );
   });
 

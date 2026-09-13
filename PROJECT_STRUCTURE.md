@@ -254,14 +254,14 @@ Generated/ignored folders such as `build/`, `.dart_tool/`, `.gradle/`, and local
 - `lib/main.dart`: app entry point.
 - `lib/src/app.dart`: `SyntacApp` and `AppController`; coordinates repository, providers, runtime, chats, onboarding, settings, and UI actions.
 - `lib/src/models.dart`: IDs, enums, persistence caps, JSON helpers, domain objects.
-- `lib/src/core/app_identity.dart`: app name, developer, repository URL, current version, update channel, display strings.
+- `lib/src/core/app_identity.dart`: app name, developer, repository URL, installed package version metadata, update channel, and display strings.
 - `lib/src/core/cancellation.dart`: cancellation token used by agent/runtime/tool flows.
 - `lib/src/core/update_service.dart`: reads channel update manifests from `syntac.com` or GitHub and decides whether an APK update is newer.
 
 ### Agent
 
 
-- `lib/src/agent/agent_loop.dart`: chat run lifecycle, streaming, tool calls, cancellation, provider retries, job/chat state.
+- `lib/src/agent/agent_loop.dart`: chat run lifecycle, streaming, tool calls, cancellation, provider retries, image capability fallback, job/chat state.
 - `lib/src/agent/context_builder.dart`: bounded model context, global `agent/SYSTEM.md`, project `.syntac/agent/SYSTEM.md` or `AGENTS.md` override, stable attachment URIs/paths, and message trimming. User-run `!bash` results re-enter context as user-owned execution records.
 - `lib/src/agent/system_prompt.dart`: base model instructions and tool-use expectations.
 

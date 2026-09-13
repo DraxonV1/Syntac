@@ -33,6 +33,8 @@
 - Unsupported Google model IDs must be filtered before persistence/use.
 - OAuth callback redirects must validate expected port/path.
 - DeepSeek tool turns must replay exact untruncated `reasoning_content`; never synthesize it or emit `tool_choice`.
+- Antigravity replay may preserve thought signatures only for matching stored/current wire models; older or cross-model history uses validator bypass signature.
+- xAI Responses requests must not emit reasoning-effort configuration because reasoning models reject it.
 
 ## Tests
 

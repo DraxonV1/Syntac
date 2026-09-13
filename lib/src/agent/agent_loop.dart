@@ -270,7 +270,13 @@ class AgentLoop {
         job = job.update(currentAction: 'Thinking');
         await _repository.updateAgentJob(job);
         final history = await _repository.listMessages(chat.id);
-        if (modelMetadata?.supportsImages == true) {
+        final supportsImages =
+            modelMetadata?.supportsImages ??
+            const ProviderRegistry()
+                .byId(provider.providerKey)
+                .capabilities
+                .supportsImages;
+        if (supportsImages) {
           await _loadImageParts(
             history,
             firstMessage: firstMessage,

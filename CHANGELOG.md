@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.1.1-beta.8
+
+Android Early Access version, provider replay, and vision hotfix.
+
+### Fixed
+
+- App version display and update comparison now use installed Android package metadata instead of hardcoded values.
+- Gemini 3 Antigravity replaces stale cross-model thought signatures during tool replay, preventing `INVALID_ARGUMENT` failures after model changes.
+- Gemini vision attachments remain enabled when discovered model metadata is absent but provider supports images.
+- Grok Responses requests no longer send unsupported reasoning-effort configuration.
+
+### Release metadata
+
+- Android package: `com.syntac`
+- Version: `0.1.1-beta.8`
+- Version code: `18`
+- Default update channel: `beta`
+
 ## 0.1.1-beta.7
 
 Android Early Access chat, command, and attachment reliability update.

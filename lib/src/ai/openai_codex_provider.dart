@@ -401,7 +401,9 @@ class OpenAICodexProvider extends AIProvider {
       if (_credentialProvider != OAuthProviderId.openAICodex &&
           request.maxOutputTokens != null)
         'max_output_tokens': request.maxOutputTokens,
-      if (request.supportsReasoning && request.includeThinking)
+      if (_credentialProvider != OAuthProviderId.xaiOAuth &&
+          request.supportsReasoning &&
+          request.includeThinking)
         'reasoning': {
           'effort': _wireReasoningEffort(request.reasoningEffort),
           'summary': 'auto',
