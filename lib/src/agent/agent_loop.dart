@@ -104,6 +104,11 @@ class AgentLoop {
   _xaiOAuthRefresh;
   final Map<String, CancellationToken> _activeRuns =
       <String, CancellationToken>{};
+  final Map<String, Set<CommandDetachmentController>>
+  _activeCommandDetachments = <String, Set<CommandDetachmentController>>{};
+  final Map<String, Completer<void>> _activeRunDone =
+      <String, Completer<void>>{};
+  final Set<String> _backgroundRequestedChats = <String>{};
 
   bool isChatRunning(String chatId) => _activeRuns.containsKey(chatId);
   void setCommandApprovalHandler(CommandApprovalHandler? handler) {
@@ -121,6 +126,25 @@ class AgentLoop {
     );
   }
 
+  Future<bool> backgroundLongCommand(
+    String chatId, {
+    Duration minimumRuntime = const Duration(seconds: 30),
+  }) async {
+    final controllers = _activeCommandDetachments[chatId];
+    if (controllers == null || controllers.isEmpty) return false;
+    var requested = false;
+    for (final controller in List<CommandDetachmentController>.of(
+      controllers,
+    )) {
+      if (controller.request(minimumRuntime: minimumRuntime)) requested = true;
+    }
+    if (!requested) return false;
+    _backgroundRequestedChats.add(chatId);
+    final done = _activeRunDone[chatId];
+    if (done != null) await done.future;
+    return true;
+  }
+
   Future<void> send({
     required Project project,
     required Chat chat,
@@ -135,6 +159,8 @@ class AgentLoop {
     }
     final token = CancellationToken();
     _activeRuns[chat.id] = token;
+    final runDone = Completer<void>();
+    _activeRunDone[chat.id] = runDone;
     var job = AgentJob.start(projectId: project.id, chatId: chat.id);
     String providerName = 'provider';
     AIChatRequest? lastRequest;
@@ -143,24 +169,30 @@ class AgentLoop {
       await _repository.setChatStatus(chat.id, ChatStatus.running);
       final limits = await _repository.readAgentLimits();
 
-      final firstMessage = ChatMessage.create(
+      var firstMessage = ChatMessage.create(
         chatId: chat.id,
         role: MessageRole.user,
         content: userText,
-        metadata: attachments.map((attachment) => attachment.toMap()).toList(),
       );
       await _repository.addMessage(firstMessage);
-      for (final attachment in attachments) {
-        await _repository.addAttachment(
-          Attachment.create(
-            messageId: firstMessage.id,
-            path: attachment.path,
-            kind: attachment.kind,
-            name: attachment.name,
-            mimeType: attachment.mimeType,
+      final storedAttachments = await _repository.importAttachments(
+        chatId: chat.id,
+        messageId: firstMessage.id,
+        sources: attachments,
+      );
+      if (storedAttachments.isNotEmpty) {
+        firstMessage = firstMessage.copyWith(
+          metadataJson: jsonEncode(
+            storedAttachments
+                .map((attachment) => attachment.toMap())
+                .toList(growable: false),
           ),
         );
+        await _repository.updateMessage(firstMessage);
       }
+      final availableAttachments = await _repository.listChatAttachments(
+        chat.id,
+      );
       if (chat.title == 'New chat' || chat.title.trim().isEmpty) {
         await _repository.updateChat(
           chat.copyWith(title: titleFromPrompt(userText)),
@@ -210,7 +242,7 @@ class AgentLoop {
         projectRoot: project.folderPath,
         shellExecutor: await _runtimeExecutorForProject(project),
         commandApproval: _commandApproval,
-        attachments: attachments,
+        attachments: availableAttachments,
         todoHandler: (arguments) => _repository.executeTodo(chat.id, arguments),
       );
       final ai = _providerFactory(provider);
@@ -242,7 +274,7 @@ class AgentLoop {
           await _loadImageParts(
             history,
             firstMessage: firstMessage,
-            currentAttachments: attachments,
+            currentAttachments: storedAttachments,
             cache: imagePartsByMessageId,
           );
         }
@@ -319,27 +351,46 @@ class AgentLoop {
             token.throwIfCancelled();
             var lastPreview = DateTime.fromMillisecondsSinceEpoch(0);
             var lastUiPreview = DateTime.fromMillisecondsSinceEpoch(0);
-            final toolResult = await tools.execute(
-              started.call.name,
-              started.args,
-              cancellationToken: token,
-              commandTimeout: Duration(seconds: limits.commandTimeoutSeconds),
-              onUpdate: (partialResult) async {
-                final now = DateTime.now();
-                final updated = started.execution.runningResult({
-                  'ok': true,
-                  'result': partialResult,
-                });
-                if (now.difference(lastUiPreview).inMilliseconds >= 33) {
-                  lastUiPreview = now;
-                  await _onToolExecutionChanged?.call(updated);
+            final detachment = started.call.name == 'bash'
+                ? CommandDetachmentController()
+                : null;
+            if (detachment != null) {
+              (_activeCommandDetachments[chat.id] ??=
+                      <CommandDetachmentController>{})
+                  .add(detachment);
+            }
+            try {
+              final toolResult = await tools.execute(
+                started.call.name,
+                started.args,
+                cancellationToken: token,
+                commandTimeout: Duration(seconds: limits.commandTimeoutSeconds),
+                commandDetachment: detachment,
+                onUpdate: (partialResult) async {
+                  final now = DateTime.now();
+                  final updated = started.execution.runningResult({
+                    'ok': true,
+                    'result': partialResult,
+                  });
+                  if (now.difference(lastUiPreview).inMilliseconds >= 33) {
+                    lastUiPreview = now;
+                    await _onToolExecutionChanged?.call(updated);
+                  }
+                  if (now.difference(lastPreview).inMilliseconds < 250) return;
+                  lastPreview = now;
+                  await _repository.updateToolExecution(updated);
+                },
+              );
+              return (started: started, toolResult: toolResult);
+            } finally {
+              if (detachment != null) {
+                final active = _activeCommandDetachments[chat.id];
+                active?.remove(detachment);
+                if (active?.isEmpty ?? false) {
+                  _activeCommandDetachments.remove(chat.id);
                 }
-                if (now.difference(lastPreview).inMilliseconds < 250) return;
-                lastPreview = now;
-                await _repository.updateToolExecution(updated);
-              },
-            );
-            return (started: started, toolResult: toolResult);
+              }
+            }
           }),
         );
         for (final completed in completedToolCalls) {
@@ -381,6 +432,16 @@ class AgentLoop {
             return;
           }
           token.throwIfCancelled();
+        }
+        if (_backgroundRequestedChats.remove(chat.id)) {
+          await _finish(
+            job,
+            chat.id,
+            AgentJobState.completed,
+            ChatStatus.completed,
+          );
+          await _onMessagesChanged?.call(chat.id);
+          return;
         }
         await _onMessagesChanged?.call(chat.id);
         token.throwIfCancelled();
@@ -425,6 +486,10 @@ class AgentLoop {
       rethrow;
     } finally {
       _activeRuns.remove(chat.id);
+      _activeCommandDetachments.remove(chat.id);
+      _backgroundRequestedChats.remove(chat.id);
+      final done = _activeRunDone.remove(chat.id);
+      if (done != null && !done.isCompleted) done.complete();
     }
   }
 

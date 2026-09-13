@@ -20,11 +20,15 @@ mixin ReadTool on ToolContext {
     bool includeImage = false,
     bool systemwide = false,
   }) async {
+    final attachedPath = inputPath.startsWith('local://')
+        ? null
+        : await resolveAttachedAbsolutePath(inputPath);
     final path = inputPath.startsWith('local://')
         ? await resolveLocalPath(inputPath)
-        : systemwide
-        ? await resolveSystemPath(inputPath)
-        : await resolvePath(inputPath);
+        : attachedPath ??
+              (systemwide
+                  ? await resolveSystemPath(inputPath)
+                  : await resolvePath(inputPath));
     final type = await FileSystemEntity.type(path);
     if (type == FileSystemEntityType.notFound) {
       throw ToolFailure('File does not exist: $inputPath');

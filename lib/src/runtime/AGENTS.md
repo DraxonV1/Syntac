@@ -22,6 +22,7 @@
 - Native stdout/stderr streams cap at 2,000,000 characters per stream and report truncation.
 - Durable job status includes start/finish timestamps, duration, exit code, terminal state, failure kind, restart count, and log truncation metadata for current-session inspection. Completed/cancelled records are not persisted.
 - `RuntimeJobExecutor` keeps jobs tools independent from native MethodChannel details.
+- Foreground Arch commands start through durable job supervisor and may detach after 30 seconds without stopping process.
 - Cancellation returns cancelled/interrupted state and must stop native process tree.
 
 ## Tests

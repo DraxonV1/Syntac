@@ -215,14 +215,34 @@ class ContextBuilder {
     try {
       final decoded = jsonDecode(message.metadataJson!);
       if (decoded is! List || decoded.isEmpty) return message.content;
-      final uris = <String>[];
+      final references = <String>[];
       for (var index = 0; index < decoded.length; index++) {
-        if (decoded[index] is Map) {
-          uris.add('local://attachment-${index + 1}');
-        }
+        final raw = decoded[index];
+        if (raw is! Map) continue;
+        final id = raw['id']?.toString().trim() ?? '';
+        final uri = id.isEmpty
+            ? 'local://attachment-${index + 1}'
+            : 'local://attachment/$id';
+        final name = raw['name']?.toString().replaceAll(
+          RegExp(r'[\r\n]+'),
+          ' ',
+        );
+        final path = raw['path']?.toString().replaceAll(
+          RegExp(r'[\r\n]+'),
+          ' ',
+        );
+        references.add(
+          [
+            uri,
+            if (name != null && name.isNotEmpty) 'name: $name',
+            if (path != null && path.isNotEmpty) 'stored path: $path',
+          ].join(' · '),
+        );
       }
-      if (uris.isEmpty) return message.content;
-      return '${message.content}\n\nAttached files available: ${uris.join(', ')}';
+      if (references.isEmpty) return message.content;
+      return '${message.content}\n\n'
+          'Attached files persist for this chat. Prefer stable local paths:\n'
+          '${references.join('\n')}';
     } catch (_) {
       return message.content;
     }

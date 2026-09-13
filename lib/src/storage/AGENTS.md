@@ -31,6 +31,7 @@
 - Startup must recover/dismiss temp files safely.
 - Malformed rows must not drop valid rows.
 - Deleted chats must reject later messages, jobs, tool executions, attachments, and todo transitions.
+- Imported attachments live inside owning chat session directory, keep stable IDs, and are deleted with chat.
 - Persisted text/raw JSON caps must keep UI responsive.
 
 ## Documentation

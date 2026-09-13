@@ -7,9 +7,9 @@
   "mandatory": false,
   "minSupportedVersionCode": 10,
   "notes": [
-    "Google Antigravity tool-schema compatibility aligned with OMP",
-    "DeepSeek provider setup and native thinking/tool replay",
-    "Persistent user-readable chat todo progress",
-    "Safer snapshot-based patches and provider error handling"
+    "Persistent attachment paths available across later chat prompts",
+    "Safe Arch command detachment when sending after 30 seconds",
+    "Gemini 3 Antigravity replay compatibility for older models",
+    "Transparent tool output surfaces and icon-only stop controls"
   ]
 }

@@ -4,7 +4,7 @@
 
 `agent_loop.dart` owns one chat turn: persist user input, build bounded context, call selected provider, execute grouped tool calls, stream updates, persist assistant/tool messages, and finish job/chat state.
 
-`context_builder.dart` assembles global `agent/SYSTEM.md`, project `.syntac/agent/SYSTEM.md` or `AGENTS.md` overrides, chat history, temporary attachment handles, and context limits. `system_prompt.dart` owns base model instructions.
+`context_builder.dart` assembles global `agent/SYSTEM.md`, project `.syntac/agent/SYSTEM.md` or `AGENTS.md` overrides, chat history, stable `local://attachment/<id>` references with stored paths, and context limits. `system_prompt.dart` owns base model instructions.
 
 ## Rules
 
@@ -17,6 +17,8 @@
 - Keep tool execution and messages scoped to owning chat.
 - Keep provider credentials and raw transport errors out of messages and diagnostics.
 - Bound every context section and preserve instruction precedence.
+- When user sends during an Arch command running for at least 30 seconds, detach durable job, persist background result, finish old run, and accept new turn without resuming old model generation.
+- Supply all chat-owned attachments to each turn so stable references survive later prompts.
 
 ## Change workflow
 

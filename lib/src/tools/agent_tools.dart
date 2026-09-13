@@ -2,6 +2,7 @@
 
 import 'dart:io';
 import '../core/cancellation.dart';
+import '../runtime/shell_executor.dart';
 import 'apply_patch_tool.dart';
 import 'bash_tool.dart';
 import 'copy_tool.dart';
@@ -305,6 +306,7 @@ class ProjectTools extends ToolContext
     CancellationToken? cancellationToken,
     Duration? commandTimeout,
     ToolUpdateCallback? onUpdate,
+    CommandDetachmentController? commandDetachment,
   }) async {
     try {
       cancellationToken?.throwIfCancelled();
@@ -374,6 +376,7 @@ class ProjectTools extends ToolContext
           background: args['background'] == true || args['async'] == true,
           cancellationToken: cancellationToken,
           onUpdate: onUpdate,
+          detachmentController: commandDetachment,
         ),
         'copy' => await copyFile(
           source: args['source'] as String? ?? '',

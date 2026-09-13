@@ -908,6 +908,34 @@ void main() {
         await outside.delete(recursive: true);
       }
     });
+    test('foreground ARCH command detaches without cancellation', () async {
+      final dir = await Directory.systemTemp.createTemp(
+        'syntac_detachable_command_',
+      );
+      try {
+        final executor = FakeRuntimeJobExecutor()..holdRunning = true;
+        final tools = ProjectTools(
+          projectRoot: dir.path,
+          shellExecutor: executor,
+        );
+        final detachment = CommandDetachmentController();
+        final execution = tools.execute('bash', {
+          'command': 'sleep 60',
+        }, commandDetachment: detachment);
+        await executor.commandStarted.future;
+        await Future<void>.delayed(Duration.zero);
+
+        expect(detachment.request(minimumRuntime: Duration.zero), isTrue);
+        final result = await execution;
+        final command = result['result'] as Map;
+        expect(result['ok'], isTrue);
+        expect(command['background'], isTrue);
+        expect(command['jobId'], 'job-1');
+        expect(executor.cancelJobCalled, isFalse);
+      } finally {
+        await dir.delete(recursive: true);
+      }
+    });
     test('read caps line output at 500 and exposes continuation', () async {
       final dir = await Directory.systemTemp.createTemp('syntac_read_cap_');
       final file = File('${dir.path}${Platform.pathSeparator}large.txt');
@@ -2658,6 +2686,82 @@ void main() {
       );
       await dir.delete(recursive: true);
     });
+    test(
+      'new message backgrounds long ARCH command without model resume',
+      () async {
+        final repo = await repository();
+        final dir = await Directory.systemTemp.createTemp('syntac_agent_test_');
+        final project = await repo.createProject(
+          name: 'Bot',
+          folderPath: dir.path,
+        );
+        final provider = await repo.saveProvider(
+          name: 'Fake',
+          baseUrl: 'https://fake.test',
+          apiKey: 'key',
+          models: ['fake-model'],
+        );
+        final model = (await repo.listProviderModels(provider.id)).single;
+        final chat = await repo.createChat(
+          projectId: project.id,
+          title: 'New chat',
+          providerId: provider.id,
+          modelId: model.id,
+        );
+        final shell = FakeRuntimeJobExecutor()..holdRunning = true;
+        final fakeProvider = QueueProvider(
+          Queue<AIChatResponse>.from([
+            const AIChatResponse(
+              text: '',
+              toolCalls: [
+                AIToolCall(
+                  id: 'call_bash',
+                  name: 'bash',
+                  argumentsJson: '{"command":"sleep 60"}',
+                ),
+              ],
+              finishReason: 'tool_calls',
+            ),
+            const AIChatResponse(
+              text: 'should not resume',
+              toolCalls: [],
+              finishReason: 'stop',
+            ),
+          ]),
+        );
+        final loop = AgentLoop(
+          repository: repo,
+          providerFactory: (_) => fakeProvider,
+          shellExecutorFactory: (_) async => shell,
+        );
+
+        final run = loop.send(project: project, chat: chat, userText: 'run');
+        await shell.commandStarted.future;
+        await Future<void>.delayed(Duration.zero);
+        expect(
+          await loop.backgroundLongCommand(
+            chat.id,
+            minimumRuntime: Duration.zero,
+          ),
+          isTrue,
+        );
+        await run;
+
+        expect(fakeProvider.requests, hasLength(1));
+        expect(shell.cancelJobCalled, isFalse);
+        expect((await repo.getChat(chat.id))!.status, ChatStatus.completed);
+        final execution = (await repo.listToolExecutions(chat.id)).single;
+        expect(execution.status, ToolExecutionStatus.success);
+        expect(execution.resultJson, contains('"background":true'));
+        expect(
+          (await repo.listMessages(
+            chat.id,
+          )).where((message) => message.role == MessageRole.tool),
+          hasLength(1),
+        );
+        await dir.delete(recursive: true);
+      },
+    );
   });
 
   test('streamed tool arguments appear before execution starts', () async {
@@ -3192,6 +3296,82 @@ void main() {
       'POST https://daily-cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse',
     );
   });
+  test('Gemini 3 repairs first unsigned function call during replay', () async {
+    Map<String, Object?>? captured;
+    final provider = GoogleCloudCodeAssistProvider(
+      baseUrl: GoogleAntigravityOAuthFlow.defaultBaseUrl,
+      client: MockClient((request) async {
+        captured = jsonDecode(request.body) as Map<String, Object?>;
+        return http.Response(
+          'data: ${jsonEncode({
+            'response': {
+              'candidates': [
+                {
+                  'content': {
+                    'parts': [
+                      {'text': 'done'},
+                    ],
+                  },
+                  'finishReason': 'STOP',
+                },
+              ],
+            },
+          })}\n\n',
+          200,
+          headers: {'content-type': 'text/event-stream'},
+        );
+      }),
+    );
+
+    await provider.completeChat(
+      const AIChatRequest(
+        model: 'gemini-3.1-flash-lite',
+        messages: [
+          AIChatMessage(role: 'user', content: 'inspect files'),
+          AIChatMessage(
+            role: 'assistant',
+            content: '',
+            toolCalls: [
+              AIToolCall(
+                id: 'call_read',
+                name: 'read',
+                argumentsJson: '{"path":"a.txt"}',
+              ),
+              AIToolCall(
+                id: 'call_list',
+                name: 'list',
+                argumentsJson: '{"path":"."}',
+              ),
+            ],
+          ),
+          AIChatMessage(
+            role: 'tool',
+            content: '{"ok":true}',
+            toolCallId: 'call_read',
+          ),
+          AIChatMessage(
+            role: 'tool',
+            content: '{"ok":true}',
+            toolCallId: 'call_list',
+          ),
+        ],
+        tools: [],
+      ),
+      apiKey: '{"token":"access-token","projectId":"project-123"}',
+    );
+
+    final request = captured!['request'] as Map;
+    final contents = request['contents'] as List;
+    final modelTurn =
+        contents.firstWhere((turn) => turn is Map && turn['role'] == 'model')
+            as Map;
+    final parts = modelTurn['parts'] as List;
+    expect(
+      (parts.first as Map)['thoughtSignature'],
+      'skip_thought_signature_validator',
+    );
+    expect((parts[1] as Map).containsKey('thoughtSignature'), isFalse);
+  });
 
   test('Gemini reasoning config uses provider-native bounded values', () async {
     Map<String, Object?>? captured;
@@ -3632,21 +3812,120 @@ void main() {
     expect(built.skip(1).where((message) => message.role == 'tool'), isEmpty);
   });
 
-  test('adds short attachment URIs only to model context', () {
+  test('adds stable attachment paths to model context', () {
     final message = ChatMessage.create(
       chatId: 'chat',
       role: MessageRole.user,
       content: 'Inspect this file',
       metadata: const [
-        {'name': 'notes.txt'},
+        {
+          'id': 'attachment-stable',
+          'name': 'notes.txt',
+          'path':
+              '/storage/emulated/0/.syntac/chats/chat/attachments/notes.txt',
+        },
       ],
     );
     final built = ContextBuilder(
       maxCharacters: 100000,
     ).build(history: [message]);
 
-    expect(built.last.content, contains('local://attachment-1'));
-    expect(built.last.content, isNot(contains('notes.txt')));
+    expect(
+      built.last.content,
+      contains('local://attachment/attachment-stable'),
+    );
+    expect(built.last.content, contains('notes.txt'));
+    expect(built.last.content, contains('/storage/emulated/0/.syntac/chats'));
+  });
+
+  test('imports attachments for later chat prompts and tool reads', () async {
+    final db = await LocalDatabase.open(
+      path: inMemoryDatabasePath,
+      factory: databaseFactoryFfi,
+    );
+    final chatRoot = await Directory.systemTemp.createTemp(
+      'syntac_attachment_store_',
+    );
+    final projectRoot = await Directory.systemTemp.createTemp(
+      'syntac_attachment_project_',
+    );
+    final sourceRoot = await Directory.systemTemp.createTemp(
+      'syntac_attachment_source_',
+    );
+    try {
+      final repo = AppRepository(
+        localDatabase: db,
+        secretStore: MemorySecretStore(),
+        chatStorageDirectory: chatRoot,
+      );
+      final project = await repo.createProject(
+        name: 'Attachments',
+        folderPath: projectRoot.path,
+      );
+      final chat = await repo.createChat(
+        projectId: project.id,
+        title: 'Persistent file',
+      );
+      var message = ChatMessage.create(
+        chatId: chat.id,
+        role: MessageRole.user,
+        content: 'Keep this file',
+      );
+      await repo.addMessage(message);
+      final sourceFile = File(
+        '${sourceRoot.path}${Platform.pathSeparator}notes.txt',
+      );
+      await sourceFile.writeAsString('persistent attachment content');
+      final selected = Attachment.create(
+        messageId: 'pending',
+        path: sourceFile.path,
+        kind: AttachmentKind.text,
+        name: 'notes.txt',
+      );
+
+      final stored = await repo.importAttachments(
+        chatId: chat.id,
+        messageId: message.id,
+        sources: [selected],
+      );
+      message = message.copyWith(
+        metadataJson: jsonEncode(
+          stored.map((attachment) => attachment.toMap()).toList(),
+        ),
+      );
+      await repo.updateMessage(message);
+      await sourceRoot.delete(recursive: true);
+
+      final laterAttachments = await repo.listChatAttachments(chat.id);
+      expect(laterAttachments.single.id, selected.id);
+      expect(
+        await File(laterAttachments.single.path).readAsString(),
+        'persistent attachment content',
+      );
+      final built = ContextBuilder(
+        maxCharacters: 100000,
+      ).build(history: await repo.listMessages(chat.id));
+      expect(built.last.content, contains('local://attachment/${selected.id}'));
+      expect(built.last.content, contains(laterAttachments.single.path));
+
+      final tools = ProjectTools(
+        projectRoot: projectRoot.path,
+        shellExecutor: LocalProcessShellExecutor(),
+        attachments: laterAttachments,
+      );
+      final uriRead = await tools.readFile('local://attachment/${selected.id}');
+      expect(uriRead['content'], 'persistent attachment content');
+      final pathRead = await tools.readFile(laterAttachments.single.path);
+      expect(pathRead['content'], 'persistent attachment content');
+
+      final storedPath = laterAttachments.single.path;
+      await repo.deleteChat(chat.id);
+      expect(await File(storedPath).exists(), isFalse);
+    } finally {
+      if (await sourceRoot.exists()) await sourceRoot.delete(recursive: true);
+      await projectRoot.delete(recursive: true);
+      await chatRoot.delete(recursive: true);
+    }
   });
 
   test('maps direct user bash results back into user context', () async {
@@ -4319,6 +4598,9 @@ class FakeRuntimeJobExecutor implements ShellExecutor, RuntimeJobExecutor {
   String state = 'running';
   int statusPolls = 0;
   int logPolls = 0;
+  bool holdRunning = false;
+  bool cancelJobCalled = false;
+  final Completer<void> commandStarted = Completer<void>();
 
   Map<Object?, Object?> _snapshot() => {
     'jobId': 'job-1',
@@ -4343,6 +4625,7 @@ class FakeRuntimeJobExecutor implements ShellExecutor, RuntimeJobExecutor {
 
   @override
   Future<Map<Object?, Object?>> cancelJob(String id) async {
+    cancelJobCalled = true;
     state = 'cancelled';
     return _snapshot();
   }
@@ -4354,7 +4637,9 @@ class FakeRuntimeJobExecutor implements ShellExecutor, RuntimeJobExecutor {
   }) async {
     if (id != 'job-1') return {'failureKind': 'runtime_job_not_found'};
     logPolls++;
-    if (state == 'running' && logPolls > 1) state = 'completed';
+    if (!holdRunning && state == 'running' && logPolls > 1) {
+      state = 'completed';
+    }
     return {..._snapshot(), 'stdout': 'line $logPolls', 'stderr': ''};
   }
 
@@ -4363,7 +4648,7 @@ class FakeRuntimeJobExecutor implements ShellExecutor, RuntimeJobExecutor {
     if (id != 'job-1') return {'failureKind': 'runtime_job_not_found'};
     if (state == 'running') {
       statusPolls++;
-      if (statusPolls >= 2) state = 'completed';
+      if (!holdRunning && statusPolls >= 2) state = 'completed';
     }
     return _snapshot();
   }
@@ -4379,14 +4664,29 @@ class FakeRuntimeJobExecutor implements ShellExecutor, RuntimeJobExecutor {
     bool background = false,
     CancellationToken? cancellationToken,
     CommandOutputCallback? onOutput,
-  }) async => const CommandResult(
-    stdout: '',
-    stderr: '',
-    exitCode: 0,
-    duration: Duration.zero,
-    timedOut: false,
-    cancelled: false,
-  );
+  }) async {
+    if (background) {
+      if (!commandStarted.isCompleted) commandStarted.complete();
+      return const CommandResult(
+        stdout: '',
+        stderr: '',
+        exitCode: 0,
+        duration: Duration.zero,
+        jobId: 'job-1',
+        background: true,
+        timedOut: false,
+        cancelled: false,
+      );
+    }
+    return const CommandResult(
+      stdout: '',
+      stderr: '',
+      exitCode: 0,
+      duration: Duration.zero,
+      timedOut: false,
+      cancelled: false,
+    );
+  }
 
   @override
   Future<RuntimeStatus> status() async =>

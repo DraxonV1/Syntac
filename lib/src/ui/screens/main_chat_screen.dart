@@ -1,6 +1,5 @@
 // Main project chat screen and composer state for model/runtime interactions.
 
-import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
@@ -239,27 +238,6 @@ class _MainChatScreenState extends State<MainChatScreen> {
       children: [
         // Compact Chat Header
         _buildAppBar(context, project: project, chat: chat, isWide: isWide),
-
-        // Error banner if any
-        if (widget.controller.lastError != null)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            color: AppColors.errorSubtle,
-            child: Row(
-              children: [
-                const Icon(AppIcons.error, size: 16, color: AppColors.error),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    widget.controller.lastError!,
-                    style: AppTypography.codeSmall.copyWith(
-                      color: AppColors.errorText,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
 
         // Message Transcript or Empty View
         Expanded(
@@ -579,16 +557,21 @@ class _MainChatScreenState extends State<MainChatScreen> {
     };
   }
 
-  void _handleSendMessage(String text) {
+  Future<bool> _handleSendMessage(String text) async {
     final attachmentsToSend = List<Attachment>.of(_pendingAttachments);
-    setState(() => _pendingAttachments.clear());
-    unawaited(
-      widget.controller.sendMessage(
-        text,
-        attachmentsToSend,
-        reasoningEffort: _reasoningEffort,
-        includeThinking: _thinkingEnabled,
-      ),
+    final accepted = await widget.controller.sendMessage(
+      text,
+      attachmentsToSend,
+      reasoningEffort: _reasoningEffort,
+      includeThinking: _thinkingEnabled,
     );
+    if (mounted && accepted) {
+      setState(() {
+        for (final attachment in attachmentsToSend) {
+          _pendingAttachments.remove(attachment);
+        }
+      });
+    }
+    return accepted;
   }
 }
