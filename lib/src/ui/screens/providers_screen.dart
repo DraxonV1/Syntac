@@ -27,8 +27,6 @@ class _ProvidersScreenState extends State<ProvidersScreen> {
   @override
   Widget build(BuildContext context) {
     final providers = widget.controller.providers;
-    final media = MediaQuery.of(context);
-    final isLandscape = media.orientation == Orientation.landscape;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -55,17 +53,26 @@ class _ProvidersScreenState extends State<ProvidersScreen> {
               onAction: () =>
                   showProviderConfigDialog(context, widget.controller),
             )
-          : GridView.builder(
-              padding: const EdgeInsets.all(16),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: isLandscape ? 3 : 1,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: isLandscape ? 1.6 : 2.4,
-              ),
-              itemCount: providers.length,
-              itemBuilder: (context, index) =>
-                  _buildProviderTile(providers[index]),
+          : LayoutBuilder(
+              builder: (context, constraints) {
+                final columns = constraints.maxWidth >= 1100
+                    ? 3
+                    : constraints.maxWidth >= 700
+                    ? 2
+                    : 1;
+                return GridView.builder(
+                  padding: const EdgeInsets.all(16),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: columns,
+                    mainAxisSpacing: 12,
+                    crossAxisSpacing: 12,
+                    childAspectRatio: columns == 1 ? 2.4 : 2,
+                  ),
+                  itemCount: providers.length,
+                  itemBuilder: (context, index) =>
+                      _buildProviderTile(providers[index]),
+                );
+              },
             ),
     );
   }

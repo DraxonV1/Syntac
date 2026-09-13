@@ -14,7 +14,7 @@ class AppIdentity {
     this.repositoryUrl = 'https://github.com/DraxonV1/Syntac',
     this.version = '0.0.0-dev',
     this.versionCode = 0,
-    this.updateChannel = 'beta',
+    this.updateChannel = 'stable',
   });
 
   final String appName;
@@ -44,7 +44,14 @@ class AppIdentity {
     instance = instance.copyWith(
       version: installedVersion,
       versionCode: installedVersionCode,
+      updateChannel: _channelForVersion(installedVersion),
     );
+  }
+
+  static String _channelForVersion(String version) {
+    if (version.contains('-beta.')) return 'beta';
+    if (version.contains('-nightly.')) return 'nightly';
+    return 'stable';
   }
 
   /// Formatted welcome title: "Welcome to {appName}"

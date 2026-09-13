@@ -1,7 +1,6 @@
 // Sidebar navigation with collapsible chats and provider sections.
 import 'package:flutter/material.dart';
 
-import '../../ai/registry/provider_registry.dart';
 import '../../app.dart';
 import '../../models.dart';
 import '../theme/app_colors.dart';
@@ -13,6 +12,7 @@ import '../widgets/app_card.dart';
 import '../widgets/app_modal.dart';
 import '../widgets/status_indicator.dart';
 import 'settings_screen.dart';
+import 'providers_screen.dart';
 
 /// Smooth animated sidebar/drawer for navigating conversations, switching workspaces,
 /// and accessing settings.
@@ -62,6 +62,15 @@ class _ChatSidebarState extends State<ChatSidebar> {
     );
   }
 
+  void _openProviders() {
+    widget.onClose?.call();
+    Navigator.of(context).push(
+      AppMotion.pageRoute(
+        builder: (context) => ProvidersScreen(controller: widget.controller),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final project = widget.controller.selectedProject;
@@ -72,12 +81,6 @@ class _ChatSidebarState extends State<ChatSidebar> {
 
     final activeChat = widget.controller.selectedChat;
     final providers = widget.controller.providers;
-    final googleProvider = providers
-        .where(
-          (provider) =>
-              provider.providerKey == ProviderRegistry.googleAntigravity.id,
-        )
-        .firstOrNull;
 
     return Container(
       width: 290,
@@ -242,33 +245,90 @@ class _ChatSidebarState extends State<ChatSidebar> {
                         horizontal: 8,
                         vertical: 4,
                       ),
-                      child: AppCard(
-                        padding: const EdgeInsets.all(10),
-                        backgroundColor: AppColors.surfaceElevated,
-                        child: Row(
-                          children: [
-                            AppIcons.providerLogo('google', size: 16),
-                            const SizedBox(width: 8),
-                            Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (providers.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(10, 4, 10, 8),
                               child: Text(
-                                googleProvider?.name ?? 'Google Antigravity',
-                                style: AppTypography.bodySmall,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                                'No providers configured',
+                                style: AppTypography.bodySmall.copyWith(
+                                  color: AppColors.textMuted,
+                                ),
                               ),
-                            ),
-                            Text(
-                              googleProvider == null
-                                  ? 'Not configured'
-                                  : 'Connected',
-                              style: AppTypography.bodySmall.copyWith(
-                                color: googleProvider == null
-                                    ? AppColors.textMuted
-                                    : AppColors.success,
+                            )
+                          else
+                            for (
+                              var index = 0;
+                              index < providers.length;
+                              index++
+                            ) ...[
+                              if (index > 0) const SizedBox(height: 6),
+                              AppCard(
+                                key: ValueKey(
+                                  'sidebar-provider-${providers[index].id}',
+                                ),
+                                padding: const EdgeInsets.all(10),
+                                backgroundColor: AppColors.surfaceElevated,
+                                onTap: _openProviders,
+                                child: Row(
+                                  children: [
+                                    AppIcons.providerLogo(
+                                      providers[index].providerKey,
+                                      size: 16,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        providers[index].name,
+                                        style: AppTypography.bodySmall,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    Icon(
+                                      AppIcons.chevronRight,
+                                      size: 14,
+                                      color: AppColors.textMuted,
+                                    ),
+                                  ],
+                                ),
                               ),
+                            ],
+                          const SizedBox(height: 6),
+                          AppCard(
+                            key: const ValueKey('sidebar-add-provider'),
+                            padding: const EdgeInsets.all(10),
+                            backgroundColor: Colors.transparent,
+                            borderColor: AppColors.borderSoft,
+                            onTap: _openProviders,
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  AppIcons.add,
+                                  size: 16,
+                                  color: AppColors.primaryBright,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Add New',
+                                    style: AppTypography.bodySmall.copyWith(
+                                      color: AppColors.accentText,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                Icon(
+                                  AppIcons.chevronRight,
+                                  size: 14,
+                                  color: AppColors.textMuted,
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                 ],

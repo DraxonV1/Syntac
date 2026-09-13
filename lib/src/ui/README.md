@@ -13,12 +13,13 @@ Screens coordinate visible state through `AppController`. Reusable presentation 
 - Provider failures render once as transcript messages; chat screen must not duplicate them in global banners.
 - Keep streamed and tool output bounded before creating widget trees.
 - Preserve copy, maximize, expand/collapse, error, loading, cancellation, and icon-only stop affordances.
+- Chat sidebar provider disclosure lists every configured provider from controller state and routes provider rows plus `Add New` to provider management; never hardcode one provider or connection state.
 - Show at most the first 300 persisted code/content lines inline. Copy and maximize must retain complete persisted value, including large write arguments.
 - Keep running tool cards mounted while streamed arguments and partial execution output replace their visible state.
 - Keep all nested tool output/code/diff/error surfaces transparent against chat background.
 - Keep composer input, attachment picker, and send action usable while agent runs; controller decides whether active command can detach.
 - Use semantic labels, readable contrast, touch targets, keyboard-safe layouts, and dynamic light/dark tokens from `theme/`.
-- Keep code in `SyntaxHighlightedCode`, math in `flutter_math_fork`, and images behind bounded/failing widgets; never hardcode symbol substitutions.
+- Keep chat Markdown on maintained GitHub Web/GFM parsing with nested lists, task lists, tables, links, strikethrough, horizontal rules, fenced code, real TeX, and bounded remote/data-URI images. Keep code in `SyntaxHighlightedCode`; never hardcode math symbol substitutions.
 - Keep screen navigation and modal ownership at screen level.
 
 ## Change workflow

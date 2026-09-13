@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.1.1
+
+First stable Android Early Access release.
+
+### Added
+
+- GitHub Web/GFM Markdown rendering with nested lists, task lists, tables, links, strikethrough, blockquotes, horizontal rules, emoji syntax, fenced code, remote/data-URI images, and inline/display TeX.
+- Clickable Markdown web links routed through Android platform URL handling.
+- Every configured provider plus an `Add New` route in chat sidebar provider disclosure.
+- Model-callable `copy` schema for project files and persistent chat attachments.
+
+### Changed
+
+- Streamed assistant messages now use same rich Markdown renderer as completed messages while hostile-size content retains bounded selectable fallback.
+- Base coding-agent prompt now documents every exposed tool, stable attachment references, snapshot requirements, durable jobs, and structured error handling.
+- Installed package version now selects matching stable, beta, or nightly update channel.
+
+### Fixed
+
+- Responses API write calls now preserve provider item identity so write cards appear at call start and update content while arguments stream.
+- Maximized code viewer retains file-language syntax highlighting and horizontal scrolling.
+- Provider sidebar no longer shows hardcoded Google Antigravity connection state.
+- Provider management grid uses width breakpoints instead of orientation-only columns, preventing narrow landscape card overflow.
+
+### Release metadata
+
+- Android package: `com.syntac`
+- Version: `0.1.1`
+- Version code: `19`
+- Default update channel: `stable`
+
 ## 0.1.1-beta.8
 
 Android Early Access version, provider replay, and vision hotfix.

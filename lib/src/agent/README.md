@@ -17,6 +17,7 @@
 - Keep tool execution and messages scoped to owning chat.
 - Keep provider credentials and raw transport errors out of messages and diagnostics.
 - Bound every context section and preserve instruction precedence.
+- Keep base prompt guidance aligned with every exposed tool and its path, snapshot, background-job, and attachment contracts.
 - When user sends during an Arch command running for at least 30 seconds, detach durable job, persist background result, finish old run, and accept new turn without resuming old model generation.
 - Supply all chat-owned attachments to each turn so stable references survive later prompts. When model metadata is unavailable, use provider image capability rather than silently dropping attached images.
 

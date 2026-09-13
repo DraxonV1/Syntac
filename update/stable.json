@@ -7,6 +7,9 @@
   "mandatory": false,
   "minSupportedVersionCode": 0,
   "notes": [
-    "Stable channel has not been published yet"
+    "Write tool cards now appear at call start and stream generated content",
+    "GitHub-flavored Markdown adds tables, task lists, links, images, syntax-highlighted code, and real TeX",
+    "Maximized code keeps syntax highlighting and horizontal scrolling",
+    "Provider sidebar lists every configured connection and opens provider management"
   ]
 }

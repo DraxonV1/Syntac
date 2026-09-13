@@ -46,10 +46,10 @@ class ProjectTools extends ToolContext
   List<Map<String, Object?>> get specs => [
     _spec(
       'read',
-      'Read text, or inspect an attached image. Attachments use local://attachment-N. Use includeImage for bounded vision data.',
+      'Read bounded text, or inspect an attached image. Prefer stable local://attachment/<id> references; legacy local://attachment-N remains readable. Use includeImage for bounded vision data.',
       {
         'path': _string(
-          'Relative file path or local://attachment-N; absolute only with systemwide: true',
+          'Relative file path or local://attachment/<id>; absolute only with systemwide: true',
         ),
         'offset': {
           'type': 'integer',
@@ -83,7 +83,7 @@ class ProjectTools extends ToolContext
     _spec(
       'display_image',
       'Inspect an image and return metadata for the chat image viewer.',
-      {'path': _string('Relative image path or local://attachment-N')},
+      {'path': _string('Relative image path or local://attachment/<id>')},
       ['path'],
     ),
     _spec(
@@ -94,6 +94,19 @@ class ProjectTools extends ToolContext
         'content': _string('File content'),
       },
       ['path', 'content'],
+    ),
+    _spec(
+      'copy',
+      'Copy a project file or chat attachment to an explicit project or Android shared-storage target.',
+      {
+        'source': _string(
+          'Relative project path or local://attachment/<id> reference',
+        ),
+        'target': _string(
+          'Relative project path or absolute Android shared-storage path',
+        ),
+      },
+      ['source', 'target'],
     ),
     _spec(
       'apply_patch',

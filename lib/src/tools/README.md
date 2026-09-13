@@ -14,6 +14,7 @@
 - Keep Bash output at 50 preview lines and bounded characters. Persist full bounded output under project `.syntac/agent/blobs/` and return `local://` reference when preview truncates.
 - Arch Bash commands use durable jobs. Explicit background commands return `jobId`; foreground commands can detach after 30 seconds when user submits another message. Use `jobs.status`, `jobs.logs`, `jobs.wait`, and `jobs.cancel` after detachment.
 - Attachments persist under owning chat. Prefer stable `local://attachment/<id>` references or exact stored paths; legacy `local://attachment-N` handles remain readable.
+- `copy` accepts project files or chat attachments as sources and writes only to an explicit project path or Android shared-storage target.
 - `todo` persists at most 8 phases and 40 unique tasks in owning chat, keeps one active task, and rejects writes after chat deletion.
 - Keep running updates bounded; final result must preserve exit code, timeout, cancellation, runtime failure, truncation, and artifact metadata.
 - Never leak raw stack traces or secrets into model-visible results.

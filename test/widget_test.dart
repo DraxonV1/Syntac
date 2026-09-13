@@ -12,6 +12,7 @@ import 'package:syntac/src/ui/chat/model_selector_sheet.dart';
 import 'package:syntac/src/ui/chat/tool_call_card.dart';
 import 'package:syntac/src/ui/widgets/badge_chip.dart';
 import 'package:syntac/src/ui/widgets/status_indicator.dart';
+import 'package:syntac/src/ui/screens/chat_sidebar.dart';
 import 'package:syntac/src/ui/screens/home_screen.dart';
 import 'package:syntac/src/ui/theme/app_colors.dart';
 import 'package:syntac/src/ui/theme/app_icons.dart';
@@ -233,10 +234,66 @@ void main() {
     );
 
     expect(find.text('Overview'), findsOneWidget);
-    expect(find.text('inline_code'), findsOneWidget);
+    expect(
+      find.textContaining('inline_code', findRichText: true),
+      findsOneWidget,
+    );
     expect(find.text('dart'), findsOneWidget);
     expect(find.text('Copy'), findsOneWidget);
     expect(find.textContaining('void main()'), findsOneWidget);
+  });
+  testWidgets('MarkdownContent renders GFM structure and opens web links', (
+    tester,
+  ) async {
+    String? openedUrl;
+    const markdown = '''
+| Feature | State |
+| --- | --- |
+| Tables | Ready |
+
+- [x] Task complete
+  - Nested item
+
+~~Removed text~~
+
+[Open docs](https://example.com/docs)
+
+---
+
+\$\$
+x^2 + y^2
+\$\$
+''';
+
+    await tester.pumpWidget(
+      _wrap(
+        SingleChildScrollView(
+          child: MarkdownContent(
+            content: markdown,
+            onOpenLink: (url) => openedUrl = url,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Feature', findRichText: true), findsOneWidget);
+    expect(find.text('Tables', findRichText: true), findsOneWidget);
+    expect(find.byIcon(Icons.check_box_rounded), findsOneWidget);
+    expect(
+      find.textContaining('Nested item', findRichText: true),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Removed text', findRichText: true),
+      findsOneWidget,
+    );
+    expect(find.textContaining('~~Removed text~~'), findsNothing);
+    expect(find.byType(Math), findsOneWidget);
+
+    await tester.tap(find.text('Open docs', findRichText: true));
+    await tester.pump();
+    expect(openedUrl, 'https://example.com/docs');
   });
   testWidgets('MarkdownContent renders TeX and embedded base64 images', (
     tester,
@@ -294,7 +351,7 @@ void main() {
             children: [
               MarkdownContent(content: list),
               const MarkdownContent(
-                content: '```dart\nfinal value = 1;\n```',
+                content: '```dart\nfinal value = 1;',
                 streaming: true,
               ),
             ],
@@ -306,6 +363,44 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.byType(MarkdownContent), findsNWidgets(2));
+    expect(find.byType(HighlightView), findsOneWidget);
+    expect(
+      find.textContaining('final value = 1;', findRichText: true),
+      findsWidgets,
+    );
+  });
+  testWidgets('ChatSidebar lists configured providers and opens management', (
+    tester,
+  ) async {
+    final controller = AppController()
+      ..providers = [
+        ProviderConfig.create(
+          name: 'OpenRouter',
+          baseUrl: 'https://openrouter.ai/api/v1',
+        ),
+        ProviderConfig.create(
+          name: 'ChatGPT Codex',
+          baseUrl: 'https://chatgpt.com/backend-api',
+          providerKey: 'openai-codex',
+          authType: 'openaiCodexOAuth',
+        ),
+      ];
+
+    await tester.pumpWidget(
+      _wrap(SizedBox(width: 290, child: ChatSidebar(controller: controller))),
+    );
+
+    await tester.tap(find.text('PROVIDERS'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('OpenRouter'), findsOneWidget);
+    expect(find.text('ChatGPT Codex'), findsOneWidget);
+    expect(find.text('Connected'), findsNothing);
+    expect(find.text('Add New'), findsOneWidget);
+
+    await tester.tap(find.text('Add New'));
+    await tester.pumpAndSettle();
+    expect(find.text('AI Providers'), findsOneWidget);
   });
 
   testWidgets('ToolCallCard renders collapsed bash and expands on tap', (
@@ -404,13 +499,13 @@ void main() {
       id: 'tool_large_write',
       chatId: 'chat_1',
       name: 'write',
-      argumentsJson: jsonEncode({'path': 'lib/large.txt', 'content': content}),
+      argumentsJson: jsonEncode({'path': 'lib/large.dart', 'content': content}),
       status: ToolExecutionStatus.success,
       startedAt: DateTime.now(),
       finishedAt: DateTime.now(),
       resultJson: jsonEncode({
         'ok': true,
-        'result': {'path': 'lib/large.txt', 'bytes': content.length},
+        'result': {'path': 'lib/large.dart', 'bytes': content.length},
       }),
     );
 
@@ -432,6 +527,11 @@ void main() {
 
     expect(find.text(content), findsOneWidget);
     expect(find.textContaining('line 350:'), findsOneWidget);
+    final maximizedHighlight = tester.widget<HighlightView>(
+      find.byType(HighlightView).last,
+    );
+    expect(maximizedHighlight.language, 'dart');
+    expect(maximizedHighlight.theme['keyword']?.color, isNotNull);
   });
 
   testWidgets('ToolCallCard renders apply patch diff preview', (tester) async {
