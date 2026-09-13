@@ -7,9 +7,9 @@
   "mandatory": false,
   "minSupportedVersionCode": 10,
   "notes": [
-    "Persistent attachment paths available across later chat prompts",
-    "Safe Arch command detachment when sending after 30 seconds",
-    "Gemini 3 Antigravity replay compatibility for older models",
-    "Transparent tool output surfaces and icon-only stop controls"
+    "Installed package metadata drives version display and update checks",
+    "Gemini cross-model tool replay compatibility",
+    "Gemini vision attachments retained for discovered models",
+    "Grok reasoning requests omit unsupported effort configuration"
   ]
 }
