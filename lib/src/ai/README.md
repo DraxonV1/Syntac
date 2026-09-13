@@ -16,6 +16,8 @@
 - Emit cumulative tool-call snapshots while arguments stream; `AgentLoop` owns preview persistence and execution lifecycle.
 - For Antigravity schemas, normalize schema-key positions only. Names inside `properties` maps are user-defined and must survive unchanged; every `required` entry must name a retained property.
 - Emit provider reasoning configuration only for transports/models that support it; map effort to each wire protocol's bounded values.
+- For Antigravity Gemini 3 replay, preserve signatures only when stored wire model matches current wire model; use validator bypass signature for older or cross-model history.
+- xAI Responses models control reasoning effort internally; do not send unsupported reasoning configuration.
 - DeepSeek tool conversations replay exact provider reasoning from every assistant turn. Truncated reasoning fails clearly instead of sending invalid synthetic data.
 - Filter unsupported discovered models before persistence; preserve manual models during refresh merges.
 - Validate OAuth callback port/path and state before exchanging codes.

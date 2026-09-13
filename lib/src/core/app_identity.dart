@@ -1,3 +1,5 @@
+import 'package:package_info_plus/package_info_plus.dart';
+
 /// Central application identity and dynamic branding source.
 /// All user-facing surfaces derive names, paths, schemes, and identifiers from here.
 class AppIdentity {
@@ -10,8 +12,8 @@ class AppIdentity {
     this.tagline = 'Autonomous mobile coding environment',
     this.developerName = 'DraxonV1',
     this.repositoryUrl = 'https://github.com/DraxonV1/Syntac',
-    this.version = '0.1.1-beta.6',
-    this.versionCode = 16,
+    this.version = '0.0.0-dev',
+    this.versionCode = 0,
     this.updateChannel = 'beta',
   });
 
@@ -29,6 +31,21 @@ class AppIdentity {
 
   /// Global singleton instance, modifiable for dynamic branding / custom configurations.
   static AppIdentity instance = const AppIdentity();
+
+  static Future<void> initializeFromPlatform() async {
+    final packageInfo = await PackageInfo.fromPlatform();
+    final installedVersion = packageInfo.version.trim();
+    final installedVersionCode = int.tryParse(packageInfo.buildNumber);
+    if (installedVersion.isEmpty ||
+        installedVersionCode == null ||
+        installedVersionCode <= 0) {
+      throw StateError('Installed package version metadata is invalid.');
+    }
+    instance = instance.copyWith(
+      version: installedVersion,
+      versionCode: installedVersionCode,
+    );
+  }
 
   /// Formatted welcome title: "Welcome to {appName}"
   String get welcomeTitle => 'Welcome to $appName';

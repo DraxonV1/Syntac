@@ -220,7 +220,11 @@ class GoogleCloudCodeAssistProvider extends AIProvider {
       yield AIStreamEvent.done(
         toolCalls: toolCalls,
         finishReason: finishReason,
-        providerMetadata: _geminiProviderMetadata(nativeModelParts, toolCalls),
+        providerMetadata: _geminiProviderMetadata(
+          nativeModelParts,
+          toolCalls,
+          wireModel,
+        ),
       );
     } on TimeoutException catch (error) {
       throw AIProviderException(
@@ -305,7 +309,14 @@ class GoogleCloudCodeAssistProvider extends AIProvider {
           }
         }
         if (wireModel.startsWith('gemini-3')) {
-          _addMissingFirstFunctionCallSignature(parts);
+          final geminiMetadata = message.providerMetadata['gemini'];
+          final sourceModel = geminiMetadata is Map
+              ? geminiMetadata['model']?.toString()
+              : null;
+          _normalizeFirstFunctionCallSignature(
+            parts,
+            preserveExisting: sourceModel == wireModel,
+          );
         }
         for (final part in parts) {
           final functionCall = part['functionCall'];
@@ -456,13 +467,22 @@ class GoogleCloudCodeAssistProvider extends AIProvider {
   }
 
   static const _skipThoughtSignature = 'skip_thought_signature_validator';
+  static const _thoughtSignatureKeys = [
+    'thoughtSignature',
+    'thought_signature',
+    'thoughtSignatureBytes',
+  ];
 
-  static void _addMissingFirstFunctionCallSignature(
-    List<Map<String, Object?>> parts,
-  ) {
+  static void _normalizeFirstFunctionCallSignature(
+    List<Map<String, Object?>> parts, {
+    required bool preserveExisting,
+  }) {
     for (final part in parts) {
       if (part['functionCall'] is! Map) continue;
-      if (!_hasThoughtSignature(part)) {
+      if (!preserveExisting || !_hasThoughtSignature(part)) {
+        for (final key in _thoughtSignatureKeys) {
+          part.remove(key);
+        }
         part['thoughtSignature'] = _skipThoughtSignature;
       }
       return;
@@ -498,7 +518,9 @@ class GoogleCloudCodeAssistProvider extends AIProvider {
     if (parts is! List) return null;
     final nativeParts = <Map<String, Object?>>[];
     for (final part in parts) {
-      if (part is Map) nativeParts.add(part.cast<String, Object?>());
+      if (part is Map) {
+        nativeParts.add(_cloneJsonMap(part.cast<String, Object?>()));
+      }
     }
     return nativeParts.isEmpty ? null : nativeParts;
   }
@@ -516,12 +538,14 @@ class GoogleCloudCodeAssistProvider extends AIProvider {
   static Map<String, Object?> _geminiProviderMetadata(
     List<Map<String, Object?>> parts,
     List<AIToolCall> toolCalls,
+    String wireModel,
   ) {
     final signatureCount = toolCalls
         .where((call) => call.providerMetadata['thoughtSignature'] is String)
         .length;
     return {
       'gemini': {
+        'model': wireModel,
         'parts': parts,
         'diagnostics': {
           'assistantPartCount': parts.length,

@@ -29,7 +29,7 @@
 - Partial streamed assistant text must persist on provider/tool error.
 - Tool executions/messages stay scoped to owning chat.
 - A user message may detach an Arch command only after 30 seconds; persist its tool result and do not resume prior model generation.
-- Every attachment already owned by chat remains available to later tool calls and model context.
+- Every attachment already owned by chat remains available to later tool calls and model context; missing model metadata must fall back to provider image capability.
 
 ## Tests
 
