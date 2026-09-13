@@ -73,15 +73,6 @@ jobs:
           flutter analyze
           flutter test
 
-      - name: Build release APK
-        run: >
-          flutter build apk --release --target-platform android-arm64
-          --dart-define=SYNTAC_GOOGLE_OAUTH_CLIENT_ID="${SYNTAC_GOOGLE_OAUTH_CLIENT_ID}"
-          --dart-define=SYNTAC_GOOGLE_OAUTH_CLIENT_SECRET="${SYNTAC_GOOGLE_OAUTH_CLIENT_SECRET}"
-
-      - name: Prepare release asset name
-        run: cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/syntac-arm64.apk
-
       - name: Resolve release metadata
         id: release_meta
         shell: bash
@@ -125,6 +116,30 @@ jobs:
             echo "channel=$channel"
             echo "prerelease=$prerelease"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Build release APK
+        run: >
+          flutter build apk --release --target-platform android-arm64
+          --build-name=${{ steps.release_meta.outputs.version }}
+          --build-number=${{ steps.release_meta.outputs.version_code }}
+          --dart-define=SYNTAC_GOOGLE_OAUTH_CLIENT_ID="${SYNTAC_GOOGLE_OAUTH_CLIENT_ID}"
+          --dart-define=SYNTAC_GOOGLE_OAUTH_CLIENT_SECRET="${SYNTAC_GOOGLE_OAUTH_CLIENT_SECRET}"
+
+      - name: Prepare release asset name
+        run: cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/syntac-arm64.apk
+
+      - name: Verify APK release metadata
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ steps.release_meta.outputs.version }}
+          RELEASE_VERSION_CODE: ${{ steps.release_meta.outputs.version_code }}
+        run: |
+          set -euo pipefail
+          apk=build/app/outputs/flutter-apk/syntac-arm64.apk
+          actual_version="$(apkanalyzer manifest version-name "$apk")"
+          actual_version_code="$(apkanalyzer manifest version-code "$apk")"
+          test "$actual_version" = "$RELEASE_VERSION"
+          test "$actual_version_code" = "$RELEASE_VERSION_CODE"
 
       - name: Build release notes
         shell: bash
