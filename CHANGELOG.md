@@ -1,13 +1,26 @@
 # Changelog
 
-## 0.1.1
+## 0.1.2
 
-First stable Android Early Access release.
+Web search and web page reading update.
 
 ### Added
 
 - Model-callable `web_search` tool using default free DuckDuckGo provider for ranked sources, snippets, and documentation.
 - Web page reading in `read` tool with HTML-to-Markdown conversion, raw mode, and bounded line paging.
+
+### Release metadata
+
+- Android package: `com.syntac`
+- Version: `0.1.2`
+- Version code: `20`
+- Default update channel: `stable`
+
+## 0.1.1
+
+First stable Android Early Access release.
+
+### Added
 - GitHub Web/GFM Markdown rendering with nested lists, task lists, tables, links, strikethrough, blockquotes, horizontal rules, emoji syntax, fenced code, remote/data-URI images, and inline/display TeX.
 - Clickable Markdown web links routed through Android platform URL handling.
 - Every configured provider plus an `Add New` route in chat sidebar provider disclosure.

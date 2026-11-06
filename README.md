@@ -21,7 +21,7 @@ Open a project folder on your phone, connect an AI provider, chat about code, in
 - Developer: **DraxonV1**
 - Repository: <https://github.com/DraxonV1/Syntac>
 - Android package: `com.syntac`
-- Current version: `0.1.1` (`versionCode` 19)
+- Current version: `0.1.2` (`versionCode` 20)
 - Default update channel: **stable**
 
 ## Overview
@@ -97,7 +97,7 @@ Channels:
 Current stable APK target:
 
 ```text
-https://github.com/DraxonV1/Syntac/releases/download/v0.1.1/syntac-arm64.apk
+https://github.com/DraxonV1/Syntac/releases/download/v0.1.2/syntac-arm64.apk
 ```
 
 Current manifest files:
@@ -173,14 +173,14 @@ Contribution and release flow:
 
 Latest stable release:
 
-<https://github.com/DraxonV1/Syntac/releases/tag/v0.1.1>
+<https://github.com/DraxonV1/Syntac/releases/tag/v0.1.2>
 
 PR builds never receive release signing credentials or provider OAuth secrets.
 
 Release artifacts:
 
 ```text
-https://github.com/DraxonV1/Syntac/releases/download/v0.1.1/syntac-arm64.apk
+https://github.com/DraxonV1/Syntac/releases/download/v0.1.2/syntac-arm64.apk
 update/stable.json
 ```
 
