@@ -16,6 +16,7 @@
 - `grep_tool.dart`: regex search across project files and PDFs matching omp.
 - `find_tool.dart`: semantic behavior search ranking files and passages matching omp.
 - `pdf_parser.dart`: binary and FlateDecode PDF stream decompression and text extraction.
+- `web_reader.dart`: web reader with anti-bot user-agent rotation, specialized site scrapers, and Jina reader fallback.
 
 ## Change here when
 

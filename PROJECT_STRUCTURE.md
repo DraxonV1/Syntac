@@ -150,6 +150,7 @@ Generated/ignored folders such as `build/`, `.dart_tool/`, `.gradle/`, and local
 │       │   ├── grep_tool.dart
 │       │   ├── find_tool.dart
 │       │   ├── pdf_parser.dart
+│       │   ├── web_reader.dart
 │       │   └── tool_context.dart
 │       └── ui/
 │           ├── AGENTS.md
@@ -302,6 +303,7 @@ Generated/ignored folders such as `build/`, `.dart_tool/`, `.gradle/`, and local
 - `lib/src/tools/find_tool.dart`: semantic behavior search ranking files and passages by query relevance matching omp.
 - `lib/src/tools/pdf_parser.dart`: binary and FlateDecode PDF stream decompression and text extraction.
 - `lib/src/tools/web_search_tool.dart`: web search using default DuckDuckGo provider with query syntax, recency, and result formatting.
+- `lib/src/tools/web_reader.dart`: web reader with anti-bot user-agent rotation, specialized site scrapers, and Jina reader fallback.
 - `lib/src/tools/apply_patch_tool.dart`: bounded multi-file patch parser with read-snapshot preconditions and in-process rollback.
 - `lib/src/tools/file_snapshot.dart`: SHA-256 snapshots and patch/file/diff limits.
 - `lib/src/tools/glob_tool.dart`: bounded project-relative file/directory discovery.
