@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.1.3
+
+Code discovery, search, PDF, and bulk reading update.
+
+### Added
+
+- Model-callable `grep` tool for fast regex search across workspace files and binary/compressed PDFs.
+- Model-callable `find` tool for semantic behavior search, ranking files and passages by query relevance.
+- Auto-parsing text from binary and FlateDecode compressed PDFs in `read`, `search`, and `grep`.
+- Bulk file reading in `read` tool via comma/semicolon-delimited paths, JSON list, or `paths` array.
+- Model-callable `glob` tool updated to support semicolon-separated globs, `hidden`, and `gitignore` filters.
+
+### Release metadata
+
+- Android package: `com.syntac`
+- Version: `0.1.3`
+- Version code: `21`
+- Default update channel: `stable`
+
 ## 0.1.2
 
 Web search and web page reading update.

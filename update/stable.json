@@ -7,6 +7,9 @@
   "mandatory": false,
   "minSupportedVersionCode": 0,
   "notes": [
+    "Grep and Find tools provide fast regex search and semantic behavior search across project files",
+    "Read, Search, and Grep tools auto-parse and extract text from binary compressed PDFs",
+    "Read tool supports bulk multi-file reading with snapshot headers and line numbering",
     "Web search tool queries documentation, packages, and technical information via DuckDuckGo",
     "Read tool fetches and converts web pages to clean Markdown with bounded line paging",
     "Write tool cards now appear at call start and stream generated content",
