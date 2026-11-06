@@ -5,6 +5,7 @@ import 'dart:io';
 
 import '../models.dart';
 import 'package:path/path.dart' as p;
+import 'pdf_parser.dart';
 
 import 'tool_context.dart';
 
@@ -93,13 +94,17 @@ mixin SearchTool on ToolContext {
             continue;
           }
           final bytes = await entity.readAsBytes();
-          if (looksBinary(bytes)) {
+          final List<String> lines;
+          if (PdfParser.isPdfPath(rel) || PdfParser.isPdfBytes(bytes)) {
+            lines = PdfParser.extractTextLines(bytes);
+          } else if (looksBinary(bytes)) {
             skippedBinaryFiles++;
             continue;
+          } else {
+            lines = const LineSplitter().convert(
+              utf8.decode(bytes, allowMalformed: true),
+            );
           }
-          final lines = const LineSplitter().convert(
-            utf8.decode(bytes, allowMalformed: true),
-          );
           for (var i = 0; i < lines.length; i++) {
             final match = matcher.firstMatch(lines[i]);
             if (match == null) continue;

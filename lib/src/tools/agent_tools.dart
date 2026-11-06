@@ -15,6 +15,8 @@ import 'search_tool.dart';
 import 'tool_context.dart';
 import 'write_tool.dart';
 import 'web_search_tool.dart';
+import 'grep_tool.dart';
+import 'find_tool.dart';
 
 export 'tool_context.dart' show ToolFailure, ToolUpdateCallback;
 
@@ -30,7 +32,9 @@ class ProjectTools extends ToolContext
         BashTool,
         RuntimeJobsTool,
         CopyTool,
-        WebSearchTool {
+        WebSearchTool,
+        GrepTool,
+        FindTool {
   ProjectTools({
     required super.projectRoot,
     required super.shellExecutor,
@@ -49,11 +53,16 @@ class ProjectTools extends ToolContext
   List<Map<String, Object?>> get specs => [
     _spec(
       'read',
-      'Read bounded text, inspect an attached image, or fetch a web page (http/https). Prefer stable local://attachment/<id> references; legacy local://attachment-N remains readable. Use includeImage for bounded vision data.',
+      'Read bounded text, auto-parse text from PDFs (binary/compressed), or fetch web pages (http/https). Supports bulk reading by passing comma/semicolon-separated paths, JSON list, or paths array. Use includeImage for vision data.',
       {
         'path': _string(
-          'Relative file path, local://attachment/<id>, or http(s) URL; absolute only with systemwide: true',
+          'Relative file path, local://attachment/<id>, http(s) URL, or comma-separated list of paths; absolute only with systemwide: true',
         ),
+        'paths': {
+          'type': 'array',
+          'items': {'type': 'string'},
+          'description': 'Optional list of file paths to read in bulk',
+        },
         'offset': {
           'type': 'integer',
           'description':
@@ -145,10 +154,24 @@ class ProjectTools extends ToolContext
     ),
     _spec(
       'glob',
-      'Match project files and directories with a bounded glob pattern.',
+      "Glob files and directories with ';'-separated paths or globs; default workspace root. Dirs end with '/'.",
       {
-        'pattern': _string('Relative glob pattern such as lib/**/*.dart'),
-        'maxResults': {'type': 'integer'},
+        'path': _string(
+          "Optional ';'-separated glob patterns or directory path, default '*'",
+        ),
+        'pattern': _string('Alias for path'),
+        'hidden': {
+          'type': 'boolean',
+          'description': 'Include dotfiles, default true',
+        },
+        'gitignore': {
+          'type': 'boolean',
+          'description': 'Respect gitignore, default true',
+        },
+        'limit': {
+          'type': 'integer',
+          'description': 'Maximum results to return, default 200',
+        },
         'offset': {'type': 'integer'},
         'includeDirectories': {'type': 'boolean'},
         'includeFiles': {'type': 'boolean'},
@@ -180,6 +203,41 @@ class ProjectTools extends ToolContext
         'contextLines': {'type': 'integer'},
       },
       ['query'],
+    ),
+    _spec(
+      'grep',
+      "Regex search across project files and PDFs. Fast, bounded results. Returns 'path:line: line text'.",
+      {
+        'pattern': _string('Regex or literal pattern to search'),
+        'path': _string("Optional ';'-separated file/dir/glob, default '.'"),
+        'case': {
+          'type': 'boolean',
+          'description': 'Case-sensitive search, default true',
+        },
+        'gitignore': {
+          'type': 'boolean',
+          'description': 'Respect gitignore, default true',
+        },
+        'skip': {
+          'type': 'integer',
+          'description': 'Number of matching files to skip for pagination',
+        },
+      },
+      ['pattern'],
+    ),
+    _spec(
+      'find',
+      'Semantic behavior search: describe code behavior, get implementing files and line ranges. Hits strongest first: path:start-end score snippet.',
+      {
+        'query': _string('Plain language description of behavior, not regex'),
+        'grep_keywords': {
+          'type': 'array',
+          'items': {'type': 'string'},
+          'description': 'Likely verbatim keywords or symbols',
+        },
+        'path': _string('Optional subdirectory or file scope'),
+      },
+      ['query', 'grep_keywords'],
     ),
     _spec(
       'web_search',
@@ -385,12 +443,28 @@ class ProjectTools extends ToolContext
           depth: args['depth'] as int? ?? 1,
         ),
         'glob' => await globPaths(
-          args['pattern'] as String? ?? '',
-          maxResults: args['maxResults'] as int? ?? 200,
+          args['pattern'] as String? ?? args['path'] as String?,
+          path: args['path'] as String?,
+          maxResults: args['maxResults'] as int?,
+          limit: args['limit'] as int?,
           offset: args['offset'] as int? ?? 0,
           includeDirectories: args['includeDirectories'] as bool? ?? true,
           includeFiles: args['includeFiles'] as bool? ?? true,
           caseSensitive: args['caseSensitive'] as bool?,
+          hidden: args['hidden'] as bool? ?? true,
+          gitignore: args['gitignore'] as bool? ?? true,
+        ),
+        'grep' => await grep(
+          pattern: args['pattern'] as String? ?? '',
+          path: args['path'] as String?,
+          caseSensitive: args['case'] as bool? ?? true,
+          gitignore: args['gitignore'] as bool? ?? true,
+          skip: args['skip'] as int?,
+        ),
+        'find' => await findBehavior(
+          query: args['query'] as String? ?? '',
+          grepKeywords: stringList(args['grep_keywords']) ?? const [],
+          path: args['path'] as String?,
         ),
         'search' => await search(
           args['query'] as String? ?? '',

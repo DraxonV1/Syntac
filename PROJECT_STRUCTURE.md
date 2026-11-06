@@ -147,6 +147,9 @@ Generated/ignored folders such as `build/`, `.dart_tool/`, `.gradle/`, and local
 │       │   ├── runtime_jobs_tool.dart
 │       │   ├── copy_tool.dart
 │       │   ├── web_search_tool.dart
+│       │   ├── grep_tool.dart
+│       │   ├── find_tool.dart
+│       │   ├── pdf_parser.dart
 │       │   └── tool_context.dart
 │       └── ui/
 │           ├── AGENTS.md
@@ -294,7 +297,10 @@ Generated/ignored folders such as `build/`, `.dart_tool/`, `.gradle/`, and local
 
 ### Tools
 
-- `lib/src/tools/agent_tools.dart`: model-callable `read`, `write`, `apply_patch`, `delete`, `list`, `glob`, `search`, `web_search`, `bash`, `jobs.*`, `copy`, and optional per-chat `todo`. Owns result schemas and dispatch.
+- `lib/src/tools/agent_tools.dart`: model-callable `read`, `write`, `apply_patch`, `delete`, `list`, `glob`, `search`, `grep`, `find`, `web_search`, `bash`, `jobs.*`, `copy`, and optional per-chat `todo`. Owns result schemas and dispatch.
+- `lib/src/tools/grep_tool.dart`: regex search across project files and PDFs with line ranges and pagination matching omp.
+- `lib/src/tools/find_tool.dart`: semantic behavior search ranking files and passages by query relevance matching omp.
+- `lib/src/tools/pdf_parser.dart`: binary and FlateDecode PDF stream decompression and text extraction.
 - `lib/src/tools/web_search_tool.dart`: web search using default DuckDuckGo provider with query syntax, recency, and result formatting.
 - `lib/src/tools/apply_patch_tool.dart`: bounded multi-file patch parser with read-snapshot preconditions and in-process rollback.
 - `lib/src/tools/file_snapshot.dart`: SHA-256 snapshots and patch/file/diff limits.

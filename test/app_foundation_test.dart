@@ -1164,6 +1164,117 @@ void main() {
       await dir.delete(recursive: true);
     },
   );
+  test(
+    'read auto-parses text from binary compressed PDF and supports bulk reading',
+    () async {
+      final dir = await Directory.systemTemp.createTemp(
+        'syntac_pdf_bulk_test_',
+      );
+      final streamData = utf8.encode(
+        'BT /F1 12 Tf 72 712 Td (Hello from compressed PDF page) Tj T* [(Page ) (Content) -20 ( Extracted)] TJ ET',
+      );
+      final compressed = zlib.encode(streamData);
+      final pdfBytes = <int>[
+        ...utf8.encode(
+          '%PDF-1.4\n1 0 obj\n<< /Type /Page /Length ${compressed.length} /Filter /FlateDecode >>\nstream\n',
+        ),
+        ...compressed,
+        ...utf8.encode('\nendstream\nendobj\n%%EOF'),
+      ];
+      final pdfFile = File('${dir.path}${Platform.pathSeparator}document.pdf');
+      await pdfFile.writeAsBytes(pdfBytes);
+
+      final txtFile = File('${dir.path}${Platform.pathSeparator}notes.txt');
+      await txtFile.writeAsString('note line 1\nnote line 2');
+
+      final tools = ProjectTools(
+        projectRoot: dir.path,
+        shellExecutor: LocalProcessShellExecutor(),
+      );
+
+      final pdfResult = await tools.readFile('document.pdf');
+      expect(pdfResult['kind'], 'pdf');
+      expect(pdfResult['content'], contains('Hello from compressed PDF page'));
+      expect(pdfResult['content'], contains('Page Content Extracted'));
+      expect(pdfResult['totalLines'], greaterThan(0));
+
+      final bulkResult = await tools.readFile('document.pdf, notes.txt');
+      expect(bulkResult['count'], 2);
+      expect(bulkResult['content'], contains('[document.pdf#'));
+      expect(bulkResult['content'], contains('[notes.txt#'));
+      expect(bulkResult['content'], contains('Hello from compressed PDF page'));
+      expect(bulkResult['content'], contains('note line 1'));
+
+      final searchResult = await tools.search('compressed PDF');
+      expect(searchResult['totalMatchesSeen'], greaterThan(0));
+      final hits = searchResult['results'] as List;
+      expect(hits.any((h) => (h as Map)['path'] == 'document.pdf'), isTrue);
+
+      await dir.delete(recursive: true);
+    },
+  );
+
+  test(
+    'grep and find tools match omp contracts across workspace files and PDFs',
+    () async {
+      final dir = await Directory.systemTemp.createTemp(
+        'syntac_grep_find_test_',
+      );
+      final streamData = utf8.encode(
+        'BT /F1 12 Tf 72 712 Td (Quantum computing algorithms and entanglement verification) Tj ET',
+      );
+      final compressed = zlib.encode(streamData);
+      final pdfBytes = <int>[
+        ...utf8.encode(
+          '%PDF-1.4\n1 0 obj\n<< /Type /Page /Length ${compressed.length} /Filter /FlateDecode >>\nstream\n',
+        ),
+        ...compressed,
+        ...utf8.encode('\nendstream\nendobj\n%%EOF'),
+      ];
+      await File(
+        '${dir.path}${Platform.pathSeparator}quantum.pdf',
+      ).writeAsBytes(pdfBytes);
+      await File('${dir.path}${Platform.pathSeparator}main.dart').writeAsString(
+        'void main() {\n  // Run quantum verification\n  print("quantum ready");\n}\n',
+      );
+
+      final tools = ProjectTools(
+        projectRoot: dir.path,
+        shellExecutor: LocalProcessShellExecutor(),
+      );
+
+      final grepResult = await tools.execute('grep', {
+        'pattern': r'quantum\s+\w+',
+        'case': false,
+      });
+      expect(grepResult['ok'], isTrue);
+      final grepPayload = grepResult['result']! as Map<String, Object?>;
+      expect(grepPayload['totalMatches'], greaterThanOrEqualTo(2));
+      expect(grepPayload['content'], contains('quantum.pdf:'));
+      expect(grepPayload['content'], contains('main.dart:'));
+
+      final findResult = await tools.execute('find', {
+        'query': 'verify quantum computing algorithms and entanglement',
+        'grep_keywords': ['entanglement', 'quantum'],
+      });
+      expect(findResult['ok'], isTrue);
+      final findPayload = findResult['result']! as Map<String, Object?>;
+      expect(findPayload['totalHits'], greaterThan(0));
+      expect(findPayload['content'], contains('quantum.pdf:'));
+
+      final globResult = await tools.execute('glob', {
+        'path': '*.pdf;*.dart',
+        'limit': 10,
+      });
+      expect(globResult['ok'], isTrue);
+      final globPayload = globResult['result']! as Map<String, Object?>;
+      final paths = globPayload['paths'] as List;
+      expect(paths, contains('quantum.pdf'));
+      expect(paths, contains('main.dart'));
+
+      await dir.delete(recursive: true);
+    },
+  );
 
   test(
     'runs bang bash locally and persists output as user-owned context',

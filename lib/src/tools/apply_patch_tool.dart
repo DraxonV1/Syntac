@@ -52,6 +52,11 @@ mixin ApplyPatchTool on ToolContext {
       }
       if (line.startsWith('*** Update File: ')) {
         final path = line.substring('*** Update File: '.length).trim();
+        if (path.toLowerCase().endsWith('.pdf')) {
+          throw ToolFailure(
+            'Cannot patch binary PDF file: $path. Read PDF text or edit source document.',
+          );
+        }
         final filePath = await resolvePath(path);
         final file = File(filePath);
         if (!await file.exists()) {

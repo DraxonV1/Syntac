@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 
 import 'tool_context.dart';
+import 'pdf_parser.dart';
 import 'file_snapshot.dart';
 
 mixin ReadTool on ToolContext {
@@ -22,6 +23,20 @@ mixin ReadTool on ToolContext {
     bool includeImage = false,
     bool systemwide = false,
   }) async {
+    final paths = parsePathList(inputPath);
+    if (paths.length > 1) {
+      return readBulkFiles(
+        paths,
+        offset: offset,
+        limit: limit,
+        startLine: startLine,
+        endLine: endLine,
+        unit: unit,
+        raw: raw,
+        includeImage: includeImage,
+        systemwide: systemwide,
+      );
+    }
     final trimmed = inputPath.trim();
     if (_isWebUrl(trimmed)) {
       return _readWebUrl(
@@ -66,6 +81,20 @@ mixin ReadTool on ToolContext {
     final snapshotBytes = length <= maxPatchFileBytes
         ? await readPatchBytes(file)
         : null;
+    if (PdfParser.isPdfPath(path) ||
+        (snapshotBytes != null && PdfParser.isPdfBytes(snapshotBytes))) {
+      final pdfBytes = snapshotBytes ?? await file.readAsBytes();
+      return _readPdfBytes(
+        inputPath,
+        pdfBytes,
+        offset: offset,
+        limit: limit,
+        startLine: startLine,
+        endLine: endLine,
+        unit: unit,
+        raw: raw,
+      );
+    }
     final snapshot = snapshotBytes == null ? null : fileSnapshot(snapshotBytes);
     final readUnit = (unit ?? 'line').toLowerCase();
     if (readUnit == 'byte') {
@@ -331,6 +360,20 @@ mixin ReadTool on ToolContext {
           'base64': base64Encode(bytes),
       };
     }
+    if (mime == 'application/pdf' ||
+        PdfParser.isPdfPath(url) ||
+        PdfParser.isPdfBytes(response.bodyBytes)) {
+      return _readPdfBytes(
+        url,
+        response.bodyBytes,
+        offset: offset,
+        limit: limit,
+        startLine: startLine,
+        endLine: endLine,
+        unit: unit,
+        raw: raw,
+      );
+    }
 
     String contentText;
     if (raw) {
@@ -581,5 +624,197 @@ mixin ReadTool on ToolContext {
           RegExp(r'&#x([0-9a-fA-F]+);'),
           (m) => String.fromCharCode(int.parse(m.group(1)!, radix: 16)),
         );
+  }
+
+  static List<String> parsePathList(
+    String? rawPath, [
+    List<dynamic>? rawPaths,
+  ]) {
+    if (rawPaths != null && rawPaths.isNotEmpty) {
+      return rawPaths
+          .map((e) => e.toString().trim())
+          .where((e) => e.isNotEmpty)
+          .toList(growable: false);
+    }
+    if (rawPath == null || rawPath.trim().isEmpty) return const [];
+    final trimmed = rawPath.trim();
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      try {
+        final decoded = jsonDecode(trimmed);
+        if (decoded is List) {
+          return decoded
+              .map((e) => e.toString().trim())
+              .where((e) => e.isNotEmpty)
+              .toList(growable: false);
+        }
+      } catch (_) {}
+    }
+    if (trimmed.contains(';')) {
+      return trimmed
+          .split(';')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList(growable: false);
+    }
+    if (trimmed.contains(',')) {
+      final firstColon = trimmed.indexOf(':');
+      final firstComma = trimmed.indexOf(',');
+      if (firstColon == -1 || firstComma < firstColon) {
+        return trimmed
+            .split(',')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList(growable: false);
+      }
+    }
+    return [trimmed];
+  }
+
+  Future<Map<String, Object?>> readBulkFiles(
+    List<String> paths, {
+    int? offset,
+    int? limit,
+    int? startLine,
+    int? endLine,
+    String? unit,
+    bool raw = false,
+    bool includeImage = false,
+    bool systemwide = false,
+  }) async {
+    final results = <Map<String, Object?>>[];
+    final buffer = StringBuffer();
+    var totalLines = 0;
+
+    for (final p in paths) {
+      try {
+        final res = await readFile(
+          p,
+          offset: offset,
+          limit: limit,
+          startLine: startLine,
+          endLine: endLine,
+          unit: unit,
+          raw: raw,
+          includeImage: includeImage,
+          systemwide: systemwide,
+        );
+        results.add(res);
+        final snap = res['snapshot'] != null ? '#${res['snapshot']}' : '';
+        buffer.writeln('[$p$snap]');
+        final content = res['content']?.toString() ?? '';
+        final lines = content.split('\n');
+        final start = (res['startLine'] as int?) ?? 1;
+        for (var i = 0; i < lines.length; i++) {
+          totalLines++;
+          buffer.writeln('${start + i}: ${lines[i]}');
+        }
+        buffer.writeln('');
+      } on ToolFailure catch (e) {
+        buffer.writeln('[$p]');
+        buffer.writeln('Error: ${e.message}\n');
+      }
+    }
+
+    return {
+      'paths': paths,
+      'count': results.length,
+      'files': results,
+      'totalLines': totalLines,
+      'content': buffer.toString().trim(),
+      'unit': 'line',
+    };
+  }
+
+  Future<Map<String, Object?>> _readPdfBytes(
+    String inputPath,
+    List<int> bytes, {
+    int? offset,
+    int? limit,
+    int? startLine,
+    int? endLine,
+    String? unit,
+    bool raw = false,
+  }) async {
+    final length = bytes.length;
+    final readUnit = (unit ?? 'line').toLowerCase();
+
+    if (raw || readUnit == 'byte') {
+      final start = (offset ?? 0).clamp(0, length).toInt();
+      final requested = limit ?? maxReadBytes;
+      final safeLimit = requested.clamp(0, maxReadBytes).toInt();
+      final end = (start + safeLimit).clamp(start, length).toInt();
+      final slice = bytes.sublist(start, end);
+      return {
+        'path': inputPath,
+        'bytes': length,
+        'kind': 'pdf',
+        'unit': 'byte',
+        'startByte': start,
+        'endByteExclusive': end,
+        'content': utf8.decode(slice, allowMalformed: true),
+        'truncated': requested > safeLimit || end < length,
+      };
+    }
+
+    if (readUnit != 'line') throw ToolFailure('Unsupported read unit: $unit');
+    final pdfLines = PdfParser.extractTextLines(bytes);
+    final totalLines = pdfLines.length;
+    final contentText = pdfLines.join('\n');
+    final contentBytes = utf8.encode(contentText);
+    final snapshot = fileSnapshot(contentBytes);
+
+    final start = (startLine ?? offset ?? 1).clamp(1, 1 << 30).toInt();
+    final requestedEndInput =
+        endLine ?? (limit == null ? null : start + limit - 1);
+    if (requestedEndInput != null && requestedEndInput < start) {
+      throw ToolFailure('endLine must be greater than or equal to startLine');
+    }
+    final requestedEnd = requestedEndInput == null
+        ? start + ToolContext.maxReadLines - 1
+        : requestedEndInput
+              .clamp(start, start + ToolContext.maxReadLines - 1)
+              .toInt();
+
+    final selected = <String>[];
+    var selectedBytes = 0;
+    var truncated = false;
+
+    for (var i = 0; i < totalLines; i++) {
+      final lineNum = i + 1;
+      if (lineNum < start) continue;
+      if (lineNum > requestedEnd) continue;
+      if (truncated) continue;
+      final line = pdfLines[i];
+      final lineBytes = utf8.encode(line).length + 1;
+      if (selectedBytes + lineBytes > maxReadBytes) {
+        truncated = true;
+        continue;
+      }
+      selected.add(line);
+      selectedBytes += lineBytes;
+    }
+
+    final end = selected.isEmpty ? start - 1 : start + selected.length - 1;
+    final requestedLimit = requestedEnd - start + 1;
+    final hasMore = end < totalLines;
+    return {
+      'path': inputPath,
+      'snapshot': snapshot,
+      'bytes': length,
+      'kind': 'pdf',
+      'unit': 'line',
+      'startLine': start,
+      'endLine': end,
+      'totalLines': totalLines,
+      'content': selected.join('\n'),
+      'truncated': truncated || hasMore,
+      'contentTruncated': truncated || hasMore,
+      'hasMore': hasMore,
+      'requestedLines': requestedLimit,
+      if (hasMore) 'nextStartLine': end + 1,
+      if (hasMore)
+        'notice':
+            'Output truncated at ${ToolContext.maxReadLines} lines. Read again with startLine ${end + 1} (or :${end + 1}) to continue.',
+    };
   }
 }

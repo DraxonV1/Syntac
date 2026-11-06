@@ -873,6 +873,8 @@ class AgentLoop {
     'list' => 'Listing ${_pathFromArgs(call.argumentsJson)}',
     'glob' => 'Matching project paths',
     'search' => 'Searching project',
+    'grep' => 'Searching pattern ${_patternFromArgs(call.argumentsJson)}',
+    'find' => 'Finding behavior ${_queryFromArgs(call.argumentsJson)}',
     'web_search' => 'Searching web for ${_queryFromArgs(call.argumentsJson)}',
     'bash' => 'Running command',
     'jobs.list' || 'jobs_list' => 'Listing runtime jobs',
@@ -901,6 +903,16 @@ class AgentLoop {
       }
     } catch (_) {}
     return 'query';
+  }
+
+  String _patternFromArgs(String raw) {
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map && decoded['pattern'] != null) {
+        return decoded['pattern'].toString();
+      }
+    } catch (_) {}
+    return 'pattern';
   }
 
   Future<void> _finish(

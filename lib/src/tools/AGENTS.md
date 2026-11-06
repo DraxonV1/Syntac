@@ -6,13 +6,16 @@
 
 ## Main files
 
-- `agent_tools.dart`: tool specs and dispatch for `read`, `write`, `apply_patch`, `delete`, `list`, `glob`, `search`, `web_search`, `bash`, `jobs.*`, `copy`, and optional per-chat `todo`.
+- `agent_tools.dart`: tool specs and dispatch for `read`, `write`, `apply_patch`, `delete`, `list`, `glob`, `search`, `grep`, `find`, `web_search`, `bash`, `jobs.*`, `copy`, and optional per-chat `todo`.
 - `tool_context.dart`: project-root realpath sandbox, exact attached-file read boundary, explicit read-only systemwide path resolver, output bounds, and local artifact helpers.
 - `apply_patch_tool.dart`: bounded multi-file patch parser and atomic project writes.
 - `glob_tool.dart`: bounded project file/directory matching.
 - `file_snapshot.dart`: SHA-256 read snapshots and patch size limits.
 - `runtime_jobs_tool.dart`: status, log follow, wait, and cancel APIs over durable runtime capability.
 - `web_search_tool.dart`: web search provider integration (DuckDuckGo default) returning ranked sources and snippets.
+- `grep_tool.dart`: regex search across project files and PDFs matching omp.
+- `find_tool.dart`: semantic behavior search ranking files and passages matching omp.
+- `pdf_parser.dart`: binary and FlateDecode PDF stream decompression and text extraction.
 
 ## Change here when
 
@@ -24,7 +27,8 @@
 ## Invariants
 
 - Normal file paths resolve inside `projectRoot` after symlink/realpath checks.
-- `read` systemwide mode requires an absolute path, remains read-only, and blocks sensitive path patterns. `read` on `http://` / `https://` URLs fetches web pages with markdown conversion and bounded line paging.
+- `read` systemwide mode requires an absolute path, remains read-only, and blocks sensitive path patterns. `read` auto-parses text from binary/compressed PDFs, supports bulk file reading, and fetches web pages (http/https) with markdown conversion.
+- `grep` and `search` extract and search text inside PDFs instead of skipping binary.
 - Exact stored attachment paths and stable `local://attachment/<id>` references are read-only exceptions; legacy positional attachment URIs remain compatible.
 - Reject URI/fake SAF paths and invalid symlink ancestors.
 - Bound read/search/bash/job output before returning and before persistence.

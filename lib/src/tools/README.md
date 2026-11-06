@@ -1,13 +1,16 @@
 # Project Tools
 
-`agent_tools.dart` exposes sandboxed `read`, `write`, `apply_patch`, `delete`, `list`, `glob`, `search`, `web_search`, `bash`, `jobs.*`, `copy`, and per-chat `todo` operations.
+`agent_tools.dart` exposes sandboxed `read`, `write`, `apply_patch`, `delete`, `list`, `glob`, `search`, `grep`, `find`, `web_search`, `bash`, `jobs.*`, `copy`, and per-chat `todo` operations.
 
 ## Rules
 
 - Resolve normal file paths inside selected project root after lexical, realpath, and symlink checks.
 - `read` with `systemwide: true` accepts absolute paths for read-only diagnostics, blocks sensitive path patterns, and never expands write scope.
 - Exact paths of known chat attachments are readable without opening general systemwide access.
-- `read` on `http://` / `https://` URLs fetches web pages, converts HTML to readable markdown, and applies standard line/byte bounds and snapshot hashes.
+- `read` auto-parses text from binary and compressed FlateDecode PDFs, supports bulk file reading, and fetches web pages (`http://` / `https://`) with HTML-to-Markdown conversion and line paging.
+- `glob` matches files and directories with `;`-separated paths/globs, honoring gitignore and dotfile settings matching omp.
+- `grep` runs regex searches across workspace files and PDFs, returning line-numbered matches with pagination matching omp.
+- `find` performs semantic behavior search ranking files and passages by query relevance matching omp.
 - `web_search` queries the web using default free DuckDuckGo provider and returns ranked sources, snippets, and formatted results.
 - Keep file reads at 500 lines or `maxReadBytes`; use `startLine`/`nextStartLine` for continuation.
 - Text reads up to 2 MiB return SHA-256 `snapshot`. `apply_patch` requires matching snapshots for every update/delete, rejects duplicate or stale paths before writes, limits patch/file/diff size, and restores earlier changes after in-process write failure. External writers and process crashes remain outside transaction guarantees.

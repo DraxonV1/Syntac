@@ -284,6 +284,8 @@ class _ToolCallCardState extends State<ToolCallCard>
       'list' => 'List',
       'glob' => 'Glob',
       'search' => 'Search',
+      'grep' => 'Grep',
+      'find' => 'Find',
       'web_search' => 'Web search',
       'bash' => 'Bash',
       'jobs.list' => 'Jobs list',
@@ -307,6 +309,8 @@ class _ToolCallCardState extends State<ToolCallCard>
       'list' => Icons.folder_open_outlined,
       'glob' => Icons.manage_search_outlined,
       'search' => Icons.search,
+      'grep' => Icons.manage_search,
+      'find' => Icons.explore_outlined,
       'web_search' => Icons.travel_explore,
       'bash' => Icons.terminal,
       'jobs.list' ||
@@ -458,6 +462,8 @@ class _ToolCallCardState extends State<ToolCallCard>
       'copy' =>
         '${args['source']?.toString() ?? ''} → ${args['target']?.toString() ?? ''}',
       'search' => '"${args['query']?.toString() ?? ''}"',
+      'grep' => '"${args['pattern']?.toString() ?? ''}"',
+      'find' => '"${args['query']?.toString() ?? ''}"',
       'web_search' => '"${args['query']?.toString() ?? ''}"',
       'bash' => args['command']?.toString() ?? '',
       'jobs.status' ||
@@ -532,6 +538,20 @@ class _ToolCallCardState extends State<ToolCallCard>
         final results = result['results'];
         if (results is List) {
           return BadgeChip.neutral(label: '${results.length} matches');
+        }
+        return null;
+      }(),
+      'grep' => () {
+        final totalMatches = _intValue(result['totalMatches']);
+        if (totalMatches != null) {
+          return BadgeChip.neutral(label: '$totalMatches matches');
+        }
+        return null;
+      }(),
+      'find' => () {
+        final totalHits = _intValue(result['totalHits']);
+        if (totalHits != null) {
+          return BadgeChip.neutral(label: '$totalHits hits');
         }
         return null;
       }(),
@@ -764,6 +784,8 @@ class _ToolCallCardState extends State<ToolCallCard>
       'jobs.list' => _buildJobsListDetails(result),
       'jobs.logs' => _buildJobLogsDetails(result),
       'jobs.status' || 'jobs.wait' || 'jobs.cancel' => _buildJobDetails(result),
+      'grep' => _buildGrepDetails(args, result),
+      'find' => _buildFindDetails(args, result),
       'web_search' => _buildWebSearchDetails(args, result),
       _ => _buildJsonDetails(args, result),
     };
@@ -936,6 +958,68 @@ class _ToolCallCardState extends State<ToolCallCard>
               ),
             ),
           ],
+        ],
+      ],
+    );
+  }
+
+  Widget _buildGrepDetails(
+    Map<String, Object?> args,
+    Map<String, Object?> result,
+  ) {
+    final pattern =
+        result['pattern']?.toString() ?? args['pattern']?.toString() ?? '';
+    final content = result['content']?.toString() ?? '';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildCodeBox(title: 'PATTERN', content: pattern, copyable: true),
+        const SizedBox(height: 6),
+        Text(
+          '${result['totalMatches'] ?? 0} matches across ${result['filesCount'] ?? 0} files',
+          style: AppTypography.monoSmall.copyWith(
+            color: AppColors.textSecondary,
+          ),
+        ),
+        if (content.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          _buildCodeBox(
+            title: 'MATCHES',
+            content: content,
+            copyable: true,
+            maxHeight: 220,
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildFindDetails(
+    Map<String, Object?> args,
+    Map<String, Object?> result,
+  ) {
+    final query =
+        result['query']?.toString() ?? args['query']?.toString() ?? '';
+    final content = result['content']?.toString() ?? '';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildCodeBox(title: 'QUERY', content: query, copyable: true),
+        const SizedBox(height: 6),
+        Text(
+          '${result['totalHits'] ?? 0} behavior hits (strongest first)',
+          style: AppTypography.monoSmall.copyWith(
+            color: AppColors.textSecondary,
+          ),
+        ),
+        if (content.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          _buildCodeBox(
+            title: 'HITS',
+            content: content,
+            copyable: true,
+            maxHeight: 220,
+          ),
         ],
       ],
     );
