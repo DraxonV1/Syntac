@@ -1,0 +1,43 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { APP_CONFIG } from '../data/appData';
+---
+
+<Layout
+  title={`404 Page Not Found — ${APP_CONFIG.name}`}
+  description="The requested page was not found."
+>
+  <div class="py-24 sm:py-32 relative z-10 flex items-center justify-center">
+    <div class="max-w-md mx-auto px-4 text-center space-y-6">
+      
+      <div class="w-16 h-16 rounded-2xl bg-[#0D1420] border border-[#8296DC]/20 mx-auto flex items-center justify-center text-[#91A7FF] shadow-lg shadow-[#6684FF]/10">
+        <span class="font-mono text-xl font-bold">404</span>
+      </div>
+
+      <div class="space-y-2">
+        <h1 class="text-2xl sm:text-3xl font-extrabold text-[#F8FAFF]">
+          Page Not Found
+        </h1>
+        <p class="text-sm text-[#9EA8B8]">
+          The page or asset you are looking for does not exist on <code class="text-[#91A7FF] font-mono">syntac.com</code>.
+        </p>
+      </div>
+
+      <div class="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
+        <a
+          href="/"
+          class="w-full sm:w-auto px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#6684FF] hover:bg-[#91A7FF] transition-all"
+        >
+          Back to Home
+        </a>
+        <a
+          href="/download"
+          class="w-full sm:w-auto px-5 py-2.5 rounded-xl text-sm font-semibold text-[#9EA8B8] hover:text-white bg-[#0D1420] border border-[#8296DC]/20 transition-all"
+        >
+          Download APK
+        </a>
+      </div>
+
+    </div>
+  </div>
+</Layout>

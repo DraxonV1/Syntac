@@ -7,6 +7,8 @@
   "mandatory": false,
   "minSupportedVersionCode": 0,
   "notes": [
+    "Web search tool queries documentation, packages, and technical information via DuckDuckGo",
+    "Read tool fetches and converts web pages to clean Markdown with bounded line paging",
     "Write tool cards now appear at call start and stream generated content",
     "GitHub-flavored Markdown adds tables, task lists, links, images, syntax-highlighted code, and real TeX",
     "Maximized code keeps syntax highlighting and horizontal scrolling",

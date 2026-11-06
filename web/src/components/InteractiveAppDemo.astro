@@ -1,0 +1,292 @@
+---
+import { 
+  Terminal, 
+  Sparkles, 
+  CheckCircle2, 
+  Play, 
+  Cpu, 
+  ShieldCheck, 
+  FileCode2, 
+  Activity,
+  GitCommit
+} from 'lucide-astro';
+---
+
+<div class="relative max-w-lg mx-auto w-full">
+  
+  <!-- Outer glowing smartphone frame with layered glass reflection -->
+  <div class="relative rounded-[40px] p-3 bg-gradient-to-b from-[#1B2842] via-[#0D1420] to-[#05070C] border border-[#8296DC]/30 shadow-2xl shadow-[#6684FF]/20 overflow-hidden">
+    
+    <!-- Screen Bezel -->
+    <div class="relative rounded-[32px] bg-[#05070C] border border-[#8296DC]/20 overflow-hidden flex flex-col h-[600px] sm:h-[640px]">
+      
+      <!-- Android Status Bar -->
+      <div class="h-6 px-6 flex items-center justify-between text-[11px] font-mono text-[#8E99AA] bg-[#080C14] border-b border-[#8296DC]/10 select-none">
+        <span>09:41</span>
+        <div class="flex items-center gap-2 text-xs">
+          <span>5G</span>
+          <span>100%</span>
+        </div>
+      </div>
+
+      <!-- App Header Bar -->
+      <div class="px-4 py-2.5 bg-[#080C14] border-b border-[#8296DC]/15 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="w-6 h-6 rounded-lg bg-[#0F1726] border border-[#8296DC]/30 flex items-center justify-center p-0.5 shadow-sm">
+            <img src="/syntac-logo.png" alt="Syntac" class="w-full h-full object-contain" />
+          </div>
+          <div>
+            <div class="flex items-center gap-1.5">
+              <span class="text-xs font-bold text-[#F8FAFF]">Syntac Agent</span>
+              <span class="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse"></span>
+            </div>
+            <p class="text-[10px] font-mono text-[#4E5666]">~/projects/auth-engine</p>
+          </div>
+        </div>
+
+        <!-- Model Selector Chip -->
+        <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#0D1420] border border-[#6684FF]/30 text-[11px] font-mono text-[#91A7FF]">
+          <Sparkles class="w-3 h-3 text-[#6684FF]" />
+          <span>Gemini 3</span>
+        </div>
+      </div>
+
+      <!-- App Screen View Tabs -->
+      <div class="flex items-center px-3 py-1.5 bg-[#05070C] border-b border-[#8296DC]/10 text-xs font-medium gap-1 select-none">
+        <button id="tab-btn-chat" class="px-3 py-1 rounded-lg bg-[#141F33] text-[#F8FAFF] border border-[#6684FF]/40 transition-all flex items-center gap-1.5 text-[11px]">
+          <FileCode2 class="w-3 h-3 text-[#91A7FF]" />
+          <span>Agent Chat</span>
+        </button>
+        <button id="tab-btn-terminal" class="px-3 py-1 rounded-lg bg-[#080C14] text-[#8E99AA] hover:text-[#F8FAFF] border border-transparent hover:border-[#8296DC]/15 transition-all flex items-center gap-1.5 text-[11px]">
+          <Terminal class="w-3 h-3" />
+          <span>Arch Linux</span>
+        </button>
+        <button id="tab-btn-diagnostics" class="px-3 py-1 rounded-lg bg-[#080C14] text-[#8E99AA] hover:text-[#F8FAFF] border border-transparent hover:border-[#8296DC]/15 transition-all flex items-center gap-1.5 text-[11px]">
+          <Activity class="w-3 h-3" />
+          <span>Diagnostics</span>
+        </button>
+      </div>
+
+      <!-- Scrollable Screen Body -->
+      <div class="flex-grow overflow-y-auto p-3.5 space-y-3 font-sans text-xs">
+        
+        <!-- Pane 1: Agent Chat -->
+        <div id="pane-chat" class="space-y-3">
+          
+          <!-- User Prompt with typing effect -->
+          <div class="flex justify-end">
+            <div class="max-w-[90%] rounded-2xl rounded-tr-xs bg-[#18243C] border border-[#8296DC]/25 p-3 text-[#F8FAFF] shadow-sm space-y-1">
+              <p class="leading-relaxed font-sans">
+                <span id="typed-user-prompt"></span><span id="prompt-cursor" class="typing-cursor"></span>
+              </p>
+              <div class="text-[9px] text-[#4E5666] text-right font-mono">09:41 AM</div>
+            </div>
+          </div>
+
+          <!-- Model Reasoning Trace Container -->
+          <div id="agent-thinking-box" class="opacity-0 transition-opacity duration-500 rounded-xl bg-[#080C14] border border-[#8296DC]/15 p-2.5 space-y-1.5">
+            <div class="flex items-center justify-between text-[11px] text-[#8E99AA]">
+              <div class="flex items-center gap-1.5 font-mono text-[#91A7FF]">
+                <Cpu class="w-3.5 h-3.5 animate-spin" />
+                <span>Model Reasoning Trace</span>
+              </div>
+              <span class="text-[9px] font-mono text-[#4E5666]">1.2s</span>
+            </div>
+            <p class="text-[10.5px] text-[#8E99AA] font-mono bg-[#05070C] p-2 rounded border border-[#8296DC]/10 leading-normal">
+              Target located in <span class="text-[#91A7FF]">lib/src/ai/provider_registry.dart</span>. Applying surgical <span class="text-[#91A7FF]">edit</span> with token catch boundary.
+            </p>
+          </div>
+
+          <!-- Tool Call Card (Edit Tool) -->
+          <div id="agent-tool-box" class="opacity-0 transition-opacity duration-500 rounded-xl bg-[#080C14] border border-[#6684FF]/40 p-3 space-y-2 shadow-md">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#6684FF]/20 text-[#91A7FF] border border-[#6684FF]/30">
+                  tool: edit
+                </span>
+                <span class="font-mono text-[11px] text-[#F8FAFF]">lib/src/ai/provider.dart</span>
+              </div>
+              <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-mono bg-[#10B981]/15 text-[#6EE7B7] border border-[#10B981]/30">
+                <CheckCircle2 class="w-2.5 h-2.5" />
+                42ms
+              </span>
+            </div>
+
+            <!-- Inline Diff -->
+            <div class="rounded-lg bg-[#030509] border border-[#8296DC]/12 p-2 font-mono text-[10.5px] leading-tight space-y-0.5">
+              <div class="bg-[#EF4444]/15 text-[#FCA5A5] px-1 py-0.5 rounded-xs">- final result = parseResponse(payload);</div>
+              <div class="bg-[#10B981]/15 text-[#6EE7B7] px-1 py-0.5 rounded-xs">+ final result = await parseResponseSafe(payload);</div>
+              <div class="bg-[#10B981]/15 text-[#6EE7B7] px-1 py-0.5 rounded-xs">+ if (!result.isValid) throw ProviderError('PARSE_FAILED');</div>
+            </div>
+          </div>
+
+          <!-- Bash Run Output -->
+          <div id="agent-bash-box" class="opacity-0 transition-opacity duration-500 rounded-xl bg-[#080C14] border border-[#8296DC]/20 p-2.5 space-y-1.5">
+            <div class="flex items-center justify-between text-[11px]">
+              <div class="flex items-center gap-1.5 font-mono text-[#FCD34D]">
+                <Terminal class="w-3 h-3" />
+                <span>$ flutter test</span>
+              </div>
+              <span class="text-[9px] font-mono text-[#10B981]">exit 0</span>
+            </div>
+            <div class="rounded bg-[#030509] p-2 font-mono text-[10px] text-[#34D399] border border-[#8296DC]/10">
+              00:04 +4: All tests passed!
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Pane 2: Arch Linux Terminal -->
+        <div id="pane-terminal" class="hidden space-y-2 font-mono text-[11px]">
+          <div class="rounded-xl bg-[#030509] border border-[#8296DC]/20 p-3 space-y-2 text-[#F8FAFF]">
+            <div class="flex items-center justify-between pb-2 border-b border-[#8296DC]/10 text-[10px] text-[#4E5666]">
+              <span>Arch Linux PRoot (ARM64)</span>
+              <span class="text-[#10B981]">rootless</span>
+            </div>
+            <div class="space-y-1 text-[#8E99AA]">
+              <p class="text-[#F8FAFF]"><span class="text-[#6684FF]">[syntac@android ~]$</span> pacman -Q nodejs python git</p>
+              <p>nodejs 22.14.0-1</p>
+              <p>python 3.13.2-1</p>
+              <p>git 2.48.1-1</p>
+              <p class="text-[#F8FAFF] flex items-center gap-1">
+                <span class="text-[#6684FF]">[syntac@android ~]$</span>
+                <span class="typing-cursor"></span>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pane 3: Diagnostics -->
+        <div id="pane-diagnostics" class="hidden space-y-2">
+          <div class="rounded-xl bg-[#080C14] border border-[#8296DC]/20 p-3 space-y-2.5">
+            <h4 class="text-xs font-semibold text-[#F8FAFF] flex items-center gap-1.5">
+              <Activity class="w-3.5 h-3.5 text-[#10B981]" />
+              <span>System & Storage Diagnostics</span>
+            </h4>
+            <div class="grid grid-cols-2 gap-2 text-[11px] font-mono">
+              <div class="bg-[#05070C] p-2 rounded border border-[#8296DC]/10">
+                <div class="text-[#4E5666] text-[9px]">STORAGE</div>
+                <div class="text-[#6EE7B7] font-semibold">JSONL Atomic</div>
+              </div>
+              <div class="bg-[#05070C] p-2 rounded border border-[#8296DC]/10">
+                <div class="text-[#4E5666] text-[9px]">RUNTIME</div>
+                <div class="text-[#91A7FF] font-semibold">PRoot Rootless</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- App Chat Input Field Simulation -->
+      <div class="p-3 bg-[#080C14] border-t border-[#8296DC]/15 flex items-center gap-2">
+        <div class="flex-grow h-9 px-3 rounded-xl bg-[#05070C] border border-[#8296DC]/20 flex items-center text-xs text-[#4E5666] select-none">
+          Ask Syntac to edit, search, or run...
+        </div>
+        <div class="w-9 h-9 rounded-xl bg-[#6684FF] flex items-center justify-center text-white shadow-md shadow-[#6684FF]/30">
+          <Play class="w-3.5 h-3.5 fill-current" />
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Decorative floating badges -->
+  <div class="hidden sm:flex absolute -top-4 -left-6 px-3 py-1.5 rounded-xl bg-[#0D1420]/95 backdrop-blur-md border border-[#8296DC]/25 shadow-xl text-xs font-mono text-[#F8FAFF] animate-float-smooth items-center gap-2">
+    <ShieldCheck class="w-3.5 h-3.5 text-[#10B981]" />
+    <span>Rootless PRoot v5.1</span>
+  </div>
+
+  <div class="hidden sm:flex absolute -bottom-4 -right-6 px-3 py-1.5 rounded-xl bg-[#0D1420]/95 backdrop-blur-md border border-[#8296DC]/25 shadow-xl text-xs font-mono text-[#F8FAFF] animate-float-smooth items-center gap-2" style="animation-delay: 2.5s;">
+    <GitCommit class="w-3.5 h-3.5 text-[#91A7FF]" />
+    <span>Atomic JSONL Sessions</span>
+  </div>
+</div>
+
+<script>
+  // Tab handling
+  const btnChat = document.getElementById('tab-btn-chat');
+  const btnTerminal = document.getElementById('tab-btn-terminal');
+  const btnDiagnostics = document.getElementById('tab-btn-diagnostics');
+
+  const paneChat = document.getElementById('pane-chat');
+  const paneTerminal = document.getElementById('pane-terminal');
+  const paneDiagnostics = document.getElementById('pane-diagnostics');
+
+  const buttons = [btnChat, btnTerminal, btnDiagnostics];
+  const panes = [paneChat, paneTerminal, paneDiagnostics];
+
+  function activateTab(index: number) {
+    buttons.forEach((btn, i) => {
+      if (!btn) return;
+      if (i === index) {
+        btn.classList.add('bg-[#141F33]', 'text-[#F8FAFF]', 'border-[#6684FF]/40');
+        btn.classList.remove('bg-[#080C14]', 'text-[#8E99AA]', 'border-transparent');
+      } else {
+        btn.classList.remove('bg-[#141F33]', 'text-[#F8FAFF]', 'border-[#6684FF]/40');
+        btn.classList.add('bg-[#080C14]', 'text-[#8E99AA]', 'border-transparent');
+      }
+    });
+
+    panes.forEach((pane, i) => {
+      if (!pane) return;
+      if (i === index) {
+        pane.classList.remove('hidden');
+      } else {
+        pane.classList.add('hidden');
+      }
+    });
+  }
+
+  btnChat?.addEventListener('click', () => activateTab(0));
+  btnTerminal?.addEventListener('click', () => activateTab(1));
+  btnDiagnostics?.addEventListener('click', () => activateTab(2));
+
+  // Live Typing & Reveal Demo
+  const promptText = "Inspect provider response parsing, patch error handling, and run flutter test.";
+  const typedPromptEl = document.getElementById('typed-user-prompt');
+  const promptCursorEl = document.getElementById('prompt-cursor');
+  const thinkingBox = document.getElementById('agent-thinking-box');
+  const toolBox = document.getElementById('agent-tool-box');
+  const bashBox = document.getElementById('agent-bash-box');
+
+  let charIndex = 0;
+
+  function typePrompt() {
+    if (!typedPromptEl) return;
+    if (charIndex < promptText.length) {
+      typedPromptEl.textContent += promptText.charAt(charIndex);
+      charIndex++;
+      setTimeout(typePrompt, 35);
+    } else {
+      if (promptCursorEl) promptCursorEl.style.display = 'none';
+      
+      // Step 2: reveal thinking
+      setTimeout(() => {
+        if (thinkingBox) {
+          thinkingBox.classList.remove('opacity-0');
+          thinkingBox.classList.add('opacity-100');
+        }
+      }, 300);
+
+      // Step 3: reveal tool edit
+      setTimeout(() => {
+        if (toolBox) {
+          toolBox.classList.remove('opacity-0');
+          toolBox.classList.add('opacity-100');
+        }
+      }, 900);
+
+      // Step 4: reveal bash execution
+      setTimeout(() => {
+        if (bashBox) {
+          bashBox.classList.remove('opacity-0');
+          bashBox.classList.add('opacity-100');
+        }
+      }, 1500);
+    }
+  }
+
+  // Kickoff on load
+  setTimeout(typePrompt, 400);
+</script>

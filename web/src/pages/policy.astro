@@ -1,0 +1,106 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { APP_CONFIG } from '../data/appData';
+---
+
+<Layout
+  title={`Privacy Policy — ${APP_CONFIG.name}`}
+  description={`Privacy Policy for Syntac. Transparent details on our local-first, zero-telemetry architecture and direct-to-provider encrypted communication.`}
+>
+  <div class="py-16 sm:py-24 relative z-10">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+      
+      <!-- Page Header -->
+      <div class="space-y-4 border-b border-[#8296DC]/12 pb-8">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-[#10B981]/10 text-[#6EE7B7] border border-[#10B981]/25">
+          <span class="w-1.5 h-1.5 rounded-full bg-[#10B981]"></span>
+          <span>Zero Telemetry Guarantee</span>
+        </div>
+        <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight text-[#F8FAFF]">
+          Privacy Policy
+        </h1>
+        <p class="text-sm text-[#667085] font-mono">
+          Effective Date: February 28, 2025 • Version {APP_CONFIG.currentVersion}
+        </p>
+      </div>
+
+      <!-- Main Policy Content -->
+      <div class="glass-surface-card rounded-3xl p-8 sm:p-10 border border-[#8296DC]/15 space-y-8 text-sm text-[#9EA8B8] leading-relaxed">
+        
+        <section class="space-y-3">
+          <h2 class="text-xl font-bold text-[#F8FAFF]">1. Core Privacy Philosophy: Local-First</h2>
+          <p>
+            <strong>Syntac</strong> was built from the ground up on the principle of complete local data ownership. We do not collect, store, transmit, or monetize your personal information, source code, prompts, or conversation history.
+          </p>
+        </section>
+
+        <section class="space-y-3">
+          <h2 class="text-xl font-bold text-[#F8FAFF]">2. Where Your Data Lives</h2>
+          <p>
+            All application data remains confined to your physical device:
+          </p>
+          <ul class="list-disc pl-5 space-y-2 text-[#F8FAFF]/90">
+            <li><strong>Project Code & Files:</strong> Kept in your chosen local Android folders or app-private storage. Syntac never uploads repositories to any external cloud service.</li>
+            <li><strong>Chat History & Tool Runs:</strong> Stored locally in atomic JSONL files on your device.</li>
+            <li><strong>API Keys & OAuth Tokens:</strong> Encrypted using the standard Android Keystore cryptographic provider and stored only in app-private preferences.</li>
+          </ul>
+        </section>
+
+        <section class="space-y-3">
+          <h2 class="text-xl font-bold text-[#F8FAFF]">3. Third-Party AI Model Communications</h2>
+          <p>
+            When you send a prompt or execute an agent task, your device communicates directly with the AI endpoint you configured (e.g. Google Cloud Code Assist, DeepSeek, OpenRouter, or your custom base URL) via encrypted TLS (HTTPS).
+          </p>
+          <p>
+            There is no Syntac proxy, intermediate relay, or telemetry collector in the middle. The payload sent to the AI provider consists only of the prompt context and tool definitions necessary to fulfill your request.
+          </p>
+        </section>
+
+        <section class="space-y-3">
+          <h2 class="text-xl font-bold text-[#F8FAFF]">4. Android Permissions Explained</h2>
+          <p>
+            Syntac requests only the minimum permissions required for developer workflows:
+          </p>
+          <div class="space-y-2 pt-1 font-mono text-xs">
+            <div class="p-3 rounded-xl bg-[#030509] border border-[#8296DC]/15 space-y-1">
+              <span class="text-[#91A7FF] font-bold">MANAGE_EXTERNAL_STORAGE / READ_EXTERNAL_STORAGE</span>
+              <p class="text-[#9EA8B8] font-sans text-xs">Allows the app to read, edit, and create code files in project folders selected by you.</p>
+            </div>
+            <div class="p-3 rounded-xl bg-[#030509] border border-[#8296DC]/15 space-y-1">
+              <span class="text-[#91A7FF] font-bold">INTERNET & ACCESS_NETWORK_STATE</span>
+              <p class="text-[#9EA8B8] font-sans text-xs">Required to send model inference requests directly to your chosen AI providers and download packages in the Arch Linux runtime.</p>
+            </div>
+            <div class="p-3 rounded-xl bg-[#030509] border border-[#8296DC]/15 space-y-1">
+              <span class="text-[#91A7FF] font-bold">com.termux.permission.RUN_COMMAND (Optional)</span>
+              <p class="text-[#9EA8B8] font-sans text-xs">Used only if you explicitly choose the Termux execution bridge instead of the built-in Arch Linux PRoot runtime.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="space-y-3">
+          <h2 class="text-xl font-bold text-[#F8FAFF]">5. Telemetry, Analytics, and Trackers</h2>
+          <p>
+            Syntac contains <strong>zero third-party tracking SDKs</strong>, zero analytics libraries (such as Google Analytics, Firebase Analytics, or Mixpanel), and zero advertising SDKs.
+          </p>
+        </section>
+
+        <section class="space-y-3">
+          <h2 class="text-xl font-bold text-[#F8FAFF]">6. Contact & Source Code Audit</h2>
+          <p>
+            Because Syntac is open-source, you can inspect the complete source code, network clients, and storage routines directly on GitHub: <a href={APP_CONFIG.repoUrl} class="text-[#91A7FF] underline">{APP_CONFIG.repoUrl}</a>.
+          </p>
+          <p>
+            For privacy inquiries or bug reports, please open an issue on GitHub.
+          </p>
+        </section>
+
+        <div class="pt-6 border-t border-[#8296DC]/10 flex items-center justify-between text-xs text-[#667085]">
+          <span>{APP_CONFIG.name} Security Architecture</span>
+          <a href="/terms" class="text-[#91A7FF] hover:underline">View Terms of Service</a>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+</Layout>

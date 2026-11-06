@@ -1,0 +1,53 @@
+---
+interface Props {
+  text: string;
+  tag?: 'h1' | 'h2' | 'h3' | 'p' | 'span';
+  class?: string;
+  delayMs?: number;
+  highlightText?: string;
+}
+
+const {
+  text,
+  tag = 'h1',
+  class: className = '',
+  delayMs = 100,
+  highlightText = '',
+} = Astro.props;
+
+const Tag = tag;
+---
+
+<Tag
+  class={`wipe-reveal-root relative inline-block transition-all ${className}`}
+  style={`animation-delay: ${delayMs}ms;`}
+>
+  {highlightText && text.includes(highlightText) ? (
+    <span>
+      {text.split(highlightText)[0]}
+      <span class="shimmer-text font-extrabold">{highlightText}</span>
+      {text.split(highlightText)[1]}
+    </span>
+  ) : (
+    <span>{text}</span>
+  )}
+</Tag>
+
+<style>
+  .wipe-reveal-root {
+    animation: wipeIn 650ms cubic-bezier(0.2, 0.0, 0.0, 1.0) both;
+  }
+
+  @keyframes wipeIn {
+    0% {
+      opacity: 0;
+      clip-path: polygon(0 0, 0 0, 0 100%, 0 100%);
+      transform: translateY(6px);
+    }
+    100% {
+      opacity: 1;
+      clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+      transform: translateY(0);
+    }
+  }
+</style>

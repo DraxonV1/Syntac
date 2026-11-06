@@ -13,6 +13,7 @@
 migrate_working_dir/
 .omp-reference/
 .syntac/
+.omp/
 STATE.md
 release-secrets.local.txt
 android/*.jks.*
@@ -47,3 +48,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+android/.kotlin/
+web/dist/
+web/.astro/
+web/node_modules/

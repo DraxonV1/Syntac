@@ -1,0 +1,173 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Jost', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+
+  --color-syntac-bg: #05070C;
+  --color-syntac-surface: #080C14;
+  --color-syntac-elevated: #0D1420;
+  --color-syntac-floating: #141F33;
+  --color-syntac-highlight: #1B2842;
+
+  --color-syntac-primary: #6684FF;
+  --color-syntac-primary-bright: #91A7FF;
+  --color-syntac-primary-soft: #B8C5FF;
+
+  --color-syntac-text: #F8FAFF;
+  --color-syntac-text-muted: #8E99AA;
+  --color-syntac-text-faint: #4E5666;
+
+  --color-syntac-border: rgba(130, 150, 220, 0.12);
+  --color-syntac-border-active: rgba(110, 140, 255, 0.35);
+
+  --color-syntac-success: #10B981;
+  --color-syntac-warning: #F59E0B;
+  --color-syntac-error: #EF4444;
+
+  --ease-emphasized: cubic-bezier(0.2, 0.0, 0.0, 1.0);
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html, body, button, input, select, textarea {
+  font-family: 'Jost', sans-serif;
+}
+
+html {
+  background-color: #05070C;
+  color: #F8FAFF;
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #05070C;
+  background-image: 
+    radial-gradient(circle 800px at 50% -10%, rgba(102, 132, 255, 0.14), transparent 70%),
+    radial-gradient(circle 600px at 85% 45%, rgba(145, 167, 255, 0.04), transparent 60%),
+    radial-gradient(circle 500px at 15% 75%, rgba(102, 132, 255, 0.04), transparent 60%);
+  min-height: 100vh;
+  overflow-x: hidden;
+  letter-spacing: -0.005em;
+}
+
+/* Monospace overrides for code/terminal */
+code, pre, .font-mono {
+  font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace !important;
+}
+
+/* Syntac Distinct Glass Surface */
+.syntac-glass {
+  background: linear-gradient(135deg, rgba(14, 21, 36, 0.6) 0%, rgba(8, 12, 20, 0.75) 100%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(130, 150, 220, 0.14);
+  box-shadow: 
+    0 16px 40px -8px rgba(0, 0, 0, 0.75),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.08),
+    inset 0 0 20px 0 rgba(102, 132, 255, 0.03);
+  transition: all 260ms var(--ease-emphasized);
+}
+
+.syntac-glass:hover {
+  border-color: rgba(110, 140, 255, 0.35);
+  box-shadow: 
+    0 20px 48px -10px rgba(0, 0, 0, 0.85),
+    0 0 24px 0 rgba(102, 132, 255, 0.12),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.12);
+  transform: translateY(-2px);
+}
+
+.syntac-card {
+  background: rgba(13, 20, 32, 0.45);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(130, 150, 220, 0.12);
+  transition: all 240ms var(--ease-emphasized);
+}
+
+.syntac-card:hover {
+  background: rgba(20, 31, 51, 0.6);
+  border-color: rgba(110, 140, 255, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px -4px rgba(0, 0, 0, 0.7), 0 0 20px 0 rgba(102, 132, 255, 0.1);
+}
+
+/* Glow Button with subtle Shimmer */
+.glow-btn {
+  position: relative;
+  overflow: hidden;
+  transition: all 240ms var(--ease-emphasized);
+}
+
+.glow-btn::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    60deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.25) 50%,
+    transparent 80%
+  );
+  transform: translateX(-100%) rotate(25deg);
+  transition: transform 750ms ease-in-out;
+}
+
+.glow-btn:hover::after {
+  transform: translateX(100%) rotate(25deg);
+}
+
+/* Shimmer Gradient Text */
+.shimmer-text {
+  background: linear-gradient(
+    90deg,
+    #F8FAFF 0%,
+    #B8C5FF 25%,
+    #FFFFFF 50%,
+    #91A7FF 75%,
+    #F8FAFF 100%
+  );
+  background-size: 200% auto;
+  color: transparent;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: shimmerSweep 6s linear infinite;
+}
+
+@keyframes shimmerSweep {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Typing cursor */
+.typing-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1.15em;
+  vertical-align: -0.15em;
+  background-color: #91A7FF;
+  animation: cursorBlink 900ms infinite;
+}
+
+@keyframes cursorBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* Minimal Scrollbars */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: #05070C;
+}
+::-webkit-scrollbar-thumb {
+  background: #141F33;
+  border-radius: 4px;
+}

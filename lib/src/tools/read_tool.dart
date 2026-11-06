@@ -2,6 +2,8 @@
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:async';
+import 'package:http/http.dart' as http;
 
 import 'package:path/path.dart' as p;
 
@@ -20,6 +22,19 @@ mixin ReadTool on ToolContext {
     bool includeImage = false,
     bool systemwide = false,
   }) async {
+    final trimmed = inputPath.trim();
+    if (_isWebUrl(trimmed)) {
+      return _readWebUrl(
+        trimmed,
+        offset: offset,
+        limit: limit,
+        startLine: startLine,
+        endLine: endLine,
+        unit: unit,
+        raw: raw,
+        includeImage: includeImage,
+      );
+    }
     final attachedPath = inputPath.startsWith('local://')
         ? null
         : await resolveAttachedAbsolutePath(inputPath);
@@ -252,5 +267,319 @@ mixin ReadTool on ToolContext {
       }
     }
     return null;
+  }
+
+  bool _isWebUrl(String path) {
+    final lower = path.toLowerCase();
+    return lower.startsWith('http://') || lower.startsWith('https://');
+  }
+
+  Future<Map<String, Object?>> _readWebUrl(
+    String url, {
+    int? offset,
+    int? limit,
+    int? startLine,
+    int? endLine,
+    String? unit,
+    bool raw = false,
+    bool includeImage = false,
+  }) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null || (!uri.isScheme('http') && !uri.isScheme('https'))) {
+      throw ToolFailure('Invalid web URL: $url');
+    }
+
+    final http.Response response;
+    try {
+      response = await httpClient
+          .get(
+            uri,
+            headers: const {
+              'User-Agent':
+                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'Accept':
+                  'text/html,application/xhtml+xml,application/xml;q=0.9,text/plain,*/*;q=0.8',
+            },
+          )
+          .timeout(const Duration(seconds: 30));
+    } on SocketException catch (e) {
+      throw ToolFailure('Failed to connect to $url: ${e.message}');
+    } on TimeoutException {
+      throw ToolFailure('Timed out fetching $url after 30 seconds');
+    } catch (e) {
+      throw ToolFailure('Failed to fetch $url: $e');
+    }
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ToolFailure('Failed to fetch $url: HTTP ${response.statusCode}');
+    }
+
+    final contentType = response.headers['content-type'] ?? '';
+    final mime = contentType.split(';').first.trim().toLowerCase();
+
+    if (mime.startsWith('image/')) {
+      final bytes = response.bodyBytes;
+      final dims = imageDimensions(bytes, mime);
+      return {
+        'path': url,
+        'kind': 'image',
+        'mimeType': mime,
+        'bytes': bytes.length,
+        if (dims != null) 'width': dims.$1,
+        if (dims != null) 'height': dims.$2,
+        if (includeImage && bytes.length <= ToolContext.maxInlineImageBytes)
+          'base64': base64Encode(bytes),
+      };
+    }
+
+    String contentText;
+    if (raw) {
+      contentText = response.body;
+    } else if (mime.contains('html') || _looksLikeHtml(response.body)) {
+      contentText = _convertHtmlToMarkdown(response.body, baseUrl: uri);
+    } else {
+      contentText = response.body;
+    }
+
+    final bytes = utf8.encode(contentText);
+    final length = bytes.length;
+    final snapshot = length <= maxPatchFileBytes ? fileSnapshot(bytes) : null;
+    final readUnit = (unit ?? 'line').toLowerCase();
+
+    if (readUnit == 'byte') {
+      final start = (offset ?? 0).clamp(0, length).toInt();
+      final requested = limit ?? maxReadBytes;
+      final safeLimit = requested.clamp(0, maxReadBytes).toInt();
+      final end = (start + safeLimit).clamp(start, length).toInt();
+      final slice = bytes.sublist(start, end);
+      return {
+        'path': url,
+        'snapshot': ?snapshot,
+        'bytes': length,
+        'unit': 'byte',
+        'startByte': start,
+        'endByteExclusive': end,
+        'content': utf8.decode(slice, allowMalformed: true),
+        'truncated': requested > safeLimit || end < length,
+      };
+    }
+
+    if (readUnit != 'line') throw ToolFailure('Unsupported read unit: $unit');
+    final start = (startLine ?? offset ?? 1).clamp(1, 1 << 30).toInt();
+    final requestedEndInput =
+        endLine ?? (limit == null ? null : start + limit - 1);
+    if (requestedEndInput != null && requestedEndInput < start) {
+      throw ToolFailure('endLine must be greater than or equal to startLine');
+    }
+    final requestedEnd = requestedEndInput == null
+        ? start + ToolContext.maxReadLines - 1
+        : requestedEndInput
+              .clamp(start, start + ToolContext.maxReadLines - 1)
+              .toInt();
+
+    final lines = const LineSplitter().convert(contentText);
+    final totalLines = lines.length;
+    final selected = <String>[];
+    var selectedBytes = 0;
+    var truncated = false;
+
+    for (var i = 0; i < totalLines; i++) {
+      final lineNum = i + 1;
+      if (lineNum < start) continue;
+      if (lineNum > requestedEnd) continue;
+      if (truncated) continue;
+      final line = lines[i];
+      final lineBytes = utf8.encode(line).length + 1;
+      if (selectedBytes + lineBytes > maxReadBytes) {
+        truncated = true;
+        continue;
+      }
+      selected.add(line);
+      selectedBytes += lineBytes;
+    }
+
+    final end = selected.isEmpty ? start - 1 : start + selected.length - 1;
+    final requestedLimit = requestedEnd - start + 1;
+    final hasMore = end < totalLines;
+    return {
+      'path': url,
+      'snapshot': ?snapshot,
+      'bytes': length,
+      'unit': 'line',
+      'startLine': start,
+      'endLine': end,
+      'totalLines': totalLines,
+      'content': selected.join('\n'),
+      'truncated': truncated || hasMore,
+      'contentTruncated': truncated || hasMore,
+      'hasMore': hasMore,
+      'requestedLines': requestedLimit,
+      if (hasMore) 'nextStartLine': end + 1,
+      if (hasMore)
+        'notice':
+            'Output truncated at ${ToolContext.maxReadLines} lines. Read again with startLine ${end + 1} (or :${end + 1}) to continue.',
+    };
+  }
+
+  bool _looksLikeHtml(String text) {
+    final prefix = text.trimLeft().toLowerCase();
+    return prefix.startsWith('<!doctype') ||
+        prefix.startsWith('<html') ||
+        prefix.startsWith('<head') ||
+        prefix.startsWith('<body');
+  }
+
+  String _convertHtmlToMarkdown(String html, {Uri? baseUrl}) {
+    var text = html
+        .replaceAll(
+          RegExp(r'<script\b[^>]*>[\s\S]*?<\/script>', caseSensitive: false),
+          '',
+        )
+        .replaceAll(
+          RegExp(r'<style\b[^>]*>[\s\S]*?<\/style>', caseSensitive: false),
+          '',
+        )
+        .replaceAll(
+          RegExp(
+            r'<noscript\b[^>]*>[\s\S]*?<\/noscript>',
+            caseSensitive: false,
+          ),
+          '',
+        )
+        .replaceAll(
+          RegExp(r'<svg\b[^>]*>[\s\S]*?<\/svg>', caseSensitive: false),
+          '',
+        )
+        .replaceAll(RegExp(r'<!--[\s\S]*?-->'), '');
+
+    String? title;
+    final titleMatch = RegExp(
+      r'<title\b[^>]*>([\s\S]*?)<\/title>',
+      caseSensitive: false,
+    ).firstMatch(text);
+    if (titleMatch != null) {
+      title = _decodeHtmlEntities(titleMatch.group(1)!.trim());
+    }
+
+    for (var i = 1; i <= 6; i++) {
+      final prefix = '#' * i;
+      text = text.replaceAllMapped(
+        RegExp('<h$i\\b[^>]*>([\\s\\S]*?)<\\/h$i>', caseSensitive: false),
+        (m) =>
+            '\n\n$prefix ${_decodeHtmlEntities(_stripTags(m.group(1)!)).trim()}\n\n',
+      );
+    }
+
+    text = text.replaceAllMapped(
+      RegExp(
+        r'''<a\b[^>]*\bhref\s*=\s*(?:["']([^"']*)["'])[^>]*>([\s\S]*?)<\/a>''',
+        caseSensitive: false,
+      ),
+      (m) {
+        var href = (m.group(1) ?? '').trim();
+        final linkText = _decodeHtmlEntities(_stripTags(m.group(2)!)).trim();
+        if (linkText.isEmpty) return '';
+        if (href.startsWith('/') && baseUrl != null) {
+          href = baseUrl.resolve(href).toString();
+        }
+        if (href.startsWith('http://') || href.startsWith('https://')) {
+          return '[$linkText]($href)';
+        }
+        return linkText;
+      },
+    );
+
+    text = text.replaceAllMapped(
+      RegExp(
+        r'<pre\b[^>]*><code\b[^>]*>([\s\S]*?)<\/code><\/pre>',
+        caseSensitive: false,
+      ),
+      (m) => '\n\n```\n${_decodeHtmlEntities(m.group(1)!)}\n```\n\n',
+    );
+    text = text.replaceAllMapped(
+      RegExp(r'<pre\b[^>]*>([\s\S]*?)<\/pre>', caseSensitive: false),
+      (m) => '\n\n```\n${_decodeHtmlEntities(m.group(1)!)}\n```\n\n',
+    );
+    text = text.replaceAllMapped(
+      RegExp(r'<code\b[^>]*>([\s\S]*?)<\/code>', caseSensitive: false),
+      (m) => '`${_decodeHtmlEntities(m.group(1)!)}`',
+    );
+
+    text = text.replaceAllMapped(
+      RegExp(
+        r'<(?:strong|b)\b[^>]*>([\s\S]*?)<\/(?:strong|b)>',
+        caseSensitive: false,
+      ),
+      (m) => '**${_stripTags(m.group(1)!)}**',
+    );
+    text = text.replaceAllMapped(
+      RegExp(r'<(?:em|i)\b[^>]*>([\s\S]*?)<\/(?:em|i)>', caseSensitive: false),
+      (m) => '*${_stripTags(m.group(1)!)}*',
+    );
+
+    text = text.replaceAllMapped(
+      RegExp(r'<li\b[^>]*>([\s\S]*?)<\/li>', caseSensitive: false),
+      (m) => '\n- ${_stripTags(m.group(1)!).trim()}',
+    );
+
+    text = text.replaceAll(RegExp(r'<br\s*\/?>', caseSensitive: false), '\n');
+    text = text.replaceAllMapped(
+      RegExp(r'<p\b[^>]*>([\s\S]*?)<\/p>', caseSensitive: false),
+      (m) => '\n\n${m.group(1)!}\n\n',
+    );
+    text = text.replaceAllMapped(
+      RegExp(
+        r'<blockquote\b[^>]*>([\s\S]*?)<\/blockquote>',
+        caseSensitive: false,
+      ),
+      (m) => '\n\n> ${_stripTags(m.group(1)!).trim()}\n\n',
+    );
+    text = text.replaceAll(
+      RegExp(
+        r'<\/?(?:div|section|article|nav|main|header|footer)\b[^>]*>',
+        caseSensitive: false,
+      ),
+      '\n',
+    );
+
+    text = _stripTags(text);
+    text = _decodeHtmlEntities(text);
+
+    text = text
+        .split('\n')
+        .map((line) => line.replaceAll(RegExp(r'[ \t]+'), ' ').trim())
+        .join('\n');
+    text = text.replaceAll(RegExp(r'\n{3,}'), '\n\n').trim();
+
+    if (title != null && title.isNotEmpty && !text.startsWith('# ')) {
+      text = '# $title\n\n$text';
+    }
+    return text;
+  }
+
+  static String _stripTags(String html) =>
+      html.replaceAll(RegExp(r'<[^>]*>'), '');
+
+  static String _decodeHtmlEntities(String text) {
+    return text
+        .replaceAll('&amp;', '&')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', "'")
+        .replaceAll('&#x27;', "'")
+        .replaceAll('&apos;', "'")
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll('&mdash;', '—')
+        .replaceAll('&ndash;', '–')
+        .replaceAll('&hellip;', '…')
+        .replaceAllMapped(
+          RegExp(r'&#(\d+);'),
+          (m) => String.fromCharCode(int.parse(m.group(1)!)),
+        )
+        .replaceAllMapped(
+          RegExp(r'&#x([0-9a-fA-F]+);'),
+          (m) => String.fromCharCode(int.parse(m.group(1)!, radix: 16)),
+        );
   }
 }

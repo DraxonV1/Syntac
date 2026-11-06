@@ -14,6 +14,7 @@ import 'runtime_jobs_tool.dart';
 import 'search_tool.dart';
 import 'tool_context.dart';
 import 'write_tool.dart';
+import 'web_search_tool.dart';
 
 export 'tool_context.dart' show ToolFailure, ToolUpdateCallback;
 
@@ -28,7 +29,8 @@ class ProjectTools extends ToolContext
         SearchTool,
         BashTool,
         RuntimeJobsTool,
-        CopyTool {
+        CopyTool,
+        WebSearchTool {
   ProjectTools({
     required super.projectRoot,
     required super.shellExecutor,
@@ -37,6 +39,7 @@ class ProjectTools extends ToolContext
     super.maxReadBytes,
     super.maxSearchResults,
     super.maxCommandOutputCharacters,
+    super.httpClient,
     this.todoHandler,
   });
 
@@ -46,10 +49,10 @@ class ProjectTools extends ToolContext
   List<Map<String, Object?>> get specs => [
     _spec(
       'read',
-      'Read bounded text, or inspect an attached image. Prefer stable local://attachment/<id> references; legacy local://attachment-N remains readable. Use includeImage for bounded vision data.',
+      'Read bounded text, inspect an attached image, or fetch a web page (http/https). Prefer stable local://attachment/<id> references; legacy local://attachment-N remains readable. Use includeImage for bounded vision data.',
       {
         'path': _string(
-          'Relative file path or local://attachment/<id>; absolute only with systemwide: true',
+          'Relative file path, local://attachment/<id>, or http(s) URL; absolute only with systemwide: true',
         ),
         'offset': {
           'type': 'integer',
@@ -175,6 +178,28 @@ class ProjectTools extends ToolContext
           'items': {'type': 'string'},
         },
         'contextLines': {'type': 'integer'},
+      },
+      ['query'],
+    ),
+    _spec(
+      'web_search',
+      'Search the web using DuckDuckGo. Returns ranked sources, snippets, and URLs.',
+      {
+        'query': _string('Search query text'),
+        'recency': {
+          'type': 'string',
+          'enum': ['day', 'week', 'month', 'year'],
+          'description': 'Filter results by publication recency',
+        },
+        'limit': {
+          'type': 'integer',
+          'description':
+              'Maximum number of results to return (default: 10, max: 20)',
+        },
+        'num_search_results': {
+          'type': 'integer',
+          'description': 'Alias for limit',
+        },
       },
       ['query'],
     ),
@@ -394,6 +419,12 @@ class ProjectTools extends ToolContext
         'copy' => await copyFile(
           source: args['source'] as String? ?? '',
           target: args['target'] as String? ?? '',
+        ),
+        'web_search' => await searchWeb(
+          args['query'] as String? ?? '',
+          recency: args['recency'] as String?,
+          limit: (args['limit'] ?? args['num_search_results']) as int?,
+          cancellationToken: cancellationToken,
         ),
         'jobs.list' || 'jobs_list' => await listRuntimeJobs(),
         'jobs.status' ||

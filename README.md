@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/DraxonV1/Syntac/releases"><img src="https://img.shields.io/github/v/tag/DraxonV1/Syntac?label=latest%20version" alt="Latest version"></a>
-  <a href="https://github.com/DraxonV1/Syntac/releases"><img src="https://img.shields.io/badge/latest%20channel-beta-6684FF" alt="Latest channel: beta"></a>
+  <a href="https://github.com/DraxonV1/Syntac/releases"><img src="https://img.shields.io/badge/latest%20channel-stable-2ECC71" alt="Latest channel: stable"></a>
   <a href="https://github.com/DraxonV1/Syntac/issues"><img src="https://img.shields.io/github/issues/DraxonV1/Syntac" alt="Open issues"></a>
   <a href="https://flutter.dev"><img src="https://img.shields.io/badge/Flutter-3.41.9-02569B?logo=flutter&logoColor=white" alt="Flutter 3.41.9"></a>
   <a href="https://archlinux.org"><img src="https://img.shields.io/badge/Arch%20Linux-runtime-1793D1?logo=archlinux&logoColor=white" alt="Arch Linux runtime"></a>
@@ -21,8 +21,8 @@ Open a project folder on your phone, connect an AI provider, chat about code, in
 - Developer: **DraxonV1**
 - Repository: <https://github.com/DraxonV1/Syntac>
 - Android package: `com.syntac`
-- Current version: `0.1.1-beta.6` (`versionCode` 16)
-- Default update channel: **beta**
+- Current version: `0.1.1` (`versionCode` 19)
+- Default update channel: **stable**
 
 ## Overview
 
@@ -40,7 +40,7 @@ Core behavior:
 
 - Local project browser with recent projects and search.
 - Chat-based coding agent with streaming responses.
-- File tools for reading, writing, patching, globbing, listing, deleting, and searching project files; explicit read-only systemwide diagnostics.
+- File and web tools: `read` for local files and web pages (HTML-to-Markdown), `write`, `apply_patch`, `glob`, `list`, `delete`, `search`, and `web_search` via default DuckDuckGo provider.
 - Bash and durable runtime job tools through packaged Android runtime or Termux bridge.
 - Provider support for Google Antigravity / Cloud Code Assist, ChatGPT Codex OAuth, Grok, and OpenAI-compatible APIs.
 - Markdown/code rendering and expandable tool result cards.
@@ -94,10 +94,10 @@ Channels:
 - `beta`: current default channel.
 - `nightly`: early testing builds.
 
-Current beta APK target:
+Current stable APK target:
 
 ```text
-https://github.com/DraxonV1/Syntac/releases/download/v0.1.1-beta.6/syntac-arm64.apk
+https://github.com/DraxonV1/Syntac/releases/download/v0.1.1/syntac-arm64.apk
 ```
 
 Current manifest files:
@@ -171,17 +171,17 @@ Contribution and release flow:
 - Push exact version tag, such as `v0.1.1-beta.6`, only after candidate passes physical-phone checks. Tag must match `pubspec.yaml`.
 - Tag workflow rebuilds, verifies, and publishes only matching channel manifest. It never force-moves tags or overwrites other channels, then opens generated manifest-sync PR for `master`.
 
-Latest beta release:
+Latest stable release:
 
-<https://github.com/DraxonV1/Syntac/releases/tag/v0.1.1-beta.6>
+<https://github.com/DraxonV1/Syntac/releases/tag/v0.1.1>
 
 PR builds never receive release signing credentials or provider OAuth secrets.
 
 Release artifacts:
 
 ```text
-https://github.com/DraxonV1/Syntac/releases/download/v0.1.1-beta.6/syntac-arm64.apk
-update/beta.json
+https://github.com/DraxonV1/Syntac/releases/download/v0.1.1/syntac-arm64.apk
+update/stable.json
 ```
 
 ## Reference and attribution

@@ -146,6 +146,7 @@ Generated/ignored folders such as `build/`, `.dart_tool/`, `.gradle/`, and local
 │       │   ├── glob_tool.dart
 │       │   ├── runtime_jobs_tool.dart
 │       │   ├── copy_tool.dart
+│       │   ├── web_search_tool.dart
 │       │   └── tool_context.dart
 │       └── ui/
 │           ├── AGENTS.md
@@ -293,7 +294,8 @@ Generated/ignored folders such as `build/`, `.dart_tool/`, `.gradle/`, and local
 
 ### Tools
 
-- `lib/src/tools/agent_tools.dart`: model-callable `read`, `write`, `apply_patch`, `delete`, `list`, `glob`, `search`, `bash`, `jobs.*`, `copy`, and optional per-chat `todo`. Owns result schemas and dispatch.
+- `lib/src/tools/agent_tools.dart`: model-callable `read`, `write`, `apply_patch`, `delete`, `list`, `glob`, `search`, `web_search`, `bash`, `jobs.*`, `copy`, and optional per-chat `todo`. Owns result schemas and dispatch.
+- `lib/src/tools/web_search_tool.dart`: web search using default DuckDuckGo provider with query syntax, recency, and result formatting.
 - `lib/src/tools/apply_patch_tool.dart`: bounded multi-file patch parser with read-snapshot preconditions and in-process rollback.
 - `lib/src/tools/file_snapshot.dart`: SHA-256 snapshots and patch/file/diff limits.
 - `lib/src/tools/glob_tool.dart`: bounded project-relative file/directory discovery.

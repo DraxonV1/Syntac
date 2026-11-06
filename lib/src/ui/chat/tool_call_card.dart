@@ -284,6 +284,7 @@ class _ToolCallCardState extends State<ToolCallCard>
       'list' => 'List',
       'glob' => 'Glob',
       'search' => 'Search',
+      'web_search' => 'Web search',
       'bash' => 'Bash',
       'jobs.list' => 'Jobs list',
       'jobs.status' => 'Job status',
@@ -306,6 +307,7 @@ class _ToolCallCardState extends State<ToolCallCard>
       'list' => Icons.folder_open_outlined,
       'glob' => Icons.manage_search_outlined,
       'search' => Icons.search,
+      'web_search' => Icons.travel_explore,
       'bash' => Icons.terminal,
       'jobs.list' ||
       'jobs.status' ||
@@ -456,6 +458,7 @@ class _ToolCallCardState extends State<ToolCallCard>
       'copy' =>
         '${args['source']?.toString() ?? ''} → ${args['target']?.toString() ?? ''}',
       'search' => '"${args['query']?.toString() ?? ''}"',
+      'web_search' => '"${args['query']?.toString() ?? ''}"',
       'bash' => args['command']?.toString() ?? '',
       'jobs.status' ||
       'jobs.logs' ||
@@ -529,6 +532,17 @@ class _ToolCallCardState extends State<ToolCallCard>
         final results = result['results'];
         if (results is List) {
           return BadgeChip.neutral(label: '${results.length} matches');
+        }
+        return null;
+      }(),
+      'web_search' => () {
+        final count =
+            _intValue(result['totalResults']) ??
+            (result['sources'] is List
+                ? (result['sources'] as List).length
+                : null);
+        if (count != null) {
+          return BadgeChip.neutral(label: '$count results');
         }
         return null;
       }(),
@@ -750,6 +764,7 @@ class _ToolCallCardState extends State<ToolCallCard>
       'jobs.list' => _buildJobsListDetails(result),
       'jobs.logs' => _buildJobLogsDetails(result),
       'jobs.status' || 'jobs.wait' || 'jobs.cancel' => _buildJobDetails(result),
+      'web_search' => _buildWebSearchDetails(args, result),
       _ => _buildJsonDetails(args, result),
     };
   }
@@ -851,6 +866,78 @@ class _ToolCallCardState extends State<ToolCallCard>
       content: patch.isEmpty ? '(no patch)' : patch,
       copyContent: patch,
       maxHeight: 260,
+    );
+  }
+
+  Widget _buildWebSearchDetails(
+    Map<String, Object?> args,
+    Map<String, Object?> result,
+  ) {
+    final query =
+        result['query']?.toString() ?? args['query']?.toString() ?? '';
+    final sources = result['sources'];
+    final sourceList = sources is List ? sources : const [];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildCodeBox(title: 'QUERY', content: query, copyable: true),
+        const SizedBox(height: 8),
+        Text(
+          '${sourceList.length} search results from ${result['provider'] ?? 'DuckDuckGo'}',
+          style: AppTypography.monoSmall.copyWith(
+            color: AppColors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        for (var i = 0; i < sourceList.length; i++) ...[
+          if (sourceList[i] is Map) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceElevated,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: AppColors.borderSubtle, width: 0.5),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${i + 1}. ${(sourceList[i] as Map)['title'] ?? 'Untitled'}',
+                    style: AppTypography.bodySmall.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  SelectableText(
+                    (sourceList[i] as Map)['url']?.toString() ?? '',
+                    style: AppTypography.monoSmall.copyWith(
+                      color: AppColors.accent,
+                      fontSize: 11,
+                    ),
+                  ),
+                  if ((sourceList[i] as Map)['snippet'] != null &&
+                      (sourceList[i] as Map)['snippet']
+                          .toString()
+                          .isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      (sourceList[i] as Map)['snippet'].toString(),
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                      maxLines: 4,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ],
+      ],
     );
   }
 

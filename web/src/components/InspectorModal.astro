@@ -1,0 +1,174 @@
+---
+import { X, Copy, Check, Sparkles, Terminal, ShieldCheck, Box, Activity } from 'lucide-astro';
+---
+
+<div id="inspector-overlay" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-md hidden items-center justify-center p-4 sm:p-6 transition-opacity">
+  <div class="relative w-full max-w-2xl rounded-2xl bg-[#080C14] border border-[#8296DC]/20 shadow-2xl overflow-hidden text-xs font-mono">
+    
+    <!-- Modal Header -->
+    <div class="px-5 py-3.5 bg-[#0D1420] border-b border-[#8296DC]/12 flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <span class="w-2 h-2 rounded-full bg-[#6684FF] animate-pulse"></span>
+        <span id="inspector-title" class="font-bold text-sm text-[#F8FAFF] tracking-wider uppercase">01 // PROVIDERS</span>
+      </div>
+      <button id="close-inspector-btn" class="p-1 rounded text-[#8E99AA] hover:text-white hover:bg-[#141F33] cursor-pointer">
+        <X class="w-4 h-4" />
+      </button>
+    </div>
+
+    <!-- Dynamic Content Body -->
+    <div id="inspector-body" class="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+      <!-- Injected via script based on rail click -->
+    </div>
+
+  </div>
+</div>
+
+<script>
+  const overlay = document.getElementById('inspector-overlay');
+  const closeBtn = document.getElementById('close-inspector-btn');
+  const titleEl = document.getElementById('inspector-title');
+  const bodyEl = document.getElementById('inspector-body');
+  const railButtons = document.querySelectorAll('.rail-btn');
+
+  const contentMap: Record<string, { title: string; html: string }> = {
+    providers: {
+      title: '01 // MULTI-PROVIDER ENGINE',
+      html: `
+        <div class="space-y-3 text-xs">
+          <p class="text-[#8E99AA] font-sans text-sm">Direct, TLS-encrypted communication with frontier models or self-hosted servers.</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div class="p-3 rounded-xl bg-[#030509] border border-[#8296DC]/15 space-y-1">
+              <span class="text-[#91A7FF] font-bold">Google Antigravity</span>
+              <p class="text-[#8E99AA]">PKCE OAuth deep-link flow. Gemini 3.1 Pro & 3.5 Flash with reasoning traces.</p>
+            </div>
+            <div class="p-3 rounded-xl bg-[#030509] border border-[#8296DC]/15 space-y-1">
+              <span class="text-[#F8FAFF] font-bold">DeepSeek R1 / V3</span>
+              <p class="text-[#8E99AA]">Native thinking block streaming + function calling for complex refactors.</p>
+            </div>
+            <div class="p-3 rounded-xl bg-[#030509] border border-[#8296DC]/15 space-y-1">
+              <span class="text-[#F8FAFF] font-bold">OpenRouter</span>
+              <p class="text-[#8E99AA]">Claude 3.5 Sonnet, GPT-4o, Llama 3.3, Qwen 2.5 Coder via unified key.</p>
+            </div>
+            <div class="p-3 rounded-xl bg-[#030509] border border-[#8296DC]/15 space-y-1">
+              <span class="text-[#F8FAFF] font-bold">Custom Endpoint</span>
+              <p class="text-[#8E99AA]">Any OpenAI-compatible /v1 URL: Ollama, vLLM, LM Studio, Groq.</p>
+            </div>
+          </div>
+        </div>
+      `
+    },
+    tools: {
+      title: '02 // AGENT TOOLS',
+      html: `
+        <div class="space-y-2 text-xs">
+          <p class="text-[#8E99AA] font-sans text-sm">Precision tools implemented in native Dart with bounds enforcement:</p>
+          <div class="p-3 rounded-xl bg-[#030509] border border-[#8296DC]/15 space-y-1.5 font-mono text-[11.5px]">
+            <div><span class="text-[#91A7FF]">read</span>(path, offset?, limit?, startLine?, endLine?, unit?, raw?)</div>
+            <div><span class="text-[#91A7FF]">edit</span>(path, target, replacement, requireUnique?, replaceAll?)</div>
+            <div><span class="text-[#91A7FF]">write</span>(path, content)</div>
+            <div><span class="text-[#91A7FF]">delete</span>(path, recursive?)</div>
+            <div><span class="text-[#91A7FF]">list</span>(path, depth?)</div>
+            <div><span class="text-[#91A7FF]">search</span>(query, path?, maxResults?, regex?, include?, exclude?)</div>
+            <div><span class="text-[#91A7FF]">bash</span>(command, timeout_seconds?)</div>
+          </div>
+        </div>
+      `
+    },
+    runtime: {
+      title: '03 // ARCH LINUX PROOT RUNTIME',
+      html: `
+        <div class="space-y-3 text-xs">
+          <p class="text-[#8E99AA] font-sans text-sm">Standalone rootless Arch Linux distribution in app-private storage.</p>
+          <div class="p-3 rounded-xl bg-[#030509] border border-[#8296DC]/15 text-[#91A7FF] space-y-1 font-mono">
+            <div>[syntac@arch-arm64 ~]$ pacman -S --noconfirm git nodejs python rust</div>
+            <div class="text-[#10B981]">:: Installing packages into userspace rootfs...</div>
+            <div class="text-[#8E99AA]">installed: nodejs-22.14, python-3.13, rustc-1.84</div>
+          </div>
+        </div>
+      `
+    },
+    edits: {
+      title: '04 // SURGICAL EDITS',
+      html: `
+        <div class="space-y-3 text-xs">
+          <p class="text-[#8E99AA] font-sans text-sm">Replaces exact target strings without rewriting whole files, preventing context overflow.</p>
+          <div class="p-3 rounded-xl bg-[#030509] border border-[#8296DC]/15 space-y-1 font-mono">
+            <div class="text-[#EF4444] bg-[#EF4444]/10 p-1 rounded">- const status = await client.ping();</div>
+            <div class="text-[#10B981] bg-[#10B981]/10 p-1 rounded">+ const status = await client.pingWithRetry({ timeout: 5000 });</div>
+          </div>
+        </div>
+      `
+    },
+    storage: {
+      title: '05 // ATOMIC JSONL STORAGE',
+      html: `
+        <div class="space-y-3 text-xs">
+          <p class="text-[#8E99AA] font-sans text-sm">Crash-resilient JSONL session storage with atomic flush and corrupt line self-healing.</p>
+          <div class="p-3 rounded-xl bg-[#030509] border border-[#8296DC]/15 space-y-1 text-[#8E99AA]">
+            <div>• Atomic .tmp file writes with atomic file rename</div>
+            <div>• SQLite migration support for legacy sessions</div>
+            <div>• Zero data loss across sudden Android lifecycle stops</div>
+          </div>
+        </div>
+      `
+    },
+    diagnostics: {
+      title: '06 // SYSTEM DIAGNOSTICS',
+      html: `
+        <div class="space-y-3 text-xs">
+          <p class="text-[#8E99AA] font-sans text-sm">Built-in real-time health inspection for storage, memory, and update channels.</p>
+          <div class="grid grid-cols-2 gap-2 text-center">
+            <div class="p-2.5 rounded-lg bg-[#030509] border border-[#8296DC]/15">
+              <div class="text-[#667085] text-[10px]">STORAGE HEALTH</div>
+              <div class="text-[#10B981] font-bold">100% OK</div>
+            </div>
+            <div class="p-2.5 rounded-lg bg-[#030509] border border-[#8296DC]/15">
+              <div class="text-[#667085] text-[10px]">RUNTIME STATUS</div>
+              <div class="text-[#91A7FF] font-bold">Ready</div>
+            </div>
+          </div>
+        </div>
+      `
+    },
+    termux: {
+      title: '07 // TERMUX RUN_COMMAND BRIDGE',
+      html: `
+        <div class="space-y-3 text-xs">
+          <p class="text-[#8E99AA] font-sans text-sm">Optional bridge to execute commands inside your existing Termux environment.</p>
+          <div class="p-3 rounded-xl bg-[#030509] border border-[#8296DC]/15 space-y-1 text-[#FCD34D] font-mono">
+            <div>mkdir -p ~/.termux</div>
+            <div>printf 'allow-external-apps=true\\n' &gt;&gt; ~/.termux/termux.properties</div>
+            <div>termux-reload-settings</div>
+          </div>
+        </div>
+      `
+    }
+  };
+
+  railButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const target = btn.getAttribute('data-target');
+      if (!target || !contentMap[target]) return;
+
+      const data = contentMap[target];
+      if (titleEl) titleEl.innerText = data.title;
+      if (bodyEl) bodyEl.innerHTML = data.html;
+
+      overlay?.classList.remove('hidden');
+      overlay?.classList.add('flex');
+    });
+  });
+
+  closeBtn?.addEventListener('click', () => {
+    overlay?.classList.add('hidden');
+    overlay?.classList.remove('flex');
+  });
+
+  overlay?.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      overlay.classList.add('hidden');
+      overlay.classList.remove('flex');
+    }
+  });
+</script>

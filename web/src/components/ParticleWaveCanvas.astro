@@ -1,0 +1,91 @@
+---
+// 60FPS High-Performance Particle Wave Canvas in Syntac Blue
+---
+
+<canvas id="particle-canvas" class="fixed inset-0 pointer-events-none z-0 w-full h-full opacity-75"></canvas>
+
+<script>
+  function initParticleWave() {
+    const canvas = document.getElementById('particle-canvas') as HTMLCanvasElement | null;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let width = (canvas.width = window.innerWidth);
+    let height = (canvas.height = window.innerHeight);
+
+    window.addEventListener('resize', () => {
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+    });
+
+    const particles: {
+      x: number;
+      y: number;
+      baseX: number;
+      baseY: number;
+      size: number;
+      color: string;
+      speed: number;
+      offset: number;
+    }[] = [];
+
+    // Dense wave spanning bottom-left to top-right
+    const count = window.innerWidth < 768 ? 400 : 900;
+    const colors = [
+      'rgba(102, 132, 255, 0.7)',
+      'rgba(145, 167, 255, 0.85)',
+      'rgba(184, 197, 255, 0.95)',
+      'rgba(59, 91, 219, 0.5)',
+      'rgba(248, 250, 255, 0.6)'
+    ];
+
+    for (let i = 0; i < count; i++) {
+      // Curve from (0.2 * width, height) toward (width, 0.2 * height)
+      const t = Math.random();
+      const spread = (Math.random() - 0.5) * (height * 0.45);
+      
+      const baseX = width * 0.3 + t * (width * 0.75);
+      const baseY = height * 0.95 - t * (height * 0.75) + spread;
+
+      particles.push({
+        x: baseX,
+        y: baseY,
+        baseX: baseX,
+        baseY: baseY,
+        size: Math.random() * 1.8 + 0.6,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        speed: Math.random() * 0.0015 + 0.0008,
+        offset: Math.random() * Math.PI * 2,
+      });
+    }
+
+    let time = 0;
+
+    function render() {
+      if (!ctx) return;
+      ctx.clearRect(0, 0, width, height);
+      time += 0.02;
+
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+        
+        // Gentle wave oscillation
+        const waveX = Math.sin(time * 0.5 + p.offset) * 12;
+        const waveY = Math.cos(time * 0.8 + p.offset) * 16;
+
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.baseX + waveX, p.baseY + waveY, p.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      requestAnimationFrame(render);
+    }
+
+    render();
+  }
+
+  initParticleWave();
+  document.addEventListener('astro:page-load', initParticleWave);
+</script>

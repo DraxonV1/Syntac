@@ -1,0 +1,46 @@
+---
+import { 
+  Sparkles, 
+  Wrench, 
+  Box, 
+  FileEdit, 
+  Database, 
+  Activity, 
+  Terminal,
+  Crosshair
+} from 'lucide-astro';
+
+const railItems = [
+  { id: 'providers', num: '01', label: 'providers', icon: Crosshair },
+  { id: 'tools', num: '02', label: 'agent tools', icon: Wrench },
+  { id: 'runtime', num: '03', label: 'arch linux', icon: Box },
+  { id: 'edits', num: '04', label: 'surgical edits', icon: FileEdit },
+  { id: 'storage', num: '05', label: 'jsonl storage', icon: Database },
+  { id: 'diagnostics', num: '06', label: 'diagnostics', icon: Activity },
+  { id: 'termux', num: '07', label: 'termux bridge', icon: Terminal },
+];
+---
+
+<aside class="fixed left-0 top-1/2 -translate-y-1/2 z-40 hidden md:flex flex-col border border-white/10 bg-[#050507]">
+  {railItems.map((item) => {
+    const Icon = item.icon;
+    return (
+      <button
+        type="button"
+        class="rail-btn relative grid h-12 w-12 sm:h-14 sm:w-14 cursor-pointer place-items-center bg-[#050507] transition-colors text-[#4E5666] hover:text-[#F8FAFF] hover:bg-white/[0.03] border-b border-white/10 last:border-b-0 group"
+        data-target={item.id}
+        aria-label={item.label}
+      >
+        <Icon class="w-4 h-4 text-[#8E99AA] group-hover:text-[#91A7FF] transition-colors" />
+        <span class="absolute bottom-1 right-1.5 text-[8.5px] font-mono text-[#4E5666] group-hover:text-[#91A7FF]">
+          {item.num}
+        </span>
+        
+        <!-- Hover tooltip -->
+        <span class="pointer-events-none absolute left-full ml-3 px-2.5 py-1 rounded bg-[#0D1420] border border-white/15 text-[11px] font-mono text-[#F8FAFF] uppercase tracking-[0.2em] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity shadow-xl">
+          {item.label}
+        </span>
+      </button>
+    );
+  })}
+</aside>

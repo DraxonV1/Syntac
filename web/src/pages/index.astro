@@ -1,0 +1,271 @@
+---
+import Layout from '../layouts/Layout.astro';
+import InteractiveAppDemo from '../components/InteractiveAppDemo.astro';
+import UniqueBentoGrid from '../components/UniqueBentoGrid.astro';
+import ScreenshotsGallery from '../components/ScreenshotsGallery.astro';
+import ToolsSection from '../components/ToolsSection.astro';
+import FaqSection from '../components/FaqSection.astro';
+import { APP_CONFIG, RELEASES } from '../data/appData';
+import { Download, Github, Sparkles, ShieldCheck, Terminal, Database } from 'lucide-astro';
+
+const currentRelease = RELEASES[0];
+---
+
+<Layout
+  title={`${APP_CONFIG.name} — Autonomous Mobile Coding Environment`}
+  description={APP_CONFIG.metaDescription}
+>
+  <!-- Hero Section -->
+  <section class="relative pt-12 sm:pt-20 pb-20 md:pb-28 overflow-hidden border-b border-[#8296DC]/10">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+      
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
+        
+        <!-- Hero Left Column (7 cols) -->
+        <div class="lg:col-span-7 space-y-7 text-center lg:text-left">
+          
+          <!-- Logo Brand Mark & Agent Beta Badge -->
+          <div class="flex items-center justify-center lg:justify-start gap-3 flex-wrap">
+            <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#0D1420] border border-[#8296DC]/20 shadow-md">
+              <img src="/syntac-logo.png" alt="Syntac Logo" class="w-5 h-5 object-contain" />
+              <span class="text-xs font-mono font-medium text-[#F8FAFF]">Syntac Coding Agent</span>
+            </div>
+            
+            <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-mono bg-[#6684FF]/10 text-[#91A7FF] border border-[#6684FF]/30 backdrop-blur-md">
+              <span class="w-2 h-2 rounded-full bg-[#10B981] animate-pulse"></span>
+              <span>Beta Live • v{APP_CONFIG.currentVersion}</span>
+              <span class="text-[#4E5666]">|</span>
+              <span class="text-[#B8C5FF]">ARM64</span>
+            </div>
+          </div>
+
+          <!-- Hero Headline in Jost -->
+          <div class="space-y-3">
+            <h1 class="text-4xl sm:text-6xl lg:text-[68px] font-semibold tracking-tight text-[#F8FAFF] leading-[1.06]">
+              Autonomous Mobile<br />
+              <span class="shimmer-text font-semibold">Coding Environment.</span>
+            </h1>
+            <p class="text-base sm:text-lg text-[#8E99AA] leading-relaxed max-w-xl mx-auto lg:mx-0 font-normal">
+              Open a project folder, connect frontier models like Gemini 3, Claude, or GPT-OSS, inspect surgical diffs, and build software on-device with zero cloud lock-in.
+            </p>
+          </div>
+
+          <!-- Hero Action Buttons -->
+          <div class="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 pt-1">
+            <a
+              href="/download"
+              class="glow-btn w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-2xl text-sm font-medium text-white bg-[#6684FF] hover:bg-[#91A7FF] shadow-lg shadow-[#6684FF]/25 hover:shadow-[#6684FF]/40 border border-[#91A7FF]/30 transition-all duration-200 active:scale-95"
+            >
+              <Download class="w-4 h-4" />
+              <span>Download APK</span>
+            </a>
+
+            <a
+              href={APP_CONFIG.repoUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl text-sm font-medium text-[#8E99AA] hover:text-[#F8FAFF] bg-[#0D1420] hover:bg-[#141F33] border border-[#8296DC]/20 hover:border-[#8296DC]/40 transition-all"
+            >
+              <Github class="w-4 h-4" />
+              <span>GitHub Repository</span>
+            </a>
+          </div>
+
+          <!-- Quick Install & Download Tabs Strip -->
+          <div class="pt-2 space-y-2 max-w-lg mx-auto lg:mx-0 text-left">
+            <div class="flex items-center gap-3 text-[11px] font-mono uppercase tracking-[0.2em] text-[#4E5666] border-b border-[#8296DC]/14 pb-1">
+              <button class="hero-tab-btn text-[#F8FAFF] font-medium border-b border-[#6684FF] pb-1 cursor-pointer" data-cmd={currentRelease.apkUrl}>
+                APK DIRECT
+              </button>
+              <button class="hero-tab-btn hover:text-[#8E99AA] pb-1 cursor-pointer" data-cmd="curl -fsSL https://syntac.com/install | sh">
+                CURL
+              </button>
+              <button class="hero-tab-btn hover:text-[#8E99AA] pb-1 cursor-pointer" data-cmd="git clone https://github.com/DraxonV1/Syntac.git && cd Syntac">
+                GIT CLONE
+              </button>
+            </div>
+
+            <!-- Snippet input box -->
+            <div class="flex items-center justify-between rounded-xl bg-[#080C14] border border-[#8296DC]/15 p-1 pl-3 font-mono text-xs shadow-md">
+              <span id="hero-cmd-display" class="text-[#F8FAFF] truncate text-[11px] py-1.5 flex-grow font-mono">
+                {currentRelease.apkUrl}
+              </span>
+              <button
+                id="hero-copy-btn"
+                type="button"
+                class="px-3 py-1.5 rounded-lg text-[10px] font-mono uppercase tracking-wider text-[#91A7FF] hover:text-white hover:bg-[#141F33] transition cursor-pointer shrink-0"
+              >
+                <span id="hero-copy-label">COPY</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Compatible Models Row -->
+          <div class="pt-2 space-y-2">
+            <div class="text-[10px] font-mono uppercase tracking-[0.25em] text-[#4E5666]">
+              SUPPORTED ENGINES & PLATFORMS
+            </div>
+            <div class="flex items-center justify-center lg:justify-start gap-6 opacity-75 hover:opacity-100 transition-opacity">
+              <div class="w-4 h-4 flex items-center justify-center" title="Gemini 3">
+                <img src="/icons/gemini.svg" alt="Gemini 3" class="w-full h-full object-contain filter brightness-110" />
+              </div>
+              <div class="w-4 h-4 flex items-center justify-center" title="Claude">
+                <img src="/icons/anthropic.svg" alt="Claude" class="w-full h-full object-contain filter invert opacity-85" />
+              </div>
+              <div class="w-4 h-4 flex items-center justify-center" title="GPT-OSS">
+                <img src="/icons/openai.svg" alt="GPT-OSS" class="w-full h-full object-contain filter invert opacity-85" />
+              </div>
+              <div class="w-4 h-4 flex items-center justify-center" title="Android OS">
+                <img src="/icons/android.svg" alt="Android" class="w-full h-full object-contain filter invert opacity-85" />
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Hero Right Column: Live Interactive Mobile Demo -->
+        <div class="lg:col-span-5 flex justify-center">
+          <InteractiveAppDemo />
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- 1. Capabilities Bento Grid -->
+  <UniqueBentoGrid />
+
+  <!-- 2. UI Screenshots & Interface Showcase -->
+  <ScreenshotsGallery />
+
+  <!-- 3. Complete Agent Tools Deep-Dive -->
+  <ToolsSection />
+
+  <!-- 4. 100% On-Device Privacy Architecture -->
+  <section class="py-24 relative z-10 border-t border-[#8296DC]/12 bg-[#05070C]">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      
+      <div class="max-w-3xl mx-auto text-center space-y-3 mb-16">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-mono bg-[#10B981]/10 text-[#6EE7B7] border border-[#10B981]/25">
+          <ShieldCheck class="w-3 h-3 text-[#10B981]" />
+          <span>On-Device Security</span>
+        </div>
+        <h2 class="text-3xl sm:text-4xl font-semibold tracking-tight text-[#F8FAFF]">
+          100% On-Device Confidentiality
+        </h2>
+        <p class="text-base sm:text-lg text-[#8E99AA] font-normal">
+          Designed for developers building software with private codebases.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="syntac-glass rounded-3xl p-7 space-y-3">
+          <div class="w-9 h-9 rounded-xl bg-[#0D1420] text-[#10B981] flex items-center justify-center border border-[#8296DC]/20">
+            <Database class="w-4 h-4" />
+          </div>
+          <h3 class="text-lg font-semibold text-[#F8FAFF]">Zero Server Telemetry</h3>
+          <p class="text-xs text-[#8E99AA] leading-relaxed font-normal">
+            Syntac contains no analytics SDKs and has no middleman servers. Project code and chat history stay exclusively on your device.
+          </p>
+        </div>
+
+        <div class="syntac-glass rounded-3xl p-7 space-y-3">
+          <div class="w-9 h-9 rounded-xl bg-[#0D1420] text-[#91A7FF] flex items-center justify-center border border-[#8296DC]/20">
+            <ShieldCheck class="w-4 h-4" />
+          </div>
+          <h3 class="text-lg font-semibold text-[#F8FAFF]">Direct TLS to Providers</h3>
+          <p class="text-xs text-[#8E99AA] leading-relaxed font-normal">
+            API prompts and responses flow directly between your device and your chosen provider endpoints over encrypted TLS.
+          </p>
+        </div>
+
+        <div class="syntac-glass rounded-3xl p-7 space-y-3">
+          <div class="w-9 h-9 rounded-xl bg-[#0D1420] text-[#6684FF] flex items-center justify-center border border-[#8296DC]/20">
+            <Terminal class="w-4 h-4" />
+          </div>
+          <h3 class="text-lg font-semibold text-[#F8FAFF]">Encrypted Keystore Storage</h3>
+          <p class="text-xs text-[#8E99AA] leading-relaxed font-normal">
+            Provider API credentials and OAuth tokens are stored in private secure preferences with hardware-backed protection.
+          </p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- 5. FAQ Accordion -->
+  <FaqSection />
+
+  <!-- 6. Bottom CTA Callout -->
+  <section class="py-20 relative z-10 border-t border-[#8296DC]/12 bg-gradient-to-b from-[#05070C] to-[#080C14]">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-6">
+      <div class="p-8 sm:p-12 rounded-3xl syntac-glass border border-[#6684FF]/35 space-y-6">
+        <div class="w-12 h-12 rounded-2xl bg-[#0D1420] border border-[#8296DC]/25 mx-auto flex items-center justify-center p-2 shadow-lg">
+          <img src="/syntac-logo.png" alt="Syntac Logo" class="w-full h-full object-contain" />
+        </div>
+
+        <div class="space-y-2">
+          <h2 class="text-3xl sm:text-4xl font-semibold text-[#F8FAFF]">
+            Ready for Mobile Autonomy?
+          </h2>
+          <p class="text-sm sm:text-base text-[#8E99AA] max-w-xl mx-auto font-normal">
+            Download the active beta APK now and experience autonomous coding on your phone.
+          </p>
+        </div>
+
+        <div class="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
+          <a
+            href="/download"
+            class="glow-btn w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-3.5 rounded-2xl text-sm font-medium text-white bg-[#6684FF] hover:bg-[#91A7FF] shadow-lg shadow-[#6684FF]/30 border border-[#91A7FF]/30 transition-all duration-200 active:scale-95"
+          >
+            <Download class="w-4 h-4" />
+            <span>Download Syntac APK (v{APP_CONFIG.currentVersion})</span>
+          </a>
+
+          <a
+            href={APP_CONFIG.repoUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl text-sm font-medium text-[#8E99AA] hover:text-white bg-[#0D1420] border border-[#8296DC]/20 transition-all"
+          >
+            <Github class="w-4 h-4" />
+            <span>View Source</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+</Layout>
+
+<script>
+  const heroTabs = document.querySelectorAll('.hero-tab-btn');
+  const heroCmdDisplay = document.getElementById('hero-cmd-display');
+  const heroCopyBtn = document.getElementById('hero-copy-btn');
+  const heroCopyLabel = document.getElementById('hero-copy-label');
+
+  heroTabs.forEach((tab) => {
+    tab.addEventListener('click', () => {
+      heroTabs.forEach((t) => {
+        t.classList.remove('text-[#F8FAFF]', 'border-b', 'border-[#6684FF]');
+        t.classList.add('hover:text-[#8E99AA]');
+      });
+      tab.classList.add('text-[#F8FAFF]', 'border-b', 'border-[#6684FF]');
+      tab.classList.remove('hover:text-[#8E99AA]');
+
+      const cmd = tab.getAttribute('data-cmd');
+      if (heroCmdDisplay && cmd) {
+        heroCmdDisplay.innerText = cmd;
+      }
+    });
+  });
+
+  heroCopyBtn?.addEventListener('click', async () => {
+    if (!heroCmdDisplay || !heroCopyLabel) return;
+    await navigator.clipboard.writeText(heroCmdDisplay.innerText.trim());
+    heroCopyLabel.innerText = 'COPIED!';
+    setTimeout(() => {
+      heroCopyLabel.innerText = 'COPY';
+    }, 2000);
+  });
+</script>

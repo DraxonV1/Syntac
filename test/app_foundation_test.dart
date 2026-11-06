@@ -1003,6 +1003,167 @@ void main() {
       await dir.delete(recursive: true);
     });
   });
+  test(
+    'read fetches web pages, converts HTML to markdown, and supports line slicing and raw mode',
+    () async {
+      final dir = await Directory.systemTemp.createTemp(
+        'syntac_web_read_test_',
+      );
+      const mockHtml = '''
+<!DOCTYPE html>
+<html>
+<head><title>Test Page Title</title></head>
+<body>
+  <h1>Main Heading</h1>
+  <p>Here is a paragraph with <a href="https://example.com/docs">documentation link</a> and <b>bold text</b>.</p>
+  <h2>Features</h2>
+  <ul>
+    <li>Item one</li>
+    <li>Item two</li>
+  </ul>
+</body>
+</html>
+''';
+
+      final client = MockClient((request) async {
+        if (request.url.toString() == 'https://omp.sh/') {
+          return http.Response(
+            mockHtml,
+            200,
+            headers: {'content-type': 'text/html; charset=utf-8'},
+          );
+        }
+        if (request.url.toString() == 'https://omp.sh/error') {
+          return http.Response('Not Found', 404);
+        }
+        return http.Response('ok', 200);
+      });
+
+      final tools = ProjectTools(
+        projectRoot: dir.path,
+        shellExecutor: LocalProcessShellExecutor(),
+        httpClient: client,
+      );
+
+      final result = await tools.readFile('https://omp.sh/');
+      expect(result['path'], 'https://omp.sh/');
+      expect(result['content'], contains('# Test Page Title'));
+      expect(result['content'], contains('# Main Heading'));
+      expect(
+        result['content'],
+        contains('[documentation link](https://example.com/docs)'),
+      );
+      expect(result['content'], contains('**bold text**'));
+      expect(result['content'], contains('## Features'));
+      expect(result['content'], contains('- Item one'));
+      expect(result['snapshot'], isNotNull);
+      expect(result['unit'], 'line');
+
+      final sliced = await tools.readFile(
+        'https://omp.sh/',
+        startLine: 1,
+        limit: 1,
+      );
+      expect(sliced['startLine'], 1);
+      expect(sliced['endLine'], 1);
+      expect(sliced['content'], '# Test Page Title');
+      expect(sliced['hasMore'], isTrue);
+
+      final rawResult = await tools.readFile('https://omp.sh/', raw: true);
+      expect(rawResult['content'], contains('<!DOCTYPE html>'));
+      expect(rawResult['content'], contains('<title>Test Page Title</title>'));
+
+      expect(
+        () => tools.readFile('https://omp.sh/error'),
+        throwsA(isA<ToolFailure>()),
+      );
+
+      await dir.delete(recursive: true);
+    },
+  );
+
+  test(
+    'web_search queries DuckDuckGo, unwraps links, extracts snippets, and respects limit',
+    () async {
+      final dir = await Directory.systemTemp.createTemp(
+        'syntac_web_search_test_',
+      );
+      const mockDdgHtml = '''
+<!DOCTYPE html>
+<html>
+<body>
+  <div class="result result--traditional">
+    <div class="links_main links_deep result__body">
+      <h2 class="result__title">
+        <a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fomp.sh%2Fdocs&rut=1">omp &mdash; terminal coding agent</a>
+      </h2>
+      <a class="result__snippet" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fomp.sh%2Fdocs">Documentation for <b>omp</b> terminal coding <i>agent</i> with tools.</a>
+    </div>
+  </div>
+  <div class="result result--traditional">
+    <div class="links_main links_deep result__body">
+      <h2 class="result__title">
+        <a class="result__a" href="https://github.com/can1357/oh-my-pi">GitHub - can1357/oh-my-pi</a>
+      </h2>
+      <a class="result__snippet" href="https://github.com/can1357/oh-my-pi">Official repository for <b>oh-my-pi</b>.</a>
+    </div>
+  </div>
+</body>
+</html>
+''';
+
+      http.Request? capturedRequest;
+      final client = MockClient((request) async {
+        capturedRequest = request;
+        return http.Response(mockDdgHtml, 200);
+      });
+
+      final tools = ProjectTools(
+        projectRoot: dir.path,
+        shellExecutor: LocalProcessShellExecutor(),
+        httpClient: client,
+      );
+
+      final result = await tools.execute('web_search', {
+        'query': 'omp agent',
+        'recency': 'week',
+        'limit': 1,
+      });
+
+      expect(result['ok'], isTrue);
+      final payload = result['result']! as Map<String, Object?>;
+      expect(payload['query'], 'omp agent');
+      expect(payload['provider'], 'duckduckgo');
+      expect(payload['totalResults'], 1);
+
+      final sources = payload['sources'] as List;
+      expect(sources.length, 1);
+      final first = sources[0] as Map<String, String>;
+      expect(first['title'], 'omp — terminal coding agent');
+      expect(first['url'], 'https://omp.sh/docs');
+      expect(
+        first['snippet'],
+        contains('Documentation for omp terminal coding agent'),
+      );
+
+      expect(payload['results'], contains('## Sources'));
+      expect(payload['results'], contains('[1] omp — terminal coding agent'));
+      expect(payload['results'], contains('https://omp.sh/docs'));
+
+      expect(
+        capturedRequest!.url.toString(),
+        'https://html.duckduckgo.com/html/',
+      );
+      expect(capturedRequest!.bodyFields['q'], 'omp agent');
+      expect(capturedRequest!.bodyFields['df'], 'w');
+
+      final emptyResult = await tools.execute('web_search', {'query': '   '});
+      expect(emptyResult['ok'], isFalse);
+      expect(emptyResult['error'], contains('Search query is required'));
+
+      await dir.delete(recursive: true);
+    },
+  );
 
   test(
     'runs bang bash locally and persists output as user-owned context',

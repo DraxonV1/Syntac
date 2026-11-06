@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
+import 'package:http/http.dart' as http;
 
 import '../models.dart';
 import '../runtime/shell_executor.dart';
@@ -106,8 +107,8 @@ class ToolContext {
     this.maxReadBytes = 200000,
     this.maxSearchResults = 80,
     this.maxCommandOutputCharacters = maxPersistedTextCharacters,
-  });
-
+    http.Client? httpClient,
+  }) : httpClient = httpClient ?? http.Client();
   final String projectRoot;
   final ShellExecutor shellExecutor;
   final CommandApprovalHandler? commandApproval;
@@ -115,6 +116,7 @@ class ToolContext {
   final int maxReadBytes;
   final int maxSearchResults;
   final int maxCommandOutputCharacters;
+  final http.Client httpClient;
 
   static const maxReadLines = 500;
   static const maxPreviewLines = 50;

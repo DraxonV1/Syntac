@@ -1,0 +1,179 @@
+---
+import { APP_CONFIG, RELEASES } from '../data/appData';
+const currentRelease = RELEASES[0];
+---
+
+<section class="relative z-10 max-w-3xl pt-10 sm:pt-16 pb-16">
+  <div class="space-y-7">
+    
+    <!-- Top Monospace Status Tag -->
+    <div class="text-[12px] font-mono tracking-[0.22em] text-[#6684FF] uppercase">
+      SYNTACTIC, SOON!
+    </div>
+
+    <!-- Massive Stacked Headline in Jost -->
+    <h1 class="text-5xl sm:text-7xl lg:text-[84px] font-bold tracking-tight text-[#F8FAFF] leading-[1.02]">
+      A coding agent<br />
+      with the<br />
+      <span class="text-accent-glow">runtime</span> wired in.
+    </h1>
+
+    <!-- 2-Line Subtitle in Jost -->
+    <div class="space-y-1 text-base sm:text-lg text-[#8E99AA] leading-relaxed font-light">
+      <p>
+        An agentic harness with all you need built in, powered by a native Arch Linux core, with every tool tuned against real sessions.
+      </p>
+      <p class="text-[#F8FAFF] font-normal">
+        Android-native, skip the <span class="strike-dim">cloud relay</span>.
+      </p>
+    </div>
+
+    <!-- Installation / Download Tabs (Exact omp.sh Layout) -->
+    <div class="pt-3 space-y-0 max-w-2xl">
+      
+      <!-- Tab Header Strip -->
+      <div class="flex items-center justify-between text-[11px] font-mono uppercase tracking-[0.22em]">
+        <div class="flex items-center gap-1">
+          <button
+            id="tab-btn-curl"
+            class="install-tab-btn px-2.5 py-1 text-[#F8FAFF] border-b border-[#6684FF] transition cursor-pointer"
+            data-tab="curl"
+          >
+            CURL
+          </button>
+          <button
+            id="tab-btn-apk"
+            class="install-tab-btn px-2.5 py-1 text-[#4E5666] hover:text-[#8E99AA] border-b border-transparent transition cursor-pointer"
+            data-tab="apk"
+          >
+            APK
+          </button>
+          <button
+            id="tab-btn-stable"
+            class="install-tab-btn px-2.5 py-1 text-[#4E5666] hover:text-[#8E99AA] border-b border-transparent transition cursor-pointer"
+            data-tab="stable"
+          >
+            STABLE
+          </button>
+          <button
+            id="tab-btn-nightly"
+            class="install-tab-btn px-2.5 py-1 text-[#4E5666] hover:text-[#8E99AA] border-b border-transparent transition cursor-pointer"
+            data-tab="nightly"
+          >
+            NIGHTLY
+          </button>
+          <button
+            id="tab-btn-termux"
+            class="install-tab-btn px-2.5 py-1 text-[#4E5666] hover:text-[#8E99AA] border-b border-transparent transition cursor-pointer hidden sm:block"
+            data-tab="termux"
+          >
+            TERMUX
+          </button>
+        </div>
+
+        <div class="text-[#4E5666] text-[10px] tracking-[0.2em] uppercase hidden sm:block">
+          ARM64 · ANDROID 8.0+
+        </div>
+      </div>
+
+      <!-- Command Snippet Box -->
+      <div class="relative flex items-stretch justify-between bg-[#08080C] border border-white/10 font-mono text-xs shadow-2xl">
+        <div class="flex items-center gap-3 overflow-x-auto px-4 py-3 text-[#8E99AA] flex-grow">
+          <span class="text-[#6684FF] font-bold select-none">$</span>
+          <span id="install-command-text" class="text-[#F8FAFF] truncate font-mono text-[12.5px]">
+            curl -fsSL https://syntac.com/install | sh
+          </span>
+        </div>
+
+        <button
+          id="copy-install-btn"
+          type="button"
+          class="shrink-0 px-4 text-[11px] font-mono uppercase tracking-[0.22em] text-[#8E99AA] hover:text-white border-l border-white/10 transition cursor-pointer bg-[#050507]/40 hover:bg-white/[0.04] flex items-center justify-center min-w-[80px]"
+          aria-label="Copy install command"
+        >
+          <span id="copy-btn-text">COPY</span>
+        </button>
+      </div>
+
+    </div>
+
+    <!-- Compatible Models & Runtimes Strip (Exact omp.sh layout) -->
+    <div class="pt-5 space-y-2.5">
+      <div class="text-[10.5px] font-mono uppercase tracking-[0.25em] text-[#4E5666]">
+        COMPATIBLE
+      </div>
+      
+      <!-- Clean LobeHub & SimpleIcons Marks -->
+      <div class="flex items-center gap-6 sm:gap-7 opacity-70 hover:opacity-100 transition-opacity">
+        
+        <!-- Google Gemini 3 -->
+        <div class="w-4 h-4 flex items-center justify-center opacity-80 hover:opacity-100 transition-opacity cursor-default" title="Gemini 3">
+          <img src="/icons/gemini.svg" alt="Gemini 3" class="w-full h-full object-contain filter brightness-110" />
+        </div>
+
+        <!-- Claude / Anthropic -->
+        <div class="w-4 h-4 flex items-center justify-center opacity-80 hover:opacity-100 transition-opacity cursor-default" title="Claude">
+          <img src="/icons/anthropic.svg" alt="Claude" class="w-full h-full object-contain filter invert opacity-85" />
+        </div>
+
+        <!-- OpenAI / GPT-OSS -->
+        <div class="w-4 h-4 flex items-center justify-center opacity-80 hover:opacity-100 transition-opacity cursor-default" title="GPT-OSS / OpenAI">
+          <img src="/icons/openai.svg" alt="GPT-OSS" class="w-full h-full object-contain filter invert opacity-85" />
+        </div>
+
+        <!-- Arch Linux PRoot -->
+        <div class="w-4 h-4 flex items-center justify-center opacity-80 hover:opacity-100 transition-opacity cursor-default" title="Arch Linux PRoot">
+          <img src="/icons/archlinux.svg" alt="Arch Linux" class="w-full h-full object-contain filter invert opacity-85" />
+        </div>
+
+        <!-- Android OS -->
+        <div class="w-4 h-4 flex items-center justify-center opacity-80 hover:opacity-100 transition-opacity cursor-default" title="Android OS">
+          <img src="/icons/android.svg" alt="Android" class="w-full h-full object-contain filter invert opacity-85" />
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<script>
+  const tabButtons = document.querySelectorAll('.install-tab-btn');
+  const commandText = document.getElementById('install-command-text');
+  const copyBtn = document.getElementById('copy-install-btn');
+  const copyBtnText = document.getElementById('copy-btn-text');
+
+  const tabCommands: Record<string, string> = {
+    curl: 'curl -fsSL https://syntac.com/install | sh',
+    apk: 'https://github.com/DraxonV1/Syntac/releases/download/v0.1.1-beta.2/syntac-arm64.apk',
+    stable: 'https://github.com/DraxonV1/Syntac/releases/download/v0.1.1-beta.2/syntac-arm64.apk',
+    nightly: 'https://github.com/DraxonV1/Syntac/releases/download/v0.1.1-beta.2/syntac-arm64.apk',
+    termux: 'printf "allow-external-apps=true\\n" >> ~/.termux/termux.properties && termux-reload-settings'
+  };
+
+  tabButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const tab = btn.getAttribute('data-tab');
+      if (!tab || !tabCommands[tab]) return;
+
+      tabButtons.forEach((b) => {
+        b.classList.remove('text-[#F8FAFF]', 'border-[#6684FF]');
+        b.classList.add('text-[#4E5666]', 'border-transparent');
+      });
+
+      btn.classList.add('text-[#F8FAFF]', 'border-[#6684FF]');
+      btn.classList.remove('text-[#4E5666]', 'border-transparent');
+
+      if (commandText) commandText.innerText = tabCommands[tab];
+    });
+  });
+
+  copyBtn?.addEventListener('click', async () => {
+    if (!commandText || !copyBtnText) return;
+    await navigator.clipboard.writeText(commandText.innerText.trim());
+    copyBtnText.innerText = '✓ COPIED';
+    setTimeout(() => {
+      copyBtnText.innerText = 'COPY';
+    }, 2000);
+  });
+</script>

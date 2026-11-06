@@ -1,0 +1,135 @@
+---
+import { APP_CONFIG } from '../data/appData';
+import { Download, Github, Sparkles, Menu, X } from 'lucide-astro';
+---
+
+<header class="sticky top-0 z-50 w-full backdrop-blur-xl bg-[#05070C]/80 border-b border-[#8296DC]/12 transition-all">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="flex items-center justify-between h-16 sm:h-18">
+      
+      <!-- Brand Logo -->
+      <a href="/" class="flex items-center gap-3 group focus:outline-none">
+        <div class="relative w-9 h-9 rounded-xl bg-gradient-to-br from-[#141F33] to-[#080C14] border border-[#8296DC]/25 flex items-center justify-center p-1.5 shadow-md shadow-[#6684FF]/10 group-hover:border-[#6684FF]/60 transition-colors">
+          <img src="/syntac-logo.png" alt="Syntac Logo" class="w-full h-full object-contain" />
+          <div class="absolute inset-0 rounded-xl bg-[#6684FF]/15 opacity-0 group-hover:opacity-100 transition-opacity blur-xs"></div>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="font-bold text-lg tracking-tight text-[#F8FAFF] group-hover:text-white transition-colors">
+            {APP_CONFIG.name}
+          </span>
+          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-[#6684FF]/15 text-[#91A7FF] border border-[#6684FF]/30">
+            <Sparkles class="w-2.5 h-2.5 text-[#6684FF]" />
+            v{APP_CONFIG.currentVersion}
+          </span>
+        </div>
+      </a>
+
+      <!-- Desktop Navigation Links -->
+      <nav class="hidden md:flex items-center gap-8 text-sm font-medium text-[#8E99AA]">
+        <a href="/#features" class="hover:text-[#F8FAFF] transition-colors">Features</a>
+        <a href="/#runtime" class="hover:text-[#F8FAFF] transition-colors">Arch Runtime</a>
+        <a href="/#tools" class="hover:text-[#F8FAFF] transition-colors">Agent Tools</a>
+        <a href="/download" class="hover:text-[#F8FAFF] transition-colors">Releases</a>
+        <a href="/#faq" class="hover:text-[#F8FAFF] transition-colors">FAQ</a>
+      </nav>
+
+      <!-- Action Buttons -->
+      <div class="hidden sm:flex items-center gap-3">
+        <a
+          href={APP_CONFIG.repoUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium text-[#8E99AA] hover:text-[#F8FAFF] hover:bg-[#141F33]/60 border border-transparent hover:border-[#8296DC]/20 transition-all"
+          aria-label="GitHub Repository"
+        >
+          <Github class="w-4 h-4" />
+          <span>GitHub</span>
+        </a>
+
+        <a
+          href="/download"
+          class="glow-btn relative inline-flex items-center justify-center gap-2 px-4.5 py-2 rounded-xl text-xs font-bold text-white bg-[#6684FF] hover:bg-[#91A7FF] shadow-md shadow-[#6684FF]/25 hover:shadow-[#6684FF]/40 border border-[#91A7FF]/30 transition-all duration-200 active:scale-95"
+        >
+          <Download class="w-3.5 h-3.5" />
+          <span>Download APK</span>
+        </a>
+      </div>
+
+      <!-- Mobile Menu Toggle Button -->
+      <div class="flex md:hidden items-center gap-2">
+        <a
+          href="/download"
+          class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-[#6684FF]"
+        >
+          <Download class="w-3 h-3" />
+          <span>APK</span>
+        </a>
+        <button
+          id="mobile-menu-button"
+          type="button"
+          class="p-2 rounded-xl text-[#8E99AA] hover:text-[#F8FAFF] hover:bg-[#141F33] focus:outline-none"
+          aria-label="Toggle navigation menu"
+          aria-expanded="false"
+        >
+          <Menu id="icon-menu" class="w-6 h-6" />
+          <X id="icon-close" class="w-6 h-6 hidden" />
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Mobile Dropdown Menu -->
+  <div id="mobile-menu" class="hidden md:hidden border-b border-[#8296DC]/15 bg-[#080C14]/98 backdrop-blur-2xl px-5 pt-3 pb-6 space-y-3">
+    <a href="/#features" class="block px-3 py-2 rounded-lg text-base font-medium text-[#8E99AA] hover:text-white hover:bg-[#141F33]">Features</a>
+    <a href="/#runtime" class="block px-3 py-2 rounded-lg text-base font-medium text-[#8E99AA] hover:text-white hover:bg-[#141F33]">Arch Runtime</a>
+    <a href="/#tools" class="block px-3 py-2 rounded-lg text-base font-medium text-[#8E99AA] hover:text-white hover:bg-[#141F33]">Agent Tools</a>
+    <a href="/download" class="block px-3 py-2 rounded-lg text-base font-medium text-[#8E99AA] hover:text-white hover:bg-[#141F33]">Releases & Download</a>
+    <a href="/#faq" class="block px-3 py-2 rounded-lg text-base font-medium text-[#8E99AA] hover:text-white hover:bg-[#141F33]">FAQ</a>
+    
+    <div class="pt-3 border-t border-[#8296DC]/10 flex flex-col gap-2">
+      <a
+        href={APP_CONFIG.repoUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        class="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-medium text-[#8E99AA] bg-[#0D1420] border border-[#8296DC]/20"
+      >
+        <Github class="w-4 h-4" />
+        <span>View GitHub Source</span>
+      </a>
+      <a
+        href="/download"
+        class="flex items-center justify-center gap-2 w-full py-3 rounded-xl text-sm font-bold text-white bg-[#6684FF] shadow-lg shadow-[#6684FF]/25"
+      >
+        <Download class="w-4 h-4" />
+        <span>Download APK (v{APP_CONFIG.currentVersion})</span>
+      </a>
+    </div>
+  </div>
+</header>
+
+<script>
+  const menuButton = document.getElementById('mobile-menu-button');
+  const mobileMenu = document.getElementById('mobile-menu');
+  const iconMenu = document.getElementById('icon-menu');
+  const iconClose = document.getElementById('icon-close');
+
+  if (menuButton && mobileMenu) {
+    menuButton.addEventListener('click', () => {
+      const isExpanded = menuButton.getAttribute('aria-expanded') === 'true';
+      menuButton.setAttribute('aria-expanded', String(!isExpanded));
+      mobileMenu.classList.toggle('hidden');
+      iconMenu?.classList.toggle('hidden');
+      iconClose?.classList.toggle('hidden');
+    });
+
+    mobileMenu.querySelectorAll('a').forEach((link) => {
+      link.addEventListener('click', () => {
+        mobileMenu.classList.add('hidden');
+        menuButton.setAttribute('aria-expanded', 'false');
+        iconMenu?.classList.remove('hidden');
+        iconClose?.classList.add('hidden');
+      });
+    });
+  }
+</script>

@@ -1,0 +1,23 @@
+---
+import { APP_CONFIG } from '../data/appData';
+const currentYear = new Date().getFullYear();
+---
+
+<footer class="relative z-10 bg-transparent text-[#4E5666] py-10 font-mono text-[11px] uppercase tracking-[0.22em]">
+  <div class="max-w-7xl mx-auto px-6 sm:px-10 lg:px-14 flex items-center justify-between">
+    
+    <!-- Brand / Author (Exact Stencil style) -->
+    <a href={APP_CONFIG.repoUrl} target="_blank" rel="noopener noreferrer" class="flex items-center gap-2 text-[#8E99AA] hover:text-[#F8FAFF] transition-colors">
+      <div class="w-4 h-4 rounded bg-[#0D1420] border border-white/15 flex items-center justify-center p-0.5">
+        <img src="/syntac-logo.png" alt="Syntac" class="w-full h-full object-contain" />
+      </div>
+      <span class="font-bold tracking-normal font-sans text-sm">{APP_CONFIG.developer}</span>
+    </a>
+
+    <!-- Bottom Right Stamp -->
+    <div class="px-3 py-1 rounded bg-[#08080C] border border-white/10 text-[10px] text-[#4E5666] tracking-[0.25em]">
+      {APP_CONFIG.developer.toUpperCase()}, INC. © {currentYear}
+    </div>
+
+  </div>
+</footer>
