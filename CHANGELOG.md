@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.1.4
+
+WebReader engine update with anti-bot rotation, specialized scrapers, and Jina fallback.
+
+### Added
+
+- WebReader engine with rotating browser User-Agent headers to avoid bot blocks.
+- Specialized scrapers for GitHub (raw files and READMEs), pub.dev packages, Wikipedia summaries, and arXiv abstracts.
+- Dynamic Jina reader fallback (`https://r.jina.ai/<url>`) for client-rendered JavaScript SPAs and blocked sites.
+- Inline URL line-range selectors (`:N-M`, `:N`, `:-N`, `:raw`).
+
+### Release metadata
+
+- Android package: `com.syntac`
+- Version: `0.1.4`
+- Version code: `22`
+- Default update channel: `stable`
+
 ## 0.1.3
 
 Code discovery, search, PDF, and bulk reading update.

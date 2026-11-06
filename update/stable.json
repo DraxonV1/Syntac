@@ -7,6 +7,9 @@
   "mandatory": false,
   "minSupportedVersionCode": 0,
   "notes": [
+    "WebReader engine rotates browser User-Agents and provides specialized scrapers for GitHub, pub.dev, Wikipedia, and arXiv",
+    "Dynamic Jina reader fallback enables reading JavaScript SPAs and protected web documentation",
+    "Read tool supports inline URL line selectors (:N-M, :N, :-N, :raw)",
     "Grep and Find tools provide fast regex search and semantic behavior search across project files",
     "Read, Search, and Grep tools auto-parse and extract text from binary compressed PDFs",
     "Read tool supports bulk multi-file reading with snapshot headers and line numbering",
